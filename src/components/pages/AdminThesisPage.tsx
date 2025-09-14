@@ -11,7 +11,12 @@ import {
   Eye,
   EyeOff,
   Save,
-  ArrowLeft
+  ArrowLeft,
+  RefreshCw,
+  Download,
+  Trash2,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -22,69 +27,88 @@ interface JuryMember {
   role: string;
 }
 
+interface ThesisItem {
+  id: string;
+  filename: string;
+  status: 'loading' | 'extracting' | 'ready' | 'error';
+  progress: number;
+  extractedData?: Partial<typeof initialFormData>;
+}
+
+const initialFormData = {
+  title: '',
+  author: '',
+  director: '',
+  coDirector: '',
+  institution: '',
+  faculty: '',
+  discipline: '',
+  subDiscipline: '',
+  year: '',
+  language: 'fr',
+  keywords: '',
+  abstract: '',
+  defendedDate: '',
+  pages: '',
+  status: 'pending'
+};
+
 export default function AdminThesisPage() {
   const [showPdfViewer, setShowPdfViewer] = useState(true);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string>('');
+  const [selectedTheses, setSelectedTheses] = useState<string[]>([]);
+  const [bulkTheses, setBulkTheses] = useState<ThesisItem[]>([]);
+  const [currentThesis, setCurrentThesis] = useState<string | null>(null);
+  
   const [juryMembers, setJuryMembers] = useState<JuryMember[]>([
     { id: '1', name: '', institution: '', role: 'Président' }
   ]);
   
-  const [formData, setFormData] = useState({
-    title: '',
-    author: '',
-    director: '',
-    coDirector: '',
-    institution: '',
-    faculty: '',
-    discipline: '',
-    subDiscipline: '',
-    year: '',
-    language: 'fr',
-    keywords: '',
-    abstract: '',
-    defendedDate: '',
-    pages: '',
-    status: 'pending'
-  });
+  const [formData, setFormData] = useState(initialFormData);
 
-  // Moroccan universities faculties
-  const faculties = [
-    'Faculté de Médecine et de Pharmacie',
-    'Faculté des Sciences',
-    'Faculté des Sciences Juridiques, Économiques et Sociales',
-    'Faculté des Lettres et des Sciences Humaines',
-    'École Nationale Supérieure d\'Informatique et d\'Analyse des Systèmes',
-    'École Mohammadia d\'Ingénieurs',
-    'Faculté des Sciences de l\'Éducation',
-    'École Nationale de Commerce et de Gestion',
-    'École Supérieure de Technologie',
-    'Faculté Polydisciplinaire'
-  ];
+  // 3 Universities with their faculties
+  const universitiesData = {
+    'Université Mohammed V - Rabat': [
+      'Faculté de Médecine et de Pharmacie',
+      'Faculté des Sciences',
+      'Faculté des Sciences Juridiques, Économiques et Sociales',
+      'Faculté des Lettres et des Sciences Humaines',
+      'École Mohammadia d\'Ingénieurs'
+    ],
+    'Université Hassan II - Casablanca': [
+      'Faculté de Médecine et de Pharmacie',
+      'Faculté des Sciences',
+      'Faculté des Sciences Juridiques, Économiques et Sociales',
+      'École Nationale Supérieure d\'Informatique et d\'Analyse des Systèmes',
+      'École Nationale de Commerce et de Gestion'
+    ],
+    'Université Cadi Ayyad - Marrakech': [
+      'Faculté de Médecine et de Pharmacie',
+      'Faculté des Sciences',
+      'Faculté des Sciences Juridiques, Économiques et Sociales',
+      'Faculté des Lettres et des Sciences Humaines',
+      'École Supérieure de Technologie'
+    ]
+  };
 
-  // Disciplines and sub-disciplines mapping
+  // 3 Disciplines with sub-disciplines
   const disciplinesMap = {
     'Médecine': [
       'Médecine Interne',
-      'Chirurgie',
+      'Chirurgie Générale',
       'Pédiatrie',
-      'Gynécologie-Obstétrique',
       'Cardiologie',
       'Neurologie',
-      'Psychiatrie',
-      'Radiologie',
-      'Anesthésie-Réanimation',
-      'Médecine d\'Urgence'
+      'Radiologie'
     ],
     'Sciences': [
       'Mathématiques',
       'Physique',
       'Chimie',
       'Biologie',
-      'Géologie',
       'Informatique',
-      'Sciences de la Terre',
-      'Sciences de l\'Environnement'
+      'Géologie'
     ],
     'Sciences Juridiques': [
       'Droit Public',
@@ -93,32 +117,6 @@ export default function AdminThesisPage() {
       'Droit des Affaires',
       'Droit Pénal',
       'Droit Constitutionnel'
-    ],
-    'Économie': [
-      'Économie et Gestion',
-      'Finance',
-      'Marketing',
-      'Management',
-      'Comptabilité',
-      'Économie Internationale'
-    ],
-    'Lettres': [
-      'Littérature Arabe',
-      'Littérature Française',
-      'Linguistique',
-      'Histoire',
-      'Géographie',
-      'Philosophie',
-      'Sociologie',
-      'Anthropologie'
-    ],
-    'Ingénierie': [
-      'Génie Civil',
-      'Génie Électrique',
-      'Génie Mécanique',
-      'Génie Informatique',
-      'Génie Industriel',
-      'Génie des Procédés'
     ]
   };
 
@@ -130,16 +128,65 @@ export default function AdminThesisPage() {
     'Co-directeur'
   ];
 
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Get all institutions (universities + faculties)
+  const getAllInstitutions = () => {
+    const institutions: string[] = [];
+    Object.entries(universitiesData).forEach(([university, faculties]) => {
+      institutions.push(university);
+      faculties.forEach(faculty => {
+        institutions.push(`${faculty} - ${university}`);
+      });
+    });
+    return institutions;
+  };
+
+  const handleBulkFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      const newTheses: ThesisItem[] = files.map(file => ({
+        id: Date.now().toString() + Math.random(),
+        filename: file.name,
+        status: 'loading',
+        progress: 0
+      }));
+
+      setBulkTheses(prev => [...prev, ...newTheses]);
+
+      // Simulate processing
+      newTheses.forEach((thesis, index) => {
+        setTimeout(() => {
+          setBulkTheses(prev => prev.map(t => 
+            t.id === thesis.id ? { ...t, status: 'extracting', progress: 25 } : t
+          ));
+
+          setTimeout(() => {
+            setBulkTheses(prev => prev.map(t => 
+              t.id === thesis.id ? { 
+                ...t, 
+                status: 'ready', 
+                progress: 100,
+                extractedData: {
+                  title: `Titre extrait de ${thesis.filename}`,
+                  author: 'Auteur détecté',
+                  pages: '287'
+                }
+              } : t
+            ));
+          }, 2000);
+        }, index * 500);
+      });
+    }
+  };
+
+  const handleSingleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setUploadedFile(file);
       
-      // Create URL for PDF preview
       const url = URL.createObjectURL(file);
       setPdfUrl(url);
       
-      // Auto-extract metadata (simulation)
+      // Auto-extract metadata
       setTimeout(() => {
         setFormData(prev => ({
           ...prev,
@@ -181,9 +228,110 @@ export default function AdminThesisPage() {
     ));
   };
 
+  const toggleThesisSelection = (id: string) => {
+    setSelectedTheses(prev => 
+      prev.includes(id) 
+        ? prev.filter(thesisId => thesisId !== id)
+        : [...prev, id]
+    );
+  };
+
+  const selectAllTheses = () => {
+    const readyTheses = bulkTheses.filter(t => t.status === 'ready').map(t => t.id);
+    setSelectedTheses(readyTheses);
+  };
+
+  const deselectAllTheses = () => {
+    setSelectedTheses([]);
+  };
+
+  const deleteSelectedTheses = () => {
+    setBulkTheses(prev => prev.filter(t => !selectedTheses.includes(t.id)));
+    setSelectedTheses([]);
+  };
+
+  const loadThesisData = (thesis: ThesisItem) => {
+    if (thesis.extractedData) {
+      setFormData(prev => ({ ...prev, ...thesis.extractedData }));
+      setCurrentThesis(thesis.id);
+    }
+  };
+
+  const replaceFile = (thesisId: string) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        setBulkTheses(prev => prev.map(t => 
+          t.id === thesisId 
+            ? { ...t, filename: file.name, status: 'loading', progress: 0 }
+            : t
+        ));
+        
+        // Simulate re-processing
+        setTimeout(() => {
+          setBulkTheses(prev => prev.map(t => 
+            t.id === thesisId 
+              ? { ...t, status: 'extracting', progress: 50 }
+              : t
+          ));
+          
+          setTimeout(() => {
+            setBulkTheses(prev => prev.map(t => 
+              t.id === thesisId 
+                ? { 
+                    ...t, 
+                    status: 'ready', 
+                    progress: 100,
+                    extractedData: {
+                      title: `Nouveau titre de ${file.name}`,
+                      author: 'Nouvel auteur',
+                      pages: '312'
+                    }
+                  }
+                : t
+            ));
+          }, 1500);
+        }, 1000);
+      }
+    };
+    input.click();
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'loading':
+        return <RefreshCw className="w-4 h-4 text-blue-500 animate-spin" />;
+      case 'extracting':
+        return <RefreshCw className="w-4 h-4 text-amber-500 animate-spin" />;
+      case 'ready':
+        return <Check className="w-4 h-4 text-green-500" />;
+      case 'error':
+        return <AlertCircle className="w-4 h-4 text-red-500" />;
+      default:
+        return null;
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'loading':
+        return 'Chargement...';
+      case 'extracting':
+        return 'Extraction...';
+      case 'ready':
+        return 'Prêt';
+      case 'error':
+        return 'Erreur';
+      default:
+        return status;
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission
     console.log('Form data:', formData);
     console.log('Jury members:', juryMembers);
   };
@@ -202,6 +350,123 @@ export default function AdminThesisPage() {
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">Administration des thèses</h1>
           <p className="text-gray-600 mt-2">Gérer les métadonnées et valider les thèses</p>
+        </div>
+
+        {/* Bulk Upload Section */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Chargement en lot</h2>
+          
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <input
+                type="file"
+                multiple
+                accept=".pdf"
+                onChange={handleBulkFileUpload}
+                className="hidden"
+                id="bulk-upload"
+              />
+              <label
+                htmlFor="bulk-upload"
+                className="inline-flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 cursor-pointer"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Charger plusieurs PDFs</span>
+              </label>
+            </div>
+
+            {bulkTheses.length > 0 && (
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={selectAllTheses}
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
+                  Tout sélectionner
+                </button>
+                <button
+                  onClick={deselectAllTheses}
+                  className="text-sm text-gray-600 hover:text-gray-800"
+                >
+                  Tout désélectionner
+                </button>
+                {selectedTheses.length > 0 && (
+                  <button
+                    onClick={deleteSelectedTheses}
+                    className="flex items-center space-x-1 text-sm text-red-600 hover:text-red-800"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Supprimer ({selectedTheses.length})</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {bulkTheses.length > 0 && (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {bulkTheses.map((thesis) => (
+                <div
+                  key={thesis.id}
+                  className={`flex items-center space-x-3 p-3 border rounded-lg ${
+                    currentThesis === thesis.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                  }`}
+                >
+                  <button
+                    onClick={() => toggleThesisSelection(thesis.id)}
+                    className="text-gray-400 hover:text-gray-600"
+                    disabled={thesis.status !== 'ready'}
+                  >
+                    {selectedTheses.includes(thesis.id) ? 
+                      <CheckSquare className="w-4 h-4 text-blue-600" /> : 
+                      <Square className="w-4 h-4" />
+                    }
+                  </button>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center space-x-2">
+                      {getStatusIcon(thesis.status)}
+                      <span className="font-medium text-gray-900 truncate">{thesis.filename}</span>
+                      <span className="text-sm text-gray-500">({getStatusText(thesis.status)})</span>
+                    </div>
+                    
+                    {thesis.status !== 'ready' && (
+                      <div className="mt-1">
+                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                            style={{ width: `${thesis.progress}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    {thesis.status === 'ready' && (
+                      <button
+                        onClick={() => loadThesisData(thesis)}
+                        className="text-blue-600 hover:text-blue-800 text-sm"
+                      >
+                        Charger
+                      </button>
+                    )}
+                    <button
+                      onClick={() => replaceFile(thesis.id)}
+                      className="text-gray-600 hover:text-gray-800"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setBulkTheses(prev => prev.filter(t => t.id !== thesis.id))}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -228,7 +493,7 @@ export default function AdminThesisPage() {
                   <input
                     type="file"
                     accept=".pdf"
-                    onChange={handleFileInput}
+                    onChange={handleSingleFileInput}
                     className="hidden"
                     id="pdf-upload"
                   />
@@ -343,11 +608,9 @@ export default function AdminThesisPage() {
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Sélectionnez une institution</option>
-                      <option value="ump_oujda">Université Mohammed Premier (Oujda)</option>
-                      <option value="uh2_casa">Université Hassan II (Casablanca)</option>
-                      <option value="um5_rabat">Université Mohammed V (Rabat)</option>
-                      <option value="uca_marrakech">Université Cadi Ayyad (Marrakech)</option>
-                      <option value="uit_kenitra">Université Ibn Tofail (Kénitra)</option>
+                      {Object.keys(universitiesData).map(university => (
+                        <option key={university} value={university}>{university}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -360,9 +623,10 @@ export default function AdminThesisPage() {
                       value={formData.faculty}
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={!formData.institution}
                     >
                       <option value="">Sélectionnez une faculté</option>
-                      {faculties.map(faculty => (
+                      {formData.institution && universitiesData[formData.institution as keyof typeof universitiesData]?.map(faculty => (
                         <option key={faculty} value={faculty}>{faculty}</option>
                       ))}
                     </select>
@@ -481,7 +745,7 @@ export default function AdminThesisPage() {
                       className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Plus className="w-4 h-4" />
-                      <span>Ajouter</span>
+                      <span>Ajouter ({juryMembers.length}/10)</span>
                     </button>
                   </div>
 
@@ -503,7 +767,7 @@ export default function AdminThesisPage() {
                           )}
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="space-y-3">
                           <div>
                             <input
                               type="text"
@@ -513,25 +777,30 @@ export default function AdminThesisPage() {
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                             />
                           </div>
-                          <div>
-                            <input
-                              type="text"
-                              placeholder="Institution"
-                              value={member.institution}
-                              onChange={(e) => updateJuryMember(member.id, 'institution', e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                            />
-                          </div>
-                          <div>
-                            <select
-                              value={member.role}
-                              onChange={(e) => updateJuryMember(member.id, 'role', e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                            >
-                              {juryRoles.map(role => (
-                                <option key={role} value={role}>{role}</option>
-                              ))}
-                            </select>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <select
+                                value={member.institution}
+                                onChange={(e) => updateJuryMember(member.id, 'institution', e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                              >
+                                <option value="">Sélectionnez une institution</option>
+                                {getAllInstitutions().map(institution => (
+                                  <option key={institution} value={institution}>{institution}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <select
+                                value={member.role}
+                                onChange={(e) => updateJuryMember(member.id, 'role', e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                              >
+                                {juryRoles.map(role => (
+                                  <option key={role} value={role}>{role}</option>
+                                ))}
+                              </select>
+                            </div>
                           </div>
                         </div>
                       </div>
