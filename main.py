@@ -1392,6 +1392,7 @@ class ThesisUpdate(BaseModel):
     secondary_language_ids: Optional[List[UUID4]] = None
     page_count: Optional[int] = Field(None, ge=1)
     status: Optional[ThesisStatus] = None
+    rejection_reason: Optional[str] = None
 
 class ThesisResponse(ThesisBase):
     id: UUID4
@@ -4045,30 +4046,490 @@ async def get_school_departments(
 # =============================================================================
 
 @app.get("/admin/departments", response_model=PaginatedResponse, tags=["Admin - Departments"])
+async def get_admin_departments(
+    request: Request,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None),
+    university_id: Optional[str] = Query(None),
+    faculty_id: Optional[str] = Query(None),
+    school_id: Optional[str] = Query(None),
+    order_by: str = Query("name_fr"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$"),
+    admin_user: dict = Depends(get_admin_user)
+):
+    try:
+        base_query = """
+            SELECT d.*, f.name_fr AS faculty_name, s.name_fr AS school_name
+            FROM departments d
+            LEFT JOIN faculties f ON d.faculty_id = f.id
+            LEFT JOIN schools s ON d.school_id = s.id
+            WHERE 1=1
+        """
+        count_query = "SELECT COUNT(*) AS total FROM departments d WHERE 1=1"
+        params = []
+        count_params = []
+
+        if search:
+            cond = " AND (LOWER(d.name_fr) LIKE LOWER(%s) OR LOWER(d.name_en) LIKE LOWER(%s))"
+            base_query += cond
+            count_query += cond
+            like = f"%{search}%"
+            params.extend([like, like])
+            count_params.extend([like, like])
+
+        if university_id:
+            cond = " AND f.university_id = %s"
+            base_query += cond
+            count_query += cond
+            params.append(university_id)
+            count_params.append(university_id)
+
+        if faculty_id:
+            cond = " AND d.faculty_id = %s"
+            base_query += cond
+            count_query += cond
+            params.append(faculty_id)
+            count_params.append(faculty_id)
+
+        if school_id:
+            cond = " AND d.school_id = %s"
+            base_query += cond
+            count_query += cond
+            params.append(school_id)
+            count_params.append(school_id)
+
+        allowed = ["name_fr", "created_at", "updated_at"]
+        if order_by not in allowed:
+            order_by = "name_fr"
+
+        offset = (page - 1) * limit
+        base_query += f" ORDER BY d.{order_by} {order_dir.upper()} LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+
+        total = execute_query(count_query, count_params, fetch_one=True)["total"]
+        rows = execute_query_with_result(base_query, params)
+        data = [
+            {
+                "id": str(r["id"]),
+                "faculty_id": str(r["faculty_id"]) if r["faculty_id"] else None,
+                "school_id": str(r["school_id"]) if r["school_id"] else None,
+                "name_fr": r["name_fr"],
+                "name_en": r["name_en"],
+                "name_ar": r["name_ar"],
+                "acronym": r["acronym"],
+                "created_at": r["created_at"],
+                "updated_at": r["updated_at"]
+            }
+            for r in rows
+        ]
+
+        pages = (total + limit - 1) // limit
+        return PaginatedResponse(success=True, data=data, meta=PaginationMeta(total=total, page=page, limit=limit, pages=pages))
+    except Exception as e:
+        logger.error(f"Error listing departments: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch departments")
+
 @app.post("/admin/departments", response_model=DepartmentResponse, tags=["Admin - Departments"])
+async def create_department(
+    request: Request,
+    body: DepartmentCreate,
+    admin_user: dict = Depends(get_admin_user)
+):
+    try:
+        new_id = str(uuid.uuid4())
+        q = """
+            INSERT INTO departments (id, faculty_id, school_id, name_fr, name_en, name_ar, acronym)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING *
+        """
+        row = execute_query(q, (
+            new_id,
+            str(body.faculty_id) if body.faculty_id else None,
+            str(body.school_id) if body.school_id else None,
+            body.name_fr,
+            body.name_en,
+            body.name_ar,
+            body.acronym,
+        ), fetch_one=True)
+        return DepartmentResponse(
+            id=row["id"],
+            faculty_id=row["faculty_id"],
+            school_id=row["school_id"],
+            name_fr=row["name_fr"],
+            name_en=row["name_en"],
+            name_ar=row["name_ar"],
+            acronym=row["acronym"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
+    except Exception as e:
+        logger.error(f"Error creating department: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create department")
+
 @app.get("/admin/departments/{department_id}", response_model=DepartmentResponse, tags=["Admin - Departments"])
+async def get_department(
+    request: Request,
+    department_id: str,
+    admin_user: dict = Depends(get_admin_user)
+):
+    row = execute_query("SELECT * FROM departments WHERE id = %s", (department_id,), fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
+    return DepartmentResponse(
+        id=row["id"],
+        faculty_id=row["faculty_id"],
+        school_id=row["school_id"],
+        name_fr=row["name_fr"],
+        name_en=row["name_en"],
+        name_ar=row["name_ar"],
+        acronym=row["acronym"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
 @app.put("/admin/departments/{department_id}", response_model=DepartmentResponse, tags=["Admin - Departments"])
+async def update_department(
+    request: Request,
+    department_id: str,
+    body: DepartmentUpdate,
+    admin_user: dict = Depends(get_admin_user)
+):
+    # Build dynamic update
+    fields = []
+    params = []
+    mapping = {
+        "faculty_id": str(body.faculty_id) if body.faculty_id else None,
+        "school_id": str(body.school_id) if body.school_id else None,
+        "name_fr": body.name_fr,
+        "name_en": body.name_en,
+        "name_ar": body.name_ar,
+        "acronym": body.acronym,
+    }
+    for k, v in mapping.items():
+        if v is not None:
+            fields.append(f"{k} = %s")
+            params.append(v)
+    if not fields:
+        return await get_department(request, department_id, admin_user)  # type: ignore
+    fields.append("updated_at = %s")
+    params.append(datetime.utcnow())
+    params.append(department_id)
+    q = f"UPDATE departments SET {', '.join(fields)} WHERE id = %s RETURNING *"
+    row = execute_query(q, params, fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
+    return DepartmentResponse(
+        id=row["id"],
+        faculty_id=row["faculty_id"],
+        school_id=row["school_id"],
+        name_fr=row["name_fr"],
+        name_en=row["name_en"],
+        name_ar=row["name_ar"],
+        acronym=row["acronym"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
 @app.delete("/admin/departments/{department_id}", response_model=BaseResponse, tags=["Admin - Departments"])
+async def delete_department(
+    request: Request,
+    department_id: str,
+    admin_user: dict = Depends(get_admin_user)
+):
+    # Check usages
+    count = execute_query("SELECT COUNT(*) AS c FROM theses WHERE department_id = %s", (department_id,), fetch_one=True)
+    if count and count.get("c", 0) > 0:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cannot delete: department has theses")
+    rows = execute_query("DELETE FROM departments WHERE id = %s", (department_id,))
+    if rows == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
+    return BaseResponse(success=True, message="Department deleted")
 
 # Categories
 # =============================================================================
 
 @app.get("/admin/categories", response_model=PaginatedResponse, tags=["Admin - Categories"])
+async def get_admin_categories(
+    request: Request,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None),
+    parent_id: Optional[str] = Query(None),
+    admin_user: dict = Depends(get_admin_user)
+):
+    try:
+        base = "SELECT * FROM categories WHERE 1=1"
+        count = "SELECT COUNT(*) AS total FROM categories WHERE 1=1"
+        params = []
+        count_params = []
+        if search:
+            cond = " AND (LOWER(name_fr) LIKE LOWER(%s) OR LOWER(name_en) LIKE LOWER(%s))"
+            base += cond
+            count += cond
+            like = f"%{search}%"
+            params.extend([like, like])
+            count_params.extend([like, like])
+        if parent_id:
+            cond = " AND parent_id = %s"
+            base += cond
+            count += cond
+            params.append(parent_id)
+            count_params.append(parent_id)
+        total = execute_query(count, count_params, fetch_one=True)["total"]
+        offset = (page - 1) * limit
+        base += " ORDER BY level, name_fr LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+        rows = execute_query_with_result(base, params)
+        data = [
+            {
+                "id": str(r["id"]),
+                "parent_id": str(r["parent_id"]) if r["parent_id"] else None,
+                "level": r["level"],
+                "code": r["code"],
+                "name_fr": r["name_fr"],
+                "name_en": r["name_en"],
+                "name_ar": r["name_ar"],
+                "created_at": r["created_at"],
+                "updated_at": r["updated_at"],
+            }
+            for r in rows
+        ]
+        pages = (total + limit - 1) // limit
+        return PaginatedResponse(success=True, data=data, meta=PaginationMeta(total=total, page=page, limit=limit, pages=pages))
+    except Exception as e:
+        logger.error(f"Error listing categories: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch categories")
+
 @app.post("/admin/categories", response_model=CategoryResponse, tags=["Admin - Categories"])
+async def create_category(request: Request, body: CategoryCreate, admin_user: dict = Depends(get_admin_user)):
+    row = execute_query(
+        """
+        INSERT INTO categories (id, parent_id, level, code, name_fr, name_en, name_ar)
+        VALUES (gen_random_uuid(), %s, %s, %s, %s, %s, %s) RETURNING *
+        """,
+        (
+            str(body.parent_id) if body.parent_id else None,
+            body.level,
+            body.code,
+            body.name_fr,
+            body.name_en,
+            body.name_ar,
+        ),
+        fetch_one=True,
+    )
+    return CategoryResponse(
+        id=row["id"],
+        parent_id=row["parent_id"],
+        level=row["level"],
+        code=row["code"],
+        name_fr=row["name_fr"],
+        name_en=row["name_en"],
+        name_ar=row["name_ar"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
 @app.get("/admin/categories/{category_id}", response_model=CategoryResponse, tags=["Admin - Categories"])
+async def get_category(request: Request, category_id: str, admin_user: dict = Depends(get_admin_user)):
+    row = execute_query("SELECT * FROM categories WHERE id = %s", (category_id,), fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    return CategoryResponse(
+        id=row["id"],
+        parent_id=row["parent_id"],
+        level=row["level"],
+        code=row["code"],
+        name_fr=row["name_fr"],
+        name_en=row["name_en"],
+        name_ar=row["name_ar"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
 @app.put("/admin/categories/{category_id}", response_model=CategoryResponse, tags=["Admin - Categories"])
+async def update_category(request: Request, category_id: str, body: CategoryUpdate, admin_user: dict = Depends(get_admin_user)):
+    fields = []
+    params = []
+    mapping = {
+        "parent_id": str(body.parent_id) if body.parent_id else None,
+        "level": body.level,
+        "code": body.code,
+        "name_fr": body.name_fr,
+        "name_en": body.name_en,
+        "name_ar": body.name_ar,
+    }
+    for k, v in mapping.items():
+        if v is not None:
+            fields.append(f"{k} = %s")
+            params.append(v)
+    if not fields:
+        return await get_category(request, category_id, admin_user)  # type: ignore
+    fields.append("updated_at = %s")
+    params.append(datetime.utcnow())
+    params.append(category_id)
+    row = execute_query(f"UPDATE categories SET {', '.join(fields)} WHERE id = %s RETURNING *", params, fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    return CategoryResponse(
+        id=row["id"],
+        parent_id=row["parent_id"],
+        level=row["level"],
+        code=row["code"],
+        name_fr=row["name_fr"],
+        name_en=row["name_en"],
+        name_ar=row["name_ar"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
 @app.delete("/admin/categories/{category_id}", response_model=BaseResponse, tags=["Admin - Categories"])
+async def delete_category(request: Request, category_id: str, admin_user: dict = Depends(get_admin_user)):
+    used = execute_query("SELECT COUNT(*) AS c FROM thesis_categories WHERE category_id = %s", (category_id,), fetch_one=True)
+    if used and used.get("c", 0) > 0:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Category in use by theses")
+    rows = execute_query("DELETE FROM categories WHERE id = %s", (category_id,))
+    if rows == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    return BaseResponse(success=True, message="Category deleted")
+
 @app.get("/admin/categories/tree", response_model=List[Dict], tags=["Admin - Categories"])
+async def get_categories_tree(request: Request, admin_user: dict = Depends(get_admin_user)):
+    rows = execute_query_with_result("SELECT id, parent_id, code, name_fr, level FROM categories ORDER BY level, name_fr")
+    by_parent: Dict[Optional[str], List[Dict[str, Any]]] = {}
+    for r in rows:
+        pid = str(r["parent_id"]) if r["parent_id"] else None
+        node = {"id": str(r["id"]), "code": r["code"], "name_fr": r["name_fr"], "level": r["level"], "children": []}
+        by_parent.setdefault(pid, []).append(node)
+    def attach(parent_id: Optional[str]) -> List[Dict[str, Any]]:
+        children = by_parent.get(parent_id, [])
+        for ch in children:
+            ch["children"] = attach(ch["id"])
+        return children
+    return attach(None)
+
 @app.get("/admin/categories/{category_id}/subcategories", response_model=List[CategoryResponse], tags=["Admin - Categories"])
+async def get_subcategories(request: Request, category_id: str, admin_user: dict = Depends(get_admin_user)):
+    rows = execute_query_with_result("SELECT * FROM categories WHERE parent_id = %s ORDER BY name_fr", (category_id,))
+    return [CategoryResponse(
+        id=r["id"], parent_id=r["parent_id"], level=r["level"], code=r["code"], name_fr=r["name_fr"], name_en=r["name_en"], name_ar=r["name_ar"], created_at=r["created_at"], updated_at=r["updated_at"]
+    ) for r in rows]
 
 # Keywords
 # =============================================================================
 
 @app.get("/admin/keywords", response_model=PaginatedResponse, tags=["Admin - Keywords"])
+async def get_admin_keywords(
+    request: Request,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None),
+    category_id: Optional[str] = Query(None),
+    admin_user: dict = Depends(get_admin_user)
+):
+    base = "SELECT * FROM keywords WHERE 1=1"
+    count = "SELECT COUNT(*) AS total FROM keywords WHERE 1=1"
+    params: List[Any] = []
+    count_params: List[Any] = []
+    if search:
+        cond = " AND (LOWER(keyword_fr) LIKE LOWER(%s) OR LOWER(keyword_en) LIKE LOWER(%s))"
+        base += cond
+        count += cond
+        like = f"%{search}%"
+        params.extend([like, like])
+        count_params.extend([like, like])
+    if category_id:
+        cond = " AND category_id = %s"
+        base += cond
+        count += cond
+        params.append(category_id)
+        count_params.append(category_id)
+    total = execute_query(count, count_params, fetch_one=True)["total"]
+    offset = (page - 1) * limit
+    base += " ORDER BY keyword_fr LIMIT %s OFFSET %s"
+    params.extend([limit, offset])
+    rows = execute_query_with_result(base, params)
+    data = [
+        {
+            "id": str(r["id"]),
+            "parent_keyword_id": str(r["parent_keyword_id"]) if r["parent_keyword_id"] else None,
+            "keyword_fr": r["keyword_fr"],
+            "keyword_en": r["keyword_en"],
+            "keyword_ar": r["keyword_ar"],
+            "category_id": str(r["category_id"]) if r["category_id"] else None,
+            "created_at": r["created_at"],
+            "updated_at": r["updated_at"],
+        }
+        for r in rows
+    ]
+    pages = (total + limit - 1) // limit
+    return PaginatedResponse(success=True, data=data, meta=PaginationMeta(total=total, page=page, limit=limit, pages=pages))
+
 @app.post("/admin/keywords", response_model=KeywordResponse, tags=["Admin - Keywords"])
+async def create_keyword(request: Request, body: KeywordCreate, admin_user: dict = Depends(get_admin_user)):
+    row = execute_query(
+        """
+        INSERT INTO keywords (id, parent_keyword_id, keyword_en, keyword_fr, keyword_ar, category_id)
+        VALUES (gen_random_uuid(), %s, %s, %s, %s, %s) RETURNING *
+        """,
+        (
+            str(body.parent_keyword_id) if body.parent_keyword_id else None,
+            body.keyword_en,
+            body.keyword_fr,
+            body.keyword_ar,
+            str(body.category_id) if body.category_id else None,
+        ),
+        fetch_one=True,
+    )
+    return KeywordResponse(
+        id=row["id"], parent_keyword_id=row["parent_keyword_id"], keyword_en=row["keyword_en"], keyword_fr=row["keyword_fr"], keyword_ar=row["keyword_ar"], category_id=row["category_id"], created_at=row["created_at"], updated_at=row["updated_at"]
+    )
+
 @app.get("/admin/keywords/{keyword_id}", response_model=KeywordResponse, tags=["Admin - Keywords"])
+async def get_keyword(request: Request, keyword_id: str, admin_user: dict = Depends(get_admin_user)):
+    row = execute_query("SELECT * FROM keywords WHERE id = %s", (keyword_id,), fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Keyword not found")
+    return KeywordResponse(
+        id=row["id"], parent_keyword_id=row["parent_keyword_id"], keyword_en=row["keyword_en"], keyword_fr=row["keyword_fr"], keyword_ar=row["keyword_ar"], category_id=row["category_id"], created_at=row["created_at"], updated_at=row["updated_at"]
+    )
+
 @app.put("/admin/keywords/{keyword_id}", response_model=KeywordResponse, tags=["Admin - Keywords"])
+async def update_keyword(request: Request, keyword_id: str, body: KeywordUpdate, admin_user: dict = Depends(get_admin_user)):
+    fields = []
+    params = []
+    mapping = {
+        "parent_keyword_id": str(body.parent_keyword_id) if body.parent_keyword_id else None,
+        "keyword_en": body.keyword_en,
+        "keyword_fr": body.keyword_fr,
+        "keyword_ar": body.keyword_ar,
+        "category_id": str(body.category_id) if body.category_id else None,
+    }
+    for k, v in mapping.items():
+        if v is not None:
+            fields.append(f"{k} = %s")
+            params.append(v)
+    if not fields:
+        return await get_keyword(request, keyword_id, admin_user)  # type: ignore
+    fields.append("updated_at = %s")
+    params.append(datetime.utcnow())
+    params.append(keyword_id)
+    row = execute_query(f"UPDATE keywords SET {', '.join(fields)} WHERE id = %s RETURNING *", params, fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Keyword not found")
+    return KeywordResponse(
+        id=row["id"], parent_keyword_id=row["parent_keyword_id"], keyword_en=row["keyword_en"], keyword_fr=row["keyword_fr"], keyword_ar=row["keyword_ar"], category_id=row["category_id"], created_at=row["created_at"], updated_at=row["updated_at"]
+    )
+
 @app.delete("/admin/keywords/{keyword_id}", response_model=BaseResponse, tags=["Admin - Keywords"])
+async def delete_keyword(request: Request, keyword_id: str, admin_user: dict = Depends(get_admin_user)):
+    used = execute_query("SELECT COUNT(*) AS c FROM thesis_keywords WHERE keyword_id = %s", (keyword_id,), fetch_one=True)
+    if used and used.get("c", 0) > 0:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Keyword in use by theses")
+    rows = execute_query("DELETE FROM keywords WHERE id = %s", (keyword_id,))
+    if rows == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Keyword not found")
+    return BaseResponse(success=True, message="Keyword deleted")
 
 # Academic persons
 # =============================================================================
@@ -4819,29 +5280,346 @@ async def merge_academic_persons(
 # =============================================================================
 
 @app.get("/admin/degrees", response_model=PaginatedResponse, tags=["Admin - Degrees"])
+async def get_admin_degrees(
+    request: Request,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None),
+    admin_user: dict = Depends(get_admin_user)
+):
+    base = "SELECT * FROM degrees WHERE 1=1"
+    count = "SELECT COUNT(*) AS total FROM degrees WHERE 1=1"
+    params: List[Any] = []
+    count_params: List[Any] = []
+    if search:
+        cond = " AND (LOWER(name_fr) LIKE LOWER(%s) OR LOWER(name_en) LIKE LOWER(%s) OR LOWER(abbreviation) LIKE LOWER(%s))"
+        base += cond
+        count += cond
+        like = f"%{search}%"
+        params.extend([like, like, like])
+        count_params.extend([like, like, like])
+    total = execute_query(count, count_params, fetch_one=True)["total"]
+    offset = (page - 1) * limit
+    base += " ORDER BY name_fr LIMIT %s OFFSET %s"
+    params.extend([limit, offset])
+    rows = execute_query_with_result(base, params)
+    data = [
+        {
+            "id": str(r["id"]),
+            "name_en": r["name_en"],
+            "name_fr": r["name_fr"],
+            "name_ar": r["name_ar"],
+            "abbreviation": r["abbreviation"],
+            "type": r["type"],
+            "category": r["category"],
+            "created_at": r["created_at"],
+            "updated_at": r["updated_at"],
+        }
+        for r in rows
+    ]
+    pages = (total + limit - 1) // limit
+    return PaginatedResponse(success=True, data=data, meta=PaginationMeta(total=total, page=page, limit=limit, pages=pages))
+
 @app.post("/admin/degrees", response_model=DegreeResponse, tags=["Admin - Degrees"])
+async def create_degree(request: Request, body: DegreeCreate, admin_user: dict = Depends(get_admin_user)):
+    row = execute_query(
+        """
+        INSERT INTO degrees (id, name_en, name_fr, name_ar, abbreviation, type, category)
+        VALUES (gen_random_uuid(), %s, %s, %s, %s, %s, %s) RETURNING *
+        """,
+        (body.name_en, body.name_fr, body.name_ar, body.abbreviation, body.type.value, body.category.value if body.category else None),
+        fetch_one=True,
+    )
+    return DegreeResponse(
+        id=row["id"], name_en=row["name_en"], name_fr=row["name_fr"], name_ar=row["name_ar"], abbreviation=row["abbreviation"], type=row["type"], category=row["category"], created_at=row["created_at"], updated_at=row["updated_at"]
+    )
+
 @app.get("/admin/degrees/{degree_id}", response_model=DegreeResponse, tags=["Admin - Degrees"])
+async def get_degree(request: Request, degree_id: str, admin_user: dict = Depends(get_admin_user)):
+    row = execute_query("SELECT * FROM degrees WHERE id = %s", (degree_id,), fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Degree not found")
+    return DegreeResponse(
+        id=row["id"], name_en=row["name_en"], name_fr=row["name_fr"], name_ar=row["name_ar"], abbreviation=row["abbreviation"], type=row["type"], category=row["category"], created_at=row["created_at"], updated_at=row["updated_at"]
+    )
+
 @app.put("/admin/degrees/{degree_id}", response_model=DegreeResponse, tags=["Admin - Degrees"])
+async def update_degree(request: Request, degree_id: str, body: DegreeUpdate, admin_user: dict = Depends(get_admin_user)):
+    fields = []
+    params: List[Any] = []
+    mapping = {
+        "name_en": body.name_en,
+        "name_fr": body.name_fr,
+        "name_ar": body.name_ar,
+        "abbreviation": body.abbreviation,
+        "type": body.type.value if body.type else None,
+        "category": body.category.value if body.category else None,
+    }
+    for k, v in mapping.items():
+        if v is not None:
+            fields.append(f"{k} = %s")
+            params.append(v)
+    if not fields:
+        return await get_degree(request, degree_id, admin_user)  # type: ignore
+    fields.append("updated_at = %s")
+    params.append(datetime.utcnow())
+    params.append(degree_id)
+    row = execute_query(f"UPDATE degrees SET {', '.join(fields)} WHERE id = %s RETURNING *", params, fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Degree not found")
+    return DegreeResponse(
+        id=row["id"], name_en=row["name_en"], name_fr=row["name_fr"], name_ar=row["name_ar"], abbreviation=row["abbreviation"], type=row["type"], category=row["category"], created_at=row["created_at"], updated_at=row["updated_at"]
+    )
+
 @app.delete("/admin/degrees/{degree_id}", response_model=BaseResponse, tags=["Admin - Degrees"])
+async def delete_degree(request: Request, degree_id: str, admin_user: dict = Depends(get_admin_user)):
+    used = execute_query("SELECT COUNT(*) AS c FROM theses WHERE degree_id = %s", (degree_id,), fetch_one=True)
+    if used and used.get("c", 0) > 0:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Degree in use by theses")
+    rows = execute_query("DELETE FROM degrees WHERE id = %s", (degree_id,))
+    if rows == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Degree not found")
+    return BaseResponse(success=True, message="Degree deleted")
 
 # Languages
 # =============================================================================
 
 @app.get("/admin/languages", response_model=PaginatedResponse, tags=["Admin - Languages"])
+async def get_admin_languages(
+    request: Request,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None),
+    admin_user: dict = Depends(get_admin_user)
+):
+    base = "SELECT * FROM languages WHERE 1=1"
+    count = "SELECT COUNT(*) AS total FROM languages WHERE 1=1"
+    params: List[Any] = []
+    count_params: List[Any] = []
+    if search:
+        cond = " AND (LOWER(name) LIKE LOWER(%s) OR LOWER(native_name) LIKE LOWER(%s) OR LOWER(code) LIKE LOWER(%s))"
+        base += cond
+        count += cond
+        like = f"%{search}%"
+        params.extend([like, like, like])
+        count_params.extend([like, like, like])
+    total = execute_query(count, count_params, fetch_one=True)["total"]
+    offset = (page - 1) * limit
+    base += " ORDER BY display_order, name LIMIT %s OFFSET %s"
+    params.extend([limit, offset])
+    rows = execute_query_with_result(base, params)
+    data = [
+        {
+            "id": str(r["id"]),
+            "code": r["code"],
+            "name": r["name"],
+            "native_name": r["native_name"],
+            "rtl": r["rtl"],
+            "is_active": r["is_active"],
+            "display_order": r["display_order"],
+            "created_at": r["created_at"],
+            "updated_at": r["updated_at"],
+        }
+        for r in rows
+    ]
+    pages = (total + limit - 1) // limit
+    return PaginatedResponse(success=True, data=data, meta=PaginationMeta(total=total, page=page, limit=limit, pages=pages))
+
 @app.post("/admin/languages", response_model=LanguageResponse, tags=["Admin - Languages"])
+async def create_language(request: Request, body: LanguageCreate, admin_user: dict = Depends(get_admin_user)):
+    # languages has both code (PK in doc) and id (uuid) in dump; we will generate id and use unique code
+    row = execute_query(
+        """
+        INSERT INTO languages (code, name, native_name, rtl, is_active, display_order, id)
+        VALUES (%s, %s, %s, %s, %s, %s, gen_random_uuid()) RETURNING *
+        """,
+        (body.code.value, body.name, body.native_name, body.rtl, body.is_active, body.display_order),
+        fetch_one=True,
+    )
+    return LanguageResponse(
+        id=row["id"], code=row["code"], name=row["name"], native_name=row["native_name"], rtl=row["rtl"], is_active=row["is_active"], display_order=row["display_order"], created_at=row["created_at"], updated_at=row["updated_at"]
+    )
+
 @app.get("/admin/languages/{language_id}", response_model=LanguageResponse, tags=["Admin - Languages"])
+async def get_language(request: Request, language_id: str, admin_user: dict = Depends(get_admin_user)):
+    row = execute_query("SELECT * FROM languages WHERE id = %s", (language_id,), fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Language not found")
+    return LanguageResponse(
+        id=row["id"], code=row["code"], name=row["name"], native_name=row["native_name"], rtl=row["rtl"], is_active=row["is_active"], display_order=row["display_order"], created_at=row["created_at"], updated_at=row["updated_at"]
+    )
+
 @app.put("/admin/languages/{language_id}", response_model=LanguageResponse, tags=["Admin - Languages"])
+async def update_language(request: Request, language_id: str, body: LanguageUpdate, admin_user: dict = Depends(get_admin_user)):
+    fields = []
+    params: List[Any] = []
+    mapping = {
+        "name": body.name,
+        "native_name": body.native_name,
+        "rtl": body.rtl,
+        "is_active": body.is_active,
+        "display_order": body.display_order,
+    }
+    for k, v in mapping.items():
+        if v is not None:
+            fields.append(f"{k} = %s")
+            params.append(v)
+    if not fields:
+        return await get_language(request, language_id, admin_user)  # type: ignore
+    fields.append("updated_at = %s")
+    params.append(datetime.utcnow())
+    params.append(language_id)
+    row = execute_query(f"UPDATE languages SET {', '.join(fields)} WHERE id = %s RETURNING *", params, fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Language not found")
+    return LanguageResponse(
+        id=row["id"], code=row["code"], name=row["name"], native_name=row["native_name"], rtl=row["rtl"], is_active=row["is_active"], display_order=row["display_order"], created_at=row["created_at"], updated_at=row["updated_at"]
+    )
+
 @app.delete("/admin/languages/{language_id}", response_model=BaseResponse, tags=["Admin - Languages"])
+async def delete_language(request: Request, language_id: str, admin_user: dict = Depends(get_admin_user)):
+    used = execute_query("SELECT COUNT(*) AS c FROM theses WHERE language_id = %s", (language_id,), fetch_one=True)
+    if used and used.get("c", 0) > 0:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Language in use by theses")
+    rows = execute_query("DELETE FROM languages WHERE id = %s", (language_id,))
+    if rows == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Language not found")
+    return BaseResponse(success=True, message="Language deleted")
 
 # Geographic entities
 # =============================================================================
 
 @app.get("/admin/geographic-entities", response_model=PaginatedResponse, tags=["Admin - Geographic Entities"])
+async def get_admin_geographic_entities(
+    request: Request,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None),
+    parent_id: Optional[str] = Query(None),
+    level: Optional[str] = Query(None),
+    admin_user: dict = Depends(get_admin_user)
+):
+    base = "SELECT * FROM geographic_entities WHERE 1=1"
+    count = "SELECT COUNT(*) AS total FROM geographic_entities WHERE 1=1"
+    params: List[Any] = []
+    count_params: List[Any] = []
+    if search:
+        cond = " AND (LOWER(name_fr) LIKE LOWER(%s) OR LOWER(name_en) LIKE LOWER(%s) OR LOWER(name_ar) LIKE LOWER(%s))"
+        base += cond
+        count += cond
+        like = f"%{search}%"
+        params.extend([like, like, like])
+        count_params.extend([like, like, like])
+    if parent_id:
+        cond = " AND parent_id = %s"
+        base += cond
+        count += cond
+        params.append(parent_id)
+        count_params.append(parent_id)
+    if level:
+        cond = " AND level = %s"
+        base += cond
+        count += cond
+        params.append(level)
+        count_params.append(level)
+    total = execute_query(count, count_params, fetch_one=True)["total"]
+    offset = (page - 1) * limit
+    base += " ORDER BY name_fr LIMIT %s OFFSET %s"
+    params.extend([limit, offset])
+    rows = execute_query_with_result(base, params)
+    data = [
+        {
+            "id": str(r["id"]),
+            "name_fr": r["name_fr"],
+            "name_en": r["name_en"],
+            "name_ar": r["name_ar"],
+            "parent_id": str(r["parent_id"]) if r["parent_id"] else None,
+            "level": r["level"],
+            "code": r["code"],
+            "latitude": float(r["latitude"]) if r["latitude"] is not None else None,
+            "longitude": float(r["longitude"]) if r["longitude"] is not None else None,
+            "created_at": r["created_at"],
+            "updated_at": r["updated_at"],
+        }
+        for r in rows
+    ]
+    pages = (total + limit - 1) // limit
+    return PaginatedResponse(success=True, data=data, meta=PaginationMeta(total=total, page=page, limit=limit, pages=pages))
+
 @app.post("/admin/geographic-entities", response_model=GeographicEntityResponse, tags=["Admin - Geographic Entities"])
+async def create_geographic_entity(request: Request, body: GeographicEntityBase, admin_user: dict = Depends(get_admin_user)):
+    row = execute_query(
+        """
+        INSERT INTO geographic_entities (id, name_en, name_fr, name_ar, parent_id, level, code, latitude, longitude)
+        VALUES (gen_random_uuid(), %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *
+        """,
+        (body.name_en, body.name_fr, body.name_ar, str(body.parent_id) if body.parent_id else None, body.level.value if body.level else None, body.code, body.latitude, body.longitude),
+        fetch_one=True,
+    )
+    return GeographicEntityResponse(
+        id=row["id"], name_en=row["name_en"], name_fr=row["name_fr"], name_ar=row["name_ar"], parent_id=row["parent_id"], level=row["level"], code=row["code"], latitude=float(row["latitude"]) if row["latitude"] is not None else None, longitude=float(row["longitude"]) if row["longitude"] is not None else None, created_at=row["created_at"], updated_at=row["updated_at"]
+    )
+
 @app.get("/admin/geographic-entities/{entity_id}", response_model=GeographicEntityResponse, tags=["Admin - Geographic Entities"])
+async def get_geographic_entity(request: Request, entity_id: str, admin_user: dict = Depends(get_admin_user)):
+    row = execute_query("SELECT * FROM geographic_entities WHERE id = %s", (entity_id,), fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Geographic entity not found")
+    return GeographicEntityResponse(
+        id=row["id"], name_en=row["name_en"], name_fr=row["name_fr"], name_ar=row["name_ar"], parent_id=row["parent_id"], level=row["level"], code=row["code"], latitude=float(row["latitude"]) if row["latitude"] is not None else None, longitude=float(row["longitude"]) if row["longitude"] is not None else None, created_at=row["created_at"], updated_at=row["updated_at"]
+    )
+
 @app.put("/admin/geographic-entities/{entity_id}", response_model=GeographicEntityResponse, tags=["Admin - Geographic Entities"])
+async def update_geographic_entity(request: Request, entity_id: str, body: GeographicEntityUpdate, admin_user: dict = Depends(get_admin_user)):
+    fields = []
+    params: List[Any] = []
+    mapping = {
+        "name_en": body.name_en,
+        "name_fr": body.name_fr,
+        "name_ar": body.name_ar,
+        "parent_id": str(body.parent_id) if body.parent_id else None,
+        "level": body.level.value if body.level else None,
+        "code": body.code,
+        "latitude": body.latitude,
+        "longitude": body.longitude,
+    }
+    for k, v in mapping.items():
+        if v is not None:
+            fields.append(f"{k} = %s")
+            params.append(v)
+    if not fields:
+        return await get_geographic_entity(request, entity_id, admin_user)  # type: ignore
+    fields.append("updated_at = %s")
+    params.append(datetime.utcnow())
+    params.append(entity_id)
+    row = execute_query(f"UPDATE geographic_entities SET {', '.join(fields)} WHERE id = %s RETURNING *", params, fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Geographic entity not found")
+    return GeographicEntityResponse(
+        id=row["id"], name_en=row["name_en"], name_fr=row["name_fr"], name_ar=row["name_ar"], parent_id=row["parent_id"], level=row["level"], code=row["code"], latitude=float(row["latitude"]) if row["latitude"] is not None else None, longitude=float(row["longitude"]) if row["longitude"] is not None else None, created_at=row["created_at"], updated_at=row["updated_at"]
+    )
+
 @app.delete("/admin/geographic-entities/{entity_id}", response_model=BaseResponse, tags=["Admin - Geographic Entities"])
+async def delete_geographic_entity(request: Request, entity_id: str, admin_user: dict = Depends(get_admin_user)):
+    rows = execute_query("DELETE FROM geographic_entities WHERE id = %s", (entity_id,))
+    if rows == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Geographic entity not found")
+    return BaseResponse(success=True, message="Geographic entity deleted")
+
 @app.get("/admin/geographic-entities/tree", response_model=List[Dict], tags=["Admin - Geographic Entities"])
+async def get_geographic_tree(request: Request, admin_user: dict = Depends(get_admin_user)):
+    rows = execute_query_with_result("SELECT id, parent_id, name_fr, level FROM geographic_entities ORDER BY level, name_fr")
+    by_parent: Dict[Optional[str], List[Dict[str, Any]]] = {}
+    for r in rows:
+        pid = str(r["parent_id"]) if r["parent_id"] else None
+        node = {"id": str(r["id"]), "name_fr": r["name_fr"], "level": r["level"], "children": []}
+        by_parent.setdefault(pid, []).append(node)
+    def attach(parent_id: Optional[str]) -> List[Dict[str, Any]]:
+        children = by_parent.get(parent_id, [])
+        for ch in children:
+            ch["children"] = attach(ch["id"])
+        return children
+    return attach(None)
 
 # =============================================================================
 # ADMIN - THESIS CONTENT MANAGEMENT
@@ -5950,54 +6728,264 @@ async def delete_thesis(
 # Universities
 # =============================================================================
 @app.get("/universities", response_model=List[UniversityResponse], tags=["Public - Reference Data"])
+async def public_universities():
+    rows = execute_query_with_result("SELECT * FROM universities ORDER BY name_fr")
+    return [UniversityResponse(id=r["id"], name_fr=r["name_fr"], name_en=r["name_en"], name_ar=r["name_ar"], acronym=r["acronym"], geographic_entities_id=r.get("geographic_entities_id"), created_at=r["created_at"], updated_at=r["updated_at"]) for r in rows]
+
 @app.get("/universities/{university_id}", response_model=UniversityResponse, tags=["Public - Reference Data"])
+async def public_university(university_id: str):
+    r = execute_query("SELECT * FROM universities WHERE id = %s", (university_id,), fetch_one=True)
+    if not r:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="University not found")
+    return UniversityResponse(id=r["id"], name_fr=r["name_fr"], name_en=r["name_en"], name_ar=r["name_ar"], acronym=r["acronym"], geographic_entities_id=r.get("geographic_entities_id"), created_at=r["created_at"], updated_at=r["updated_at"])
+
 @app.get("/universities/{university_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+async def public_university_theses(university_id: str):
+    rows = execute_query_with_result("SELECT * FROM theses WHERE university_id = %s AND status IN ('approved','published') ORDER BY defense_date DESC", (university_id,))
+    return [ThesisResponse(
+        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
+    ) for r in rows]
 
 # Faculties
 # =============================================================================
 @app.get("/faculties", response_model=List[FacultyResponse], tags=["Public - Reference Data"])
+async def public_faculties():
+    rows = execute_query_with_result("SELECT * FROM faculties ORDER BY name_fr")
+    return [FacultyResponse(id=r["id"], university_id=r["university_id"], name_fr=r["name_fr"], name_en=r["name_en"], name_ar=r["name_ar"], acronym=r["acronym"], created_at=r["created_at"], updated_at=r["updated_at"]) for r in rows]
+
 @app.get("/faculties/{faculty_id}", response_model=FacultyResponse, tags=["Public - Reference Data"])
+async def public_faculty(faculty_id: str):
+    r = execute_query("SELECT * FROM faculties WHERE id = %s", (faculty_id,), fetch_one=True)
+    if not r:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Faculty not found")
+    return FacultyResponse(id=r["id"], university_id=r["university_id"], name_fr=r["name_fr"], name_en=r["name_en"], name_ar=r["name_ar"], acronym=r["acronym"], created_at=r["created_at"], updated_at=r["updated_at"])
+
 @app.get("/faculties/{faculty_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+async def public_faculty_theses(faculty_id: str):
+    rows = execute_query_with_result("SELECT * FROM theses WHERE faculty_id = %s AND status IN ('approved','published') ORDER BY defense_date DESC", (faculty_id,))
+    return [ThesisResponse(
+        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
+    ) for r in rows]
 
 # Schools
 # =============================================================================
 @app.get("/schools", response_model=List[SchoolResponse], tags=["Public - Reference Data"])
+async def public_schools():
+    rows = execute_query_with_result("SELECT * FROM schools ORDER BY name_fr")
+    return [SchoolResponse(id=r["id"], parent_university_id=r["parent_university_id"], parent_school_id=r["parent_school_id"], name_fr=r["name_fr"], name_en=r["name_en"], name_ar=r["name_ar"], acronym=r.get("acronym"), created_at=r["created_at"], updated_at=r["updated_at"]) for r in rows]
+
 @app.get("/schools/{school_id}", response_model=SchoolResponse, tags=["Public - Reference Data"])
+async def public_school(school_id: str):
+    r = execute_query("SELECT * FROM schools WHERE id = %s", (school_id,), fetch_one=True)
+    if not r:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="School not found")
+    return SchoolResponse(id=r["id"], parent_university_id=r["parent_university_id"], parent_school_id=r["parent_school_id"], name_fr=r["name_fr"], name_en=r["name_en"], name_ar=r["name_ar"], acronym=r.get("acronym"), created_at=r["created_at"], updated_at=r["updated_at"])
+
 @app.get("/schools/{school_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+async def public_school_theses(school_id: str):
+    rows = execute_query_with_result("SELECT * FROM theses WHERE school_id = %s AND status IN ('approved','published') ORDER BY defense_date DESC", (school_id,))
+    return [ThesisResponse(
+        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
+    ) for r in rows]
 
 # Departments
 # =============================================================================
-@app.get("/depatments", response_model=List[DepartmentResponse], tags=["Public - Reference Data"])
-@app.get("/depatments/{department_id}/theses", response_model=list[ThesisResponse], tags=["Public - Reference Data"])
+@app.get("/departments", response_model=List[DepartmentResponse], tags=["Public - Reference Data"])
+async def public_departments():
+    rows = execute_query_with_result("SELECT * FROM departments ORDER BY name_fr")
+    return [DepartmentResponse(id=r["id"], faculty_id=r["faculty_id"], school_id=r["school_id"], name_fr=r["name_fr"], name_en=r["name_en"], name_ar=r["name_ar"], acronym=r["acronym"], created_at=r["created_at"], updated_at=r["updated_at"]) for r in rows]
+
+@app.get("/departments/{department_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+async def public_department_theses(department_id: str):
+    rows = execute_query_with_result("SELECT * FROM theses WHERE department_id = %s AND status IN ('approved','published') ORDER BY defense_date DESC", (department_id,))
+    return [ThesisResponse(
+        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
+    ) for r in rows]
 
 # Categories
 # =============================================================================
 @app.get("/categories", response_model=List[CategoryResponse], tags=["Public - Reference Data"])
+async def public_categories():
+    rows = execute_query_with_result("SELECT * FROM categories ORDER BY level, name_fr")
+    return [CategoryResponse(id=r["id"], parent_id=r["parent_id"], level=r["level"], code=r["code"], name_fr=r["name_fr"], name_en=r["name_en"], name_ar=r["name_ar"], created_at=r["created_at"], updated_at=r["updated_at"]) for r in rows]
+
 @app.get("/categories/{category_id}", response_model=CategoryResponse, tags=["Public - Reference Data"])
+async def public_category(category_id: str):
+    r = execute_query("SELECT * FROM categories WHERE id = %s", (category_id,), fetch_one=True)
+    if not r:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    return CategoryResponse(id=r["id"], parent_id=r["parent_id"], level=r["level"], code=r["code"], name_fr=r["name_fr"], name_en=r["name_en"], name_ar=r["name_ar"], created_at=r["created_at"], updated_at=r["updated_at"])
+
 @app.get("/categories/{category_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+async def public_category_theses(category_id: str):
+    rows = execute_query_with_result("""
+        SELECT t.* FROM theses t
+        JOIN thesis_categories tc ON tc.thesis_id = t.id
+        WHERE tc.category_id = %s AND t.status IN ('approved','published')
+        ORDER BY t.defense_date DESC
+    """, (category_id,))
+    return [ThesisResponse(
+        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
+    ) for r in rows]
 
 # Academic persons
 # =============================================================================
 @app.get("/academic_persons", response_model=List[AcademicPersonResponse], tags=["Public - Reference Data"])
-@app.get("/academic_persons/{acedemic_person_id}/theses", response_model=AcademicPersonResponse, tags=["Public - Reference Data"])
+async def public_academic_persons():
+    rows = execute_query_with_result("SELECT * FROM academic_persons ORDER BY complete_name_fr NULLS LAST, last_name_fr, first_name_fr")
+    return [AcademicPersonResponse(
+        id=r["id"], complete_name_fr=r["complete_name_fr"], complete_name_ar=r["complete_name_ar"], first_name_fr=r["first_name_fr"], last_name_fr=r["last_name_fr"], first_name_ar=r["first_name_ar"], last_name_ar=r["last_name_ar"], title=r["title"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], external_institution_name=r["external_institution_name"], external_institution_country=r["external_institution_country"], external_institution_type=r["external_institution_type"], user_id=r["user_id"], created_at=r["created_at"], updated_at=r["updated_at"]
+    ) for r in rows]
+
+@app.get("/academic_persons/{academic_person_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+async def public_person_theses(academic_person_id: str):
+    rows = execute_query_with_result("""
+        SELECT DISTINCT t.* FROM theses t
+        JOIN thesis_academic_persons tap ON tap.thesis_id = t.id
+        WHERE tap.person_id = %s AND t.status IN ('approved','published')
+        ORDER BY t.defense_date DESC
+    """, (academic_person_id,))
+    return [ThesisResponse(
+        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
+    ) for r in rows]
 
 # Degrees
 # =============================================================================
 @app.get("/degrees", response_model=List[DegreeResponse], tags=["Public - Reference Data"])
-@app.get("/degrees/{degree_id}/theses", response_model=list[ThesisResponse], tags=["Public - Reference Data"])
+async def public_degrees():
+    rows = execute_query_with_result("SELECT * FROM degrees ORDER BY name_fr")
+    return [DegreeResponse(id=r["id"], name_en=r["name_en"], name_fr=r["name_fr"], name_ar=r["name_ar"], abbreviation=r["abbreviation"], type=r["type"], category=r["category"], created_at=r["created_at"], updated_at=r["updated_at"]) for r in rows]
+
+@app.get("/degrees/{degree_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+async def public_degree_theses(degree_id: str):
+    rows = execute_query_with_result("SELECT * FROM theses WHERE degree_id = %s AND status IN ('approved','published') ORDER BY defense_date DESC", (degree_id,))
+    return [ThesisResponse(
+        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
+    ) for r in rows]
 
 # Languages
 # =============================================================================
 @app.get("/languages", response_model=List[LanguageResponse], tags=["Public - Reference Data"])
-@app.get("/languages/{language_id}/theses", response_model=LanguageResponse, tags=["Public - Reference Data"])
+async def public_languages():
+    rows = execute_query_with_result("SELECT * FROM languages WHERE is_active = TRUE ORDER BY display_order, name")
+    return [LanguageResponse(id=r["id"], code=r["code"], name=r["name"], native_name=r["native_name"], rtl=r["rtl"], is_active=r["is_active"], display_order=r["display_order"], created_at=r["created_at"], updated_at=r["updated_at"]) for r in rows]
+
+@app.get("/languages/{language_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+async def public_language_theses(language_id: str):
+    rows = execute_query_with_result("SELECT * FROM theses WHERE language_id = %s AND status IN ('approved','published') ORDER BY defense_date DESC", (language_id,))
+    return [ThesisResponse(
+        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
+    ) for r in rows]
 
 # Main Search (search variables: term(s); filters (university/faculty/departments, disciplines/subdisciplines/specialities, date from-to or years, degrees, languages, academic persons (limited to author and director); sort options: relevance, popularity (sum of downloads and cites), date, alphabetical university, alphabetical title; sort order: ascending/descending; display options (number of results per page (10, 20, 50, 100)))
 # =============================================================================
-@app.get("/theses", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) # liste all theses with no filters applied,default settings to (sort options to date, descending order, 10 results per page) 
-@app.get("/theses/search query", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) # Search results when filters applied and/or terms searched for
-@app.get("/theses/recent", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) # Recently published
-@app.get("/theses/popular", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) # Most downloaded/viewed
-@app.get("/theses/{thesis_id}", response_model=ThesisResponse, tags=["Public - Thesis search"]) # Get thesis details
+@app.get("/theses", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) 
+async def public_theses(
+    q: Optional[str] = Query(None),
+    university_id: Optional[str] = Query(None),
+    faculty_id: Optional[str] = Query(None),
+    department_id: Optional[str] = Query(None),
+    category_id: Optional[str] = Query(None),
+    degree_id: Optional[str] = Query(None),
+    language_id: Optional[str] = Query(None),
+    year_from: Optional[int] = Query(None),
+    year_to: Optional[int] = Query(None),
+    sort_field: SortField = SortField.DEFENSE_DATE,
+    sort_order: SortOrder = SortOrder.DESC,
+    limit: int = Query(10, ge=1, le=100)
+):
+    base = """
+        SELECT DISTINCT t.* FROM theses t
+        LEFT JOIN thesis_categories tc ON tc.thesis_id = t.id
+        WHERE t.status IN ('approved','published')
+    """
+    params: List[Any] = []
+    if q:
+        base += " AND (LOWER(t.title_fr) LIKE LOWER(%s) OR LOWER(t.abstract_fr) LIKE LOWER(%s))"
+        like = f"%{q}%"
+        params.extend([like, like])
+    if university_id:
+        base += " AND t.university_id = %s"; params.append(university_id)
+    if faculty_id:
+        base += " AND t.faculty_id = %s"; params.append(faculty_id)
+    if department_id:
+        base += " AND t.department_id = %s"; params.append(department_id)
+    if category_id:
+        base += " AND tc.category_id = %s"; params.append(category_id)
+    if degree_id:
+        base += " AND t.degree_id = %s"; params.append(degree_id)
+    if language_id:
+        base += " AND t.language_id = %s"; params.append(language_id)
+    if year_from:
+        base += " AND EXTRACT(YEAR FROM t.defense_date) >= %s"; params.append(year_from)
+    if year_to:
+        base += " AND EXTRACT(YEAR FROM t.defense_date) <= %s"; params.append(year_to)
+    order_map = {
+        SortField.DEFENSE_DATE: "t.defense_date",
+        SortField.CREATED_AT: "t.created_at",
+        SortField.UPDATED_AT: "t.updated_at",
+        SortField.TITLE: "t.title_fr",
+    }
+    order_col = order_map.get(sort_field, "t.defense_date")
+    base += f" ORDER BY {order_col} {sort_order.value.upper()} LIMIT %s"
+    params.append(limit)
+    rows = execute_query_with_result(base, params)
+    return [ThesisResponse(
+        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
+    ) for r in rows]
+
+@app.get("/theses/recent", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) 
+async def public_theses_recent(limit: int = Query(10, ge=1, le=100)):
+    rows = execute_query_with_result("SELECT * FROM theses WHERE status IN ('approved','published') ORDER BY created_at DESC LIMIT %s", (limit,))
+    return [ThesisResponse(
+        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
+    ) for r in rows]
+
+@app.get("/theses/popular", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) 
+async def public_theses_popular(limit: int = Query(10, ge=1, le=100)):
+    rows = execute_query_with_result("""
+        SELECT t.*
+        FROM theses t
+        LEFT JOIN (
+            SELECT thesis_id, COUNT(*) AS downloads
+            FROM thesis_downloads
+            GROUP BY thesis_id
+        ) d ON d.thesis_id = t.id
+        WHERE t.status IN ('approved','published')
+        ORDER BY COALESCE(d.downloads, 0) DESC, t.created_at DESC
+        LIMIT %s
+    """, (limit,))
+    return [ThesisResponse(
+        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
+    ) for r in rows]
+
+@app.get("/theses/{thesis_id}", response_model=ThesisResponse, tags=["Public - Thesis search"]) 
+async def public_thesis_detail(thesis_id: str):
+    r = execute_query("SELECT * FROM theses WHERE id = %s AND status IN ('approved','published')", (thesis_id,), fetch_one=True)
+    if not r:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thesis not found")
+    return ThesisResponse(
+        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
+    )
+
+# Download endpoint (public)
+@app.get("/theses/{thesis_id}/download", tags=["Public - Thesis search"])
+async def public_thesis_download(thesis_id: str, request: Request):
+    r = execute_query("SELECT id, file_url, file_name FROM theses WHERE id = %s AND status IN ('approved','published')", (thesis_id,), fetch_one=True)
+    if not r or not r.get("file_url"):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thesis or file not found")
+    try:
+        # record download event (best-effort)
+        ip = request.client.host if request.client else None
+        ua = request.headers.get("user-agent")
+        execute_query(
+            "INSERT INTO thesis_downloads (id, thesis_id, user_id, ip_address, user_agent) VALUES (gen_random_uuid(), %s, NULL, %s, %s)",
+            (thesis_id, ip, ua),
+        )
+    except Exception:
+        logger.warning("Failed to log thesis download event", exc_info=True)
+    # serve file
+    return serve_file(r["file_url"], r["file_name"]) 
 
 # =============================================================================
 # APPLICATION STARTUP
