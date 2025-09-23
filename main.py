@@ -9,6 +9,7 @@ A comprehensive thesis management and search platform
 
 # FastAPI Core
 from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, Form,Query,Request
+from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse, FileResponse
@@ -1650,6 +1651,7 @@ def create_app() -> FastAPI:
         docs_url="/docs" if settings.DEBUG else None,
         redoc_url="/redoc" if settings.DEBUG else None,
         openapi_url="/openapi.json" if settings.DEBUG else None,
+        lifespan=lifespan,
     )
     
     # Add CORS middleware
@@ -5967,8 +5969,8 @@ async def delete_thesis(
 
 # Departments
 # =============================================================================
-@app.get("/depatments", response_model=List[DepartmentResponse], tags=["Public - Reference Data"])
-@app.get("/depatments/{department_id}/theses", response_model=list[ThesisResponse], tags=["Public - Reference Data"])
+@app.get("/departments", response_model=List[DepartmentResponse], tags=["Public - Reference Data"])
+@app.get("/departments/{department_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
 
 # Categories
 # =============================================================================
@@ -5993,54 +5995,1609 @@ async def delete_thesis(
 
 # Main Search (search variables: term(s); filters (university/faculty/departments, disciplines/subdisciplines/specialities, date from-to or years, degrees, languages, academic persons (limited to author and director); sort options: relevance, popularity (sum of downloads and cites), date, alphabetical university, alphabetical title; sort order: ascending/descending; display options (number of results per page (10, 20, 50, 100)))
 # =============================================================================
-@app.get("/theses", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) # liste all theses with no filters applied,default settings to (sort options to date, descending order, 10 results per page) 
-@app.get("/theses/search query", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) # Search results when filters applied and/or terms searched for
+@app.get("/theses", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) # liste all theses with no filters applied,default settings to (sort options to date, descending order, 10 results per page)
+async def get_theses(
+    request: Request,
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Number of results per page"),
+    sort_by: str = Query("date_desc", description="Sort by: relevance, date_desc, date_asc, title, downloads, views"),
+    university_id: Optional[str] = Query(None, description="Filter by university ID"),
+    faculty_id: Optional[str] = Query(None, description="Filter by faculty ID"),
+    department_id: Optional[str] = Query(None, description="Filter by department ID"),
+    category_id: Optional[str] = Query(None, description="Filter by category ID"),
+    discipline: Optional[str] = Query(None, description="Filter by discipline"),
+    language: Optional[str] = Query(None, description="Filter by language"),
+    year_from: Optional[int] = Query(None, ge=1900, le=2030, description="Filter from year"),
+    year_to: Optional[int] = Query(None, ge=1900, le=2030, description="Filter to year"),
+    availability: Optional[str] = Query(None, description="Filter by availability: available, preparing, unavailable")
+):
+    """
+    Get paginated list of theses with optional filtering and sorting.
+
+    Parameters:
+    - page: Page number (default: 1)
+    - page_size: Results per page (default: 20, max: 100)
+    - sort_by: Sort criteria (default: date_desc)
+    - university_id: Filter by university
+    - faculty_id: Filter by faculty
+    - department_id: Filter by department
+    - category_id: Filter by category
+    - discipline: Filter by discipline
+    - language: Filter by language
+    - year_from: Filter from year
+    - year_to: Filter to year
+    - availability: Filter by availability status
+    """
+    request_id = getattr(request.state, "request_id", None)
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Build base query
+        query = """
+            SELECT
+                t.id, t.title_fr, t.title_en, t.title_ar,
+                t.abstract_fr, t.abstract_en, t.abstract_ar,
+                t.defense_date, t.page_count, t.status,
+                t.created_at, t.updated_at,
+                u.name_fr as university_name,
+                l.name_fr as language_name,
+                d.name_fr as degree_name,
+                COALESCE(tv.view_count, 0) as view_count,
+                COALESCE(td.download_count, 0) as download_count
+            FROM theses t
+            LEFT JOIN universities u ON t.university_id = u.id
+            LEFT JOIN languages l ON t.language_id = l.id
+            LEFT JOIN degrees d ON t.degree_id = d.id
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as view_count
+                FROM thesis_views
+                GROUP BY thesis_id
+            ) tv ON t.id = tv.thesis_id
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as download_count
+                FROM thesis_downloads
+                GROUP BY thesis_id
+            ) td ON t.id = td.thesis_id
+            WHERE t.status = 'published'
+        """
+
+        params = []
+
+        # Apply filters
+        if university_id:
+            query += " AND t.university_id = %s"
+            params.append(university_id)
+
+        if faculty_id:
+            query += " AND t.faculty_id = %s"
+            params.append(faculty_id)
+
+        if department_id:
+            query += " AND t.department_id = %s"
+            params.append(department_id)
+
+        if category_id:
+            query += """
+                AND EXISTS (
+                    SELECT 1 FROM thesis_categories tc
+                    WHERE tc.thesis_id = t.id AND tc.category_id = %s
+                )
+            """
+            params.append(category_id)
+
+        if discipline:
+            query += " AND t.discipline = %s"
+            params.append(discipline)
+
+        if language:
+            query += " AND t.language_id = %s"
+            params.append(language)
+
+        if year_from:
+            query += " AND EXTRACT(YEAR FROM t.defense_date) >= %s"
+            params.append(year_from)
+
+        if year_to:
+            query += " AND EXTRACT(YEAR FROM t.defense_date) <= %s"
+            params.append(year_to)
+
+        if availability:
+            if availability == "available":
+                query += " AND t.status = 'published' AND t.file_url IS NOT NULL"
+            elif availability == "preparing":
+                query += " AND t.status IN ('submitted', 'under_review')"
+            elif availability == "unavailable":
+                query += " AND (t.status = 'rejected' OR t.file_url IS NULL)"
+
+        # Apply sorting
+        sort_mapping = {
+            "relevance": "t.created_at DESC",  # Most recent first as proxy for relevance
+            "date_desc": "t.defense_date DESC",
+            "date_asc": "t.defense_date ASC",
+            "title": "t.title_fr ASC",
+            "downloads": "COALESCE(td.download_count, 0) DESC",
+            "views": "COALESCE(tv.view_count, 0) DESC"
+        }
+
+        sort_clause = sort_mapping.get(sort_by, "t.defense_date DESC")
+        query += f" ORDER BY {sort_clause}"
+
+        # Apply pagination
+        offset = (page - 1) * page_size
+        query += " LIMIT %s OFFSET %s"
+        params.extend([page_size, offset])
+
+        cursor.execute(query, params)
+        results = cursor.fetchall()
+
+        # Transform results to match response model
+        theses = []
+        for row in results:
+            thesis = {
+                "id": str(row["id"]),
+                "title_fr": row["title_fr"],
+                "title_en": row["title_en"],
+                "title_ar": row["title_ar"],
+                "abstract_fr": row["abstract_fr"],
+                "abstract_en": row["abstract_en"],
+                "abstract_ar": row["abstract_ar"],
+                "university_name": row["university_name"],
+                "language_name": row["language_name"],
+                "degree_name": row["degree_name"],
+                "defense_date": row["defense_date"].isoformat() if row["defense_date"] else None,
+                "page_count": row["page_count"],
+                "status": row["status"],
+                "view_count": row["view_count"] or 0,
+                "download_count": row["download_count"] or 0,
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None
+            }
+            theses.append(thesis)
+
+        cursor.close()
+        conn.close()
+
+        return create_success_response(
+            data=theses,
+            message="Theses retrieved successfully",
+            request_id=request_id
+        )
+
+    except Exception as e:
+        logger.error(f"Error retrieving theses: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+@app.get("/theses/search", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) # Search results when filters applied and/or terms searched for
+async def search_theses(
+    request: Request,
+    q: str = Query(..., description="Search query"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Number of results per page"),
+    sort_by: str = Query("relevance", description="Sort by: relevance, date_desc, date_asc, title, downloads, views"),
+    university_id: Optional[str] = Query(None, description="Filter by university ID"),
+    faculty_id: Optional[str] = Query(None, description="Filter by faculty ID"),
+    department_id: Optional[str] = Query(None, description="Filter by department ID"),
+    category_id: Optional[str] = Query(None, description="Filter by category ID"),
+    discipline: Optional[str] = Query(None, description="Filter by discipline"),
+    language: Optional[str] = Query(None, description="Filter by language"),
+    year_from: Optional[int] = Query(None, ge=1900, le=2030, description="Filter from year"),
+    year_to: Optional[int] = Query(None, ge=1900, le=2030, description="Filter to year"),
+    availability: Optional[str] = Query(None, description="Filter by availability: available, preparing, unavailable")
+):
+    """
+    Search theses by query term with optional filtering and sorting.
+
+    Parameters:
+    - q: Search query (title, abstract, author, keywords)
+    - page: Page number (default: 1)
+    - page_size: Results per page (default: 20, max: 100)
+    - sort_by: Sort criteria (default: relevance)
+    - university_id: Filter by university
+    - faculty_id: Filter by faculty
+    - department_id: Filter by department
+    - category_id: Filter by category
+    - discipline: Filter by discipline
+    - language: Filter by language
+    - year_from: Filter from year
+    - year_to: Filter to year
+    - availability: Filter by availability status
+    """
+    request_id = getattr(request.state, "request_id", None)
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Build search query with full-text search
+        query = """
+            SELECT
+                t.id, t.title_fr, t.title_en, t.title_ar,
+                t.abstract_fr, t.abstract_en, t.abstract_ar,
+                t.defense_date, t.page_count, t.status,
+                t.created_at, t.updated_at,
+                u.name_fr as university_name,
+                l.name_fr as language_name,
+                d.name_fr as degree_name,
+                COALESCE(tv.view_count, 0) as view_count,
+                COALESCE(td.download_count, 0) as download_count,
+                ts_rank_cd(to_tsvector('french', COALESCE(t.title_fr, '') || ' ' || COALESCE(t.abstract_fr, '')), plainto_tsquery('french', %s)) as rank_fr,
+                ts_rank_cd(to_tsvector('arabic', COALESCE(t.title_ar, '') || ' ' || COALESCE(t.abstract_ar, '')), plainto_tsquery('arabic', %s)) as rank_ar,
+                ts_rank_cd(to_tsvector('english', COALESCE(t.title_en, '') || ' ' || COALESCE(t.abstract_en, '')), plainto_tsquery('english', %s)) as rank_en
+            FROM theses t
+            LEFT JOIN universities u ON t.university_id = u.id
+            LEFT JOIN languages l ON t.language_id = l.id
+            LEFT JOIN degrees d ON t.degree_id = d.id
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as view_count
+                FROM thesis_views
+                GROUP BY thesis_id
+            ) tv ON t.id = tv.thesis_id
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as download_count
+                FROM thesis_downloads
+                GROUP BY thesis_id
+            ) td ON t.id = td.thesis_id
+            WHERE t.status = 'published'
+            AND (
+                to_tsvector('french', COALESCE(t.title_fr, '') || ' ' || COALESCE(t.abstract_fr, '')) @@ plainto_tsquery('french', %s)
+                OR to_tsvector('arabic', COALESCE(t.title_ar, '') || ' ' || COALESCE(t.abstract_ar, '')) @@ plainto_tsquery('arabic', %s)
+                OR to_tsvector('english', COALESCE(t.title_en, '') || ' ' || COALESCE(t.abstract_en, '')) @@ plainto_tsquery('english', %s)
+            )
+        """
+
+        params = [q, q, q, q, q, q]
+
+        # Apply additional filters
+        if university_id:
+            query += " AND t.university_id = %s"
+            params.append(university_id)
+
+        if faculty_id:
+            query += " AND t.faculty_id = %s"
+            params.append(faculty_id)
+
+        if department_id:
+            query += " AND t.department_id = %s"
+            params.append(department_id)
+
+        if category_id:
+            query += """
+                AND EXISTS (
+                    SELECT 1 FROM thesis_categories tc
+                    WHERE tc.thesis_id = t.id AND tc.category_id = %s
+                )
+            """
+            params.append(category_id)
+
+        if discipline:
+            query += " AND t.discipline = %s"
+            params.append(discipline)
+
+        if language:
+            query += " AND t.language_id = %s"
+            params.append(language)
+
+        if year_from:
+            query += " AND EXTRACT(YEAR FROM t.defense_date) >= %s"
+            params.append(year_from)
+
+        if year_to:
+            query += " AND EXTRACT(YEAR FROM t.defense_date) <= %s"
+            params.append(year_to)
+
+        if availability:
+            if availability == "available":
+                query += " AND t.status = 'published' AND t.file_url IS NOT NULL"
+            elif availability == "preparing":
+                query += " AND t.status IN ('submitted', 'under_review')"
+            elif availability == "unavailable":
+                query += " AND (t.status = 'rejected' OR t.file_url IS NULL)"
+
+        # Apply sorting with relevance score
+        if sort_by == "relevance":
+            query += " ORDER BY (rank_fr + rank_ar + rank_en) DESC, t.defense_date DESC"
+        elif sort_by == "date_desc":
+            query += " ORDER BY t.defense_date DESC"
+        elif sort_by == "date_asc":
+            query += " ORDER BY t.defense_date ASC"
+        elif sort_by == "title":
+            query += " ORDER BY t.title_fr ASC"
+        elif sort_by == "downloads":
+            query += " ORDER BY COALESCE(td.download_count, 0) DESC"
+        elif sort_by == "views":
+            query += " ORDER BY COALESCE(tv.view_count, 0) DESC"
+
+        # Apply pagination
+        offset = (page - 1) * page_size
+        query += " LIMIT %s OFFSET %s"
+        params.extend([page_size, offset])
+
+        cursor.execute(query, params)
+        results = cursor.fetchall()
+
+        # Transform results to match response model
+        theses = []
+        for row in results:
+            thesis = {
+                "id": str(row["id"]),
+                "title_fr": row["title_fr"],
+                "title_en": row["title_en"],
+                "title_ar": row["title_ar"],
+                "abstract_fr": row["abstract_fr"],
+                "abstract_en": row["abstract_en"],
+                "abstract_ar": row["abstract_ar"],
+                "university_name": row["university_name"],
+                "language_name": row["language_name"],
+                "degree_name": row["degree_name"],
+                "defense_date": row["defense_date"].isoformat() if row["defense_date"] else None,
+                "page_count": row["page_count"],
+                "status": row["status"],
+                "view_count": row["view_count"] or 0,
+                "download_count": row["download_count"] or 0,
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None
+            }
+            theses.append(thesis)
+
+        cursor.close()
+        conn.close()
+
+        return create_success_response(
+            data=theses,
+            message=f"Found {len(theses)} theses matching '{q}'",
+            request_id=request_id
+        )
+
+    except Exception as e:
+        logger.error(f"Error searching theses: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
 @app.get("/theses/recent", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) # Recently published
+async def get_recent_theses(
+    request: Request,
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Number of results per page"),
+    days: int = Query(30, ge=1, le=365, description="Number of days to look back")
+):
+    """
+    Get recently published theses.
+
+    Parameters:
+    - page: Page number (default: 1)
+    - page_size: Results per page (default: 20, max: 100)
+    - days: Number of days to look back (default: 30, max: 365)
+    """
+    request_id = getattr(request.state, "request_id", None)
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        query = """
+            SELECT
+                t.id, t.title_fr, t.title_en, t.title_ar,
+                t.abstract_fr, t.abstract_en, t.abstract_ar,
+                t.defense_date, t.page_count, t.status,
+                t.created_at, t.updated_at,
+                u.name_fr as university_name,
+                l.name_fr as language_name,
+                d.name_fr as degree_name,
+                COALESCE(tv.view_count, 0) as view_count,
+                COALESCE(td.download_count, 0) as download_count
+            FROM theses t
+            LEFT JOIN universities u ON t.university_id = u.id
+            LEFT JOIN languages l ON t.language_id = l.id
+            LEFT JOIN degrees d ON t.degree_id = d.id
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as view_count
+                FROM thesis_views
+                GROUP BY thesis_id
+            ) tv ON t.id = tv.thesis_id
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as download_count
+                FROM thesis_downloads
+                GROUP BY thesis_id
+            ) td ON t.id = td.thesis_id
+            WHERE t.status = 'published'
+            AND t.created_at >= NOW() - INTERVAL '%s days'
+            ORDER BY t.created_at DESC
+            LIMIT %s OFFSET %s
+        """
+
+        offset = (page - 1) * page_size
+        cursor.execute(query, (days, page_size, offset))
+        results = cursor.fetchall()
+
+        # Transform results to match response model
+        theses = []
+        for row in results:
+            thesis = {
+                "id": str(row["id"]),
+                "title_fr": row["title_fr"],
+                "title_en": row["title_en"],
+                "title_ar": row["title_ar"],
+                "abstract_fr": row["abstract_fr"],
+                "abstract_en": row["abstract_en"],
+                "abstract_ar": row["abstract_ar"],
+                "university_name": row["university_name"],
+                "language_name": row["language_name"],
+                "degree_name": row["degree_name"],
+                "defense_date": row["defense_date"].isoformat() if row["defense_date"] else None,
+                "page_count": row["page_count"],
+                "status": row["status"],
+                "view_count": row["view_count"] or 0,
+                "download_count": row["download_count"] or 0,
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None
+            }
+            theses.append(thesis)
+
+        cursor.close()
+        conn.close()
+
+        return create_success_response(
+            data=theses,
+            message=f"Found {len(theses)} recently published theses",
+            request_id=request_id
+        )
+
+    except Exception as e:
+        logger.error(f"Error retrieving recent theses: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
 @app.get("/theses/popular", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) # Most downloaded/viewed
+async def get_popular_theses(
+    request: Request,
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Number of results per page"),
+    period: str = Query("month", description="Time period: day, week, month, year, all")
+):
+    """
+    Get most popular theses based on downloads and views.
+
+    Parameters:
+    - page: Page number (default: 1)
+    - page_size: Results per page (default: 20, max: 100)
+    - period: Time period to consider (default: month)
+    """
+    request_id = getattr(request.state, "request_id", None)
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Calculate date filter based on period
+        date_filter = ""
+        if period == "day":
+            date_filter = "AND date_trunc('day', COALESCE(tv.created_at, td.created_at)) = date_trunc('day', CURRENT_DATE)"
+        elif period == "week":
+            date_filter = "AND date_trunc('week', COALESCE(tv.created_at, td.created_at)) = date_trunc('week', CURRENT_DATE)"
+        elif period == "month":
+            date_filter = "AND date_trunc('month', COALESCE(tv.created_at, td.created_at)) = date_trunc('month', CURRENT_DATE)"
+        elif period == "year":
+            date_filter = "AND date_trunc('year', COALESCE(tv.created_at, td.created_at)) = date_trunc('year', CURRENT_DATE)"
+
+        query = f"""
+            SELECT
+                t.id, t.title_fr, t.title_en, t.title_ar,
+                t.abstract_fr, t.abstract_en, t.abstract_ar,
+                t.defense_date, t.page_count, t.status,
+                t.created_at, t.updated_at,
+                u.name_fr as university_name,
+                l.name_fr as language_name,
+                d.name_fr as degree_name,
+                COALESCE(tv.view_count, 0) as view_count,
+                COALESCE(td.download_count, 0) as download_count,
+                (COALESCE(tv.view_count, 0) + COALESCE(td.download_count, 0) * 2) as popularity_score
+            FROM theses t
+            LEFT JOIN universities u ON t.university_id = u.id
+            LEFT JOIN languages l ON t.language_id = l.id
+            LEFT JOIN degrees d ON t.degree_id = d.id
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as view_count
+                FROM thesis_views tv
+                {date_filter if date_filter else ""}
+                GROUP BY thesis_id
+            ) tv ON t.id = tv.thesis_id
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as download_count
+                FROM thesis_downloads td
+                {date_filter if date_filter else ""}
+                GROUP BY thesis_id
+            ) td ON t.id = td.thesis_id
+            WHERE t.status = 'published'
+            ORDER BY popularity_score DESC, t.created_at DESC
+            LIMIT %s OFFSET %s
+        """
+
+        offset = (page - 1) * page_size
+        cursor.execute(query, (page_size, offset))
+        results = cursor.fetchall()
+
+        # Transform results to match response model
+        theses = []
+        for row in results:
+            thesis = {
+                "id": str(row["id"]),
+                "title_fr": row["title_fr"],
+                "title_en": row["title_en"],
+                "title_ar": row["title_ar"],
+                "abstract_fr": row["abstract_fr"],
+                "abstract_en": row["abstract_en"],
+                "abstract_ar": row["abstract_ar"],
+                "university_name": row["university_name"],
+                "language_name": row["language_name"],
+                "degree_name": row["degree_name"],
+                "defense_date": row["defense_date"].isoformat() if row["defense_date"] else None,
+                "page_count": row["page_count"],
+                "status": row["status"],
+                "view_count": row["view_count"] or 0,
+                "download_count": row["download_count"] or 0,
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None
+            }
+            theses.append(thesis)
+
+        cursor.close()
+        conn.close()
+
+        return create_success_response(
+            data=theses,
+            message=f"Found {len(theses)} popular theses",
+            request_id=request_id
+        )
+
+    except Exception as e:
+        logger.error(f"Error retrieving popular theses: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
 @app.get("/theses/{thesis_id}", response_model=ThesisResponse, tags=["Public - Thesis search"]) # Get thesis details
+async def get_thesis_details(
+    request: Request,
+    thesis_id: str
+):
+    """
+    Get detailed information about a specific thesis.
+
+    Parameters:
+    - thesis_id: UUID of the thesis
+    """
+    request_id = getattr(request.state, "request_id", None)
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Main thesis query with all related data
+        query = """
+            SELECT
+                t.id, t.title_fr, t.title_en, t.title_ar,
+                t.abstract_fr, t.abstract_en, t.abstract_ar,
+                t.defense_date, t.page_count, t.status, t.file_url,
+                t.created_at, t.updated_at,
+                u.name_fr as university_name, u.name_ar as university_name_ar,
+                f.name_fr as faculty_name, f.name_ar as faculty_name_ar,
+                s.name_fr as school_name, s.name_ar as school_name_ar,
+                d.name_fr as department_name, d.name_ar as department_name_ar,
+                deg.name_fr as degree_name, deg.name_ar as degree_name_ar,
+                l.name_fr as language_name, l.name_ar as language_name_ar,
+                t.thesis_number, t.study_location_id,
+                COALESCE(tv.view_count, 0) as view_count,
+                COALESCE(td.download_count, 0) as download_count
+            FROM theses t
+            LEFT JOIN universities u ON t.university_id = u.id
+            LEFT JOIN faculties f ON t.faculty_id = f.id
+            LEFT JOIN schools s ON t.school_id = s.id
+            LEFT JOIN departments d ON t.department_id = d.id
+            LEFT JOIN degrees deg ON t.degree_id = deg.id
+            LEFT JOIN languages l ON t.language_id = l.id
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as view_count
+                FROM thesis_views
+                GROUP BY thesis_id
+            ) tv ON t.id = tv.thesis_id
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as download_count
+                FROM thesis_downloads
+                GROUP BY thesis_id
+            ) td ON t.id = td.thesis_id
+            WHERE t.id = %s AND t.status = 'published'
+        """
+
+        cursor.execute(query, (thesis_id,))
+        thesis_row = cursor.fetchone()
+
+        if not thesis_row:
+            cursor.close()
+            conn.close()
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Thesis not found"
+            )
+
+        # Get academic persons (authors, directors, jury members)
+        query = """
+            SELECT
+                ap.id, ap.complete_name_fr, ap.complete_name_ar,
+                ap.first_name_fr, ap.last_name_fr,
+                ap.first_name_ar, ap.last_name_ar,
+                tap.role, tap.is_external
+            FROM thesis_academic_persons tap
+            JOIN academic_persons ap ON tap.person_id = ap.id
+            WHERE tap.thesis_id = %s
+            ORDER BY
+                CASE
+                    WHEN tap.role = 'author' THEN 1
+                    WHEN tap.role = 'director' THEN 2
+                    WHEN tap.role = 'co-director' THEN 3
+                    ELSE 4
+                END,
+                tap.role
+        """
+
+        cursor.execute(query, (thesis_id,))
+        academic_persons = cursor.fetchall()
+
+        # Get categories
+        query = """
+            SELECT
+                c.id, c.name_fr, c.name_en, c.name_ar,
+                tc.is_primary
+            FROM thesis_categories tc
+            JOIN categories c ON tc.category_id = c.id
+            WHERE tc.thesis_id = %s
+            ORDER BY tc.is_primary DESC, c.name_fr
+        """
+
+        cursor.execute(query, (thesis_id,))
+        categories = cursor.fetchall()
+
+        # Get keywords
+        query = """
+            SELECT
+                k.id, k.name_fr, k.name_en, k.name_ar
+            FROM thesis_keywords tk
+            JOIN keywords k ON tk.keyword_id = k.id
+            WHERE tk.thesis_id = %s
+            ORDER BY k.name_fr
+        """
+
+        cursor.execute(query, (thesis_id,))
+        keywords = cursor.fetchall()
+
+        # Get geographic entities
+        query = """
+            SELECT
+                ge.id, ge.name_fr, ge.name_en, ge.name_ar,
+                ge.entity_type
+            FROM thesis_geographic_entities tge
+            JOIN geographic_entities ge ON tge.geographic_entity_id = ge.id
+            WHERE tge.thesis_id = %s
+            ORDER BY ge.name_fr
+        """
+
+        cursor.execute(query, (thesis_id,))
+        geographic_entities = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
+        # Structure the response
+        thesis_data = {
+            "id": str(thesis_row["id"]),
+            "title_fr": thesis_row["title_fr"],
+            "title_en": thesis_row["title_en"],
+            "title_ar": thesis_row["title_ar"],
+            "abstract_fr": thesis_row["abstract_fr"],
+            "abstract_en": thesis_row["abstract_en"],
+            "abstract_ar": thesis_row["abstract_ar"],
+            "defense_date": thesis_row["defense_date"].isoformat() if thesis_row["defense_date"] else None,
+            "page_count": thesis_row["page_count"],
+            "status": thesis_row["status"],
+            "file_url": thesis_row["file_url"],
+            "thesis_number": thesis_row["thesis_number"],
+            "created_at": thesis_row["created_at"].isoformat() if thesis_row["created_at"] else None,
+            "updated_at": thesis_row["updated_at"].isoformat() if thesis_row["updated_at"] else None,
+            "view_count": thesis_row["view_count"] or 0,
+            "download_count": thesis_row["download_count"] or 0,
+            "university": {
+                "id": thesis_row["university_name"] and str(thesis_row["university_id"]) or None,
+                "name_fr": thesis_row["university_name"],
+                "name_ar": thesis_row["university_name_ar"]
+            },
+            "faculty": {
+                "id": thesis_row["faculty_name"] and str(thesis_row["faculty_id"]) or None,
+                "name_fr": thesis_row["faculty_name"],
+                "name_ar": thesis_row["faculty_name_ar"]
+            },
+            "school": {
+                "id": thesis_row["school_name"] and str(thesis_row["school_id"]) or None,
+                "name_fr": thesis_row["school_name"],
+                "name_ar": thesis_row["school_name_ar"]
+            },
+            "department": {
+                "id": thesis_row["department_name"] and str(thesis_row["department_id"]) or None,
+                "name_fr": thesis_row["department_name"],
+                "name_ar": thesis_row["department_name_ar"]
+            },
+            "degree": {
+                "id": thesis_row["degree_name"] and str(thesis_row["degree_id"]) or None,
+                "name_fr": thesis_row["degree_name"],
+                "name_ar": thesis_row["degree_name_ar"]
+            },
+            "language": {
+                "id": thesis_row["language_name"] and str(thesis_row["language_id"]) or None,
+                "name_fr": thesis_row["language_name"],
+                "name_ar": thesis_row["language_name_ar"]
+            },
+            "academic_persons": [
+                {
+                    "id": str(person["id"]),
+                    "name_fr": person["complete_name_fr"],
+                    "name_ar": person["complete_name_ar"],
+                    "first_name_fr": person["first_name_fr"],
+                    "last_name_fr": person["last_name_fr"],
+                    "first_name_ar": person["first_name_ar"],
+                    "last_name_ar": person["last_name_ar"],
+                    "role": person["role"],
+                    "is_external": person["is_external"]
+                }
+                for person in academic_persons
+            ],
+            "categories": [
+                {
+                    "id": str(category["id"]),
+                    "name_fr": category["name_fr"],
+                    "name_en": category["name_en"],
+                    "name_ar": category["name_ar"],
+                    "is_primary": category["is_primary"]
+                }
+                for category in categories
+            ],
+            "keywords": [
+                {
+                    "id": str(keyword["id"]),
+                    "name_fr": keyword["name_fr"],
+                    "name_en": keyword["name_en"],
+                    "name_ar": keyword["name_ar"]
+                }
+                for keyword in keywords
+            ],
+            "geographic_entities": [
+                {
+                    "id": str(entity["id"]),
+                    "name_fr": entity["name_fr"],
+                    "name_en": entity["name_en"],
+                    "name_ar": entity["name_ar"],
+                    "entity_type": entity["entity_type"]
+                }
+                for entity in geographic_entities
+            ]
+        }
+
+        return create_success_response(
+            data=thesis_data,
+            message="Thesis details retrieved successfully",
+            request_id=request_id
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving thesis details: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+@app.get("/theses/{thesis_id}/download", tags=["Public - Thesis search"])
+async def download_thesis(
+    request: Request,
+    thesis_id: str,
+    token: Optional[str] = Query(None, description="Download token for access control")
+):
+    """
+    Download a thesis PDF file.
+
+    Parameters:
+    - thesis_id: UUID of the thesis
+    - token: Optional download token for access control
+    """
+    request_id = getattr(request.state, "request_id", None)
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Check if thesis exists and is available for download
+        query = """
+            SELECT
+                t.id, t.title_fr, t.file_url, t.file_name, t.status,
+                u.name_fr as university_name
+            FROM theses t
+            LEFT JOIN universities u ON t.university_id = u.id
+            WHERE t.id = %s AND t.status = 'published' AND t.file_url IS NOT NULL
+        """
+
+        cursor.execute(query, (thesis_id,))
+        thesis_row = cursor.fetchone()
+
+        if not thesis_row:
+            cursor.close()
+            conn.close()
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Thesis not found or not available for download"
+            )
+
+        # Record the download event (if user is authenticated)
+        user_id = getattr(request.state, "user_id", None)
+        if user_id:
+            try:
+                download_query = """
+                    INSERT INTO thesis_downloads (thesis_id, user_id, downloaded_at)
+                    VALUES (%s, %s, NOW())
+                """
+                cursor.execute(download_query, (thesis_id, user_id))
+                conn.commit()
+            except Exception as e:
+                logger.warning(f"Failed to record download event: {e}")
+                # Don't fail the download if recording fails
+
+        cursor.close()
+        conn.close()
+
+        # Get file path
+        file_url = thesis_row["file_url"]
+        file_name = thesis_row["file_name"] or f"{thesis_row['title_fr']}.pdf"
+
+        # Check if file exists
+        if not os.path.exists(file_url):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Thesis file not found on server"
+            )
+
+        # Return file response
+        return FileResponse(
+            path=file_url,
+            filename=file_name,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=\"{file_name}\"",
+                "X-Request-ID": request_id or ""
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading thesis: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+@app.post("/theses/{thesis_id}/view", tags=["Public - Thesis search"])
+async def record_thesis_view(
+    request: Request,
+    thesis_id: str
+):
+    """
+    Record a thesis view event.
+
+    Parameters:
+    - thesis_id: UUID of the thesis
+    """
+    request_id = getattr(request.state, "request_id", None)
+
+    try:
+        # Check if thesis exists and is published
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        query = """
+            SELECT id, status
+            FROM theses
+            WHERE id = %s AND status = 'published'
+        """
+
+        cursor.execute(query, (thesis_id,))
+        thesis_row = cursor.fetchone()
+
+        if not thesis_row:
+            cursor.close()
+            conn.close()
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Thesis not found or not published"
+            )
+
+        # Record the view event (if user is authenticated)
+        user_id = getattr(request.state, "user_id", None)
+        if user_id:
+            try:
+                view_query = """
+                    INSERT INTO thesis_views (thesis_id, user_id, viewed_at)
+                    VALUES (%s, %s, NOW())
+                    ON CONFLICT (thesis_id, user_id, DATE(viewed_at))
+                    DO UPDATE SET viewed_at = NOW()
+                """
+                cursor.execute(view_query, (thesis_id, user_id))
+                conn.commit()
+            except Exception as e:
+                logger.warning(f"Failed to record view event: {e}")
+                # Don't fail if recording fails
+
+        cursor.close()
+        conn.close()
+
+        return create_success_response(
+            data={"thesis_id": thesis_id, "viewed": True},
+            message="Thesis view recorded successfully",
+            request_id=request_id
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error recording thesis view: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
 
 # =============================================================================
-# APPLICATION STARTUP
+# USER MANAGEMENT ENDPOINTS (Admin)
 # =============================================================================
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize application on startup"""
+@app.get("/admin/users", response_model=PaginatedResponse, tags=["Admin - User Management"])
+async def get_users(
+    request: Request,
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Number of results per page"),
+    search: Optional[str] = Query(None, description="Search by username, email, or name"),
+    role_filter: Optional[str] = Query(None, description="Filter by role"),
+    status_filter: Optional[str] = Query(None, description="Filter by status: active, inactive, pending"),
+    sort_by: str = Query("created_at", description="Sort by: created_at, username, email, role_level"),
+    sort_order: str = Query("desc", description="Sort order: asc, desc")
+):
+    """
+    Get paginated list of users with optional filtering and sorting.
+
+    Parameters:
+    - page: Page number (default: 1)
+    - page_size: Results per page (default: 20, max: 100)
+    - search: Search query for username, email, or name
+    - role_filter: Filter by user role
+    - status_filter: Filter by user status
+    - sort_by: Sort criteria
+    - sort_order: Sort order (asc/desc)
+    """
+    request_id = getattr(request.state, "request_id", None)
+
+    try:
+        # Check admin permissions
+        user_role = getattr(request.state, "user_role", None)
+        if not user_role or user_role not in ["admin", "super_admin"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions"
+            )
+
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Build base query
+        query = """
+            SELECT
+                u.id, u.username, u.email, u.first_name, u.last_name,
+                u.is_active, u.is_verified, u.created_at, u.updated_at, u.last_login,
+                ur.role_name, ur.role_code, ur.role_level,
+                COALESCE(stats.thesis_count, 0) as thesis_count,
+                COALESCE(stats.download_count, 0) as download_count,
+                COALESCE(stats.view_count, 0) as view_count
+            FROM users u
+            LEFT JOIN user_roles ur ON u.role_id = ur.id
+            LEFT JOIN (
+                SELECT
+                    submitted_by as user_id,
+                    COUNT(*) as thesis_count,
+                    COUNT(CASE WHEN status = 'published' THEN 1 END) as published_count
+                FROM theses
+                GROUP BY submitted_by
+            ) stats ON u.id = stats.user_id
+        """
+
+        params = []
+
+        # Apply filters
+        if search:
+            query += " WHERE (u.username ILIKE %s OR u.email ILIKE %s OR u.first_name ILIKE %s OR u.last_name ILIKE %s)"
+            search_pattern = f"%{search}%"
+            params.extend([search_pattern, search_pattern, search_pattern, search_pattern])
+
+        if role_filter:
+            if "WHERE" in query:
+                query += " AND ur.role_code = %s"
+            else:
+                query += " WHERE ur.role_code = %s"
+            params.append(role_filter)
+
+        if status_filter:
+            if "WHERE" in query:
+                query += " AND u.is_active = %s"
+            else:
+                query += " WHERE u.is_active = %s"
+            params.append(status_filter == "active")
+
+        # Apply sorting
+        valid_sort_fields = {
+            "created_at": "u.created_at",
+            "username": "u.username",
+            "email": "u.email",
+            "role_level": "ur.role_level"
+        }
+
+        sort_field = valid_sort_fields.get(sort_by, "u.created_at")
+        order_clause = "DESC" if sort_order.lower() == "desc" else "ASC"
+        query += f" ORDER BY {sort_field} {order_clause}"
+
+        # Get total count
+        count_query = query.replace("SELECT", "SELECT COUNT(*)", 1).split("ORDER BY")[0]
+        cursor.execute(count_query, params)
+        total_count = cursor.fetchone()["count"]
+
+        # Apply pagination
+        offset = (page - 1) * page_size
+        query += " LIMIT %s OFFSET %s"
+        params.extend([page_size, offset])
+
+        cursor.execute(query, params)
+        results = cursor.fetchall()
+
+        # Transform results
+        users = []
+        for row in results:
+            user = {
+                "id": str(row["id"]),
+                "username": row["username"],
+                "email": row["email"],
+                "first_name": row["first_name"],
+                "last_name": row["last_name"],
+                "is_active": row["is_active"],
+                "is_verified": row["is_verified"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+                "last_login": row["last_login"].isoformat() if row["last_login"] else None,
+                "role": {
+                    "name": row["role_name"],
+                    "code": row["role_code"],
+                    "level": row["role_level"]
+                },
+                "stats": {
+                    "thesis_count": row["thesis_count"] or 0,
+                    "download_count": row["download_count"] or 0,
+                    "view_count": row["view_count"] or 0
+                }
+            }
+            users.append(user)
+
+        cursor.close()
+        conn.close()
+
+        return create_success_response(
+            data={
+                "items": users,
+                "total": total_count,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": (total_count + page_size - 1) // page_size
+            },
+            message=f"Found {total_count} users",
+            request_id=request_id
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving users: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+@app.get("/admin/users/{user_id}", response_model=UserResponse, tags=["Admin - User Management"])
+async def get_user_details(
+    request: Request,
+    user_id: str
+):
+    """
+    Get detailed information about a specific user.
+
+    Parameters:
+    - user_id: UUID of the user
+    """
+    request_id = getattr(request.state, "request_id", None)
+
+    try:
+        # Check admin permissions
+        user_role = getattr(request.state, "user_role", None)
+        if not user_role or user_role not in ["admin", "super_admin"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions"
+            )
+
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        query = """
+            SELECT
+                u.id, u.username, u.email, u.first_name, u.last_name,
+                u.is_active, u.is_verified, u.created_at, u.updated_at, u.last_login,
+                ur.role_name, ur.role_code, ur.role_level, ur.description as role_description
+            FROM users u
+            LEFT JOIN user_roles ur ON u.role_id = ur.id
+            WHERE u.id = %s
+        """
+
+        cursor.execute(query, (user_id,))
+        user_row = cursor.fetchone()
+
+        if not user_row:
+            cursor.close()
+            conn.close()
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        cursor.close()
+        conn.close()
+
+        user_data = {
+            "id": str(user_row["id"]),
+            "username": user_row["username"],
+            "email": user_row["email"],
+            "first_name": user_row["first_name"],
+            "last_name": user_row["last_name"],
+            "is_active": user_row["is_active"],
+            "is_verified": user_row["is_verified"],
+            "created_at": user_row["created_at"].isoformat() if user_row["created_at"] else None,
+            "updated_at": user_row["updated_at"].isoformat() if user_row["updated_at"] else None,
+            "last_login": user_row["last_login"].isoformat() if user_row["last_login"] else None,
+            "role": {
+                "name": user_row["role_name"],
+                "code": user_row["role_code"],
+                "level": user_row["role_level"],
+                "description": user_row["role_description"]
+            }
+        }
+
+        return create_success_response(
+            data=user_data,
+            message="User details retrieved successfully",
+            request_id=request_id
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving user details: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+@app.put("/admin/users/{user_id}", response_model=UserResponse, tags=["Admin - User Management"])
+async def update_user(
+    request: Request,
+    user_id: str,
+    user_update: UserUpdate
+):
+    """
+    Update user information and permissions.
+
+    Parameters:
+    - user_id: UUID of the user
+    - user_update: Updated user data
+    """
+    request_id = getattr(request.state, "request_id", None)
+
+    try:
+        # Check admin permissions
+        user_role = getattr(request.state, "user_role", None)
+        if not user_role or user_role not in ["admin", "super_admin"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions"
+            )
+
+        # Prevent self-modification of critical fields
+        current_user_id = getattr(request.state, "user_id", None)
+        if str(current_user_id) == user_id:
+            # Users can update some fields themselves, but not role or status
+            if hasattr(user_update, 'role_id') or hasattr(user_update, 'is_active'):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Cannot modify own role or status"
+                )
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Build update query
+        update_fields = []
+        params = []
+
+        if hasattr(user_update, 'first_name') and user_update.first_name is not None:
+            update_fields.append("first_name = %s")
+            params.append(user_update.first_name)
+
+        if hasattr(user_update, 'last_name') and user_update.last_name is not None:
+            update_fields.append("last_name = %s")
+            params.append(user_update.last_name)
+
+        if hasattr(user_update, 'email') and user_update.email is not None:
+            # Check if email already exists
+            cursor.execute("SELECT id FROM users WHERE email = %s AND id != %s", (user_update.email, user_id))
+            if cursor.fetchone():
+                cursor.close()
+                conn.close()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already exists"
+                )
+            update_fields.append("email = %s")
+            params.append(user_update.email)
+
+        if hasattr(user_update, 'is_active') and user_update.is_active is not None:
+            update_fields.append("is_active = %s")
+            params.append(user_update.is_active)
+
+        if hasattr(user_update, 'role_id') and user_update.role_id is not None:
+            # Validate role exists
+            cursor.execute("SELECT id FROM user_roles WHERE id = %s", (user_update.role_id,))
+            if not cursor.fetchone():
+                cursor.close()
+                conn.close()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid role ID"
+                )
+            update_fields.append("role_id = %s")
+            params.append(user_update.role_id)
+
+        if not update_fields:
+            cursor.close()
+            conn.close()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No valid fields to update"
+            )
+
+        update_fields.append("updated_at = NOW()")
+        params.append(user_id)
+
+        query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = %s"
+        cursor.execute(query, params)
+
+        if cursor.rowcount == 0:
+            cursor.close()
+            conn.close()
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        conn.commit()
+
+        # Log the action
+        log_query = """
+            INSERT INTO audit_logs (user_id, action, table_name, record_id, old_values, new_values, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW())
+        """
+        cursor.execute(log_query, (
+            current_user_id,
+            "UPDATE_USER",
+            "users",
+            user_id,
+            "User updated by admin",
+            "User updated by admin",
+        ))
+        conn.commit()
+
+        cursor.close()
+        conn.close()
+
+        return create_success_response(
+            data={"user_id": user_id, "updated": True},
+            message="User updated successfully",
+            request_id=request_id
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating user: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+@app.delete("/admin/users/{user_id}", response_model=BaseResponse, tags=["Admin - User Management"])
+async def delete_user(
+    request: Request,
+    user_id: str
+):
+    """
+    Delete a user account (soft delete or anonymize).
+
+    Parameters:
+    - user_id: UUID of the user
+    """
+    request_id = getattr(request.state, "request_id", None)
+
+    try:
+        # Check super admin permissions
+        user_role = getattr(request.state, "user_role", None)
+        if user_role != "super_admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions - super admin required"
+            )
+
+        # Prevent self-deletion
+        current_user_id = getattr(request.state, "user_id", None)
+        if str(current_user_id) == user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete own account"
+            )
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Check if user exists
+        cursor.execute("SELECT id, username, email FROM users WHERE id = %s", (user_id,))
+        user_row = cursor.fetchone()
+
+        if not user_row:
+            cursor.close()
+            conn.close()
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        # Soft delete - set inactive and anonymize
+        query = """
+            UPDATE users
+            SET
+                username = %s,
+                email = %s,
+                first_name = 'Deleted',
+                last_name = 'User',
+                is_active = false,
+                updated_at = NOW()
+            WHERE id = %s
+        """
+        anonymized_username = f"deleted_{user_id[:8]}"
+        anonymized_email = f"deleted_{user_id[:8]}@deleted.local"
+
+        cursor.execute(query, (anonymized_username, anonymized_email, user_id))
+
+        # Log the action
+        log_query = """
+            INSERT INTO audit_logs (user_id, action, table_name, record_id, old_values, new_values, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW())
+        """
+        cursor.execute(log_query, (
+            current_user_id,
+            "DELETE_USER",
+            "users",
+            user_id,
+            f"Deleted user {user_row[1]} ({user_row[2]})",
+            "User account anonymized and deactivated",
+        ))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return create_success_response(
+            data={"user_id": user_id, "deleted": True},
+            message="User deleted successfully",
+            request_id=request_id
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting user: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+@app.get("/admin/users/{user_id}/activity", response_model=PaginatedResponse, tags=["Admin - User Management"])
+async def get_user_activity(
+    request: Request,
+    user_id: str,
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Number of results per page"),
+    activity_type: Optional[str] = Query(None, description="Filter by activity type")
+):
+    """
+    Get user activity log (downloads, views, uploads, etc.).
+
+    Parameters:
+    - user_id: UUID of the user
+    - page: Page number (default: 1)
+    - page_size: Results per page (default: 20, max: 100)
+    - activity_type: Filter by activity type
+    """
+    request_id = getattr(request.state, "request_id", None)
+
+    try:
+        # Check admin permissions
+        user_role = getattr(request.state, "user_role", None)
+        if not user_role or user_role not in ["admin", "super_admin"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions"
+            )
+
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Check if user exists
+        cursor.execute("SELECT id FROM users WHERE id = %s", (user_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        # Build activity query
+        query = """
+            SELECT
+                'download' as activity_type,
+                td.thesis_id as record_id,
+                t.title_fr as record_title,
+                td.downloaded_at as created_at,
+                'Downloaded thesis' as description
+            FROM thesis_downloads td
+            LEFT JOIN theses t ON td.thesis_id = t.id
+            WHERE td.user_id = %s
+
+            UNION ALL
+
+            SELECT
+                'view' as activity_type,
+                tv.thesis_id as record_id,
+                t.title_fr as record_title,
+                tv.viewed_at as created_at,
+                'Viewed thesis' as description
+            FROM thesis_views tv
+            LEFT JOIN theses t ON tv.thesis_id = t.id
+            WHERE tv.user_id = %s
+
+            UNION ALL
+
+            SELECT
+                'upload' as activity_type,
+                t.id as record_id,
+                t.title_fr as record_title,
+                t.created_at as created_at,
+                'Uploaded thesis' as description
+            FROM theses t
+            WHERE t.submitted_by = %s
+        """
+
+        params = [user_id, user_id, user_id]
+
+        if activity_type:
+            query += " WHERE activity_type = %s"
+            params.append(activity_type)
+
+        # Get total count
+        count_query = f"SELECT COUNT(*) as count FROM ({query}) as activities"
+        cursor.execute(count_query, params[:-1] if activity_type else params)
+        total_count = cursor.fetchone()["count"]
+
+        # Apply sorting and pagination
+        query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+        offset = (page - 1) * page_size
+        params.extend([page_size, offset])
+
+        cursor.execute(query, params)
+        results = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
+        return create_success_response(
+            data={
+                "items": results,
+                "total": total_count,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": (total_count + page_size - 1) // page_size
+            },
+            message=f"Found {total_count} activities for user",
+            request_id=request_id
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving user activity: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+# =============================================================================
+# APPLICATION LIFESPAN
+# =============================================================================
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle application startup and shutdown events"""
+    # Startup
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    
+
     try:
         # Initialize database connection
         init_database()
         logger.info("Database connection initialized successfully")
-        
+
         # Create upload directories
         for directory in [TEMP_UPLOAD_DIR, PUBLISHED_DIR, BULK_UPLOAD_DIR]:
             directory.mkdir(parents=True, exist_ok=True)
         logger.info("Upload directories created/verified")
-        
+
         # Clean up old temporary files on startup
         #cleaned_count = cleanup_old_temp_files(days_old=7)
         #logger.info(f"Cleaned up {cleaned_count} old temporary files")
-        
+
         logger.info("Application startup completed successfully")
-        
+
     except Exception as e:
         logger.error(f"Failed to initialize application: {e}")
         raise
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Clean up resources on shutdown"""
+    yield
+
+    # Shutdown
     logger.info("Shutting down application...")
-    
+
     try:
         # Close database connections
         if db_pool:
             db_pool.close_all()
             logger.info("Database connections closed")
-            
+
         logger.info("Application shutdown completed")
-        
+
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
 
