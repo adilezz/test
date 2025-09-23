@@ -221,9 +221,15 @@ def execute_query(query: str, params=None, fetch_one=False, fetch_all=False):
             cursor.execute(query, params)
             
             if fetch_one:
-                return cursor.fetchone()
+                result = cursor.fetchone()
+                # Ensure we commit write operations that use RETURNING
+                conn.commit()
+                return result
             elif fetch_all:
-                return cursor.fetchall()
+                results = cursor.fetchall()
+                # Ensure we commit write operations that use RETURNING
+                conn.commit()
+                return results
             
             conn.commit()
             return cursor.rowcount
@@ -926,9 +932,8 @@ class LanguageCode(str, Enum):
     TAMAZIGHT = "zgh"
 
 class DegreeType(str, Enum):
-    DOCTORATE = "doctorate"
-    MEDICAL_DOCTORATE = "medical doctorate"
-    MASTER = "master"
+    ACADEMIC = "academic"
+    PROFESSIONAL = "professional"
 
 class DegreeCategory(str, Enum):
     RESEARCH = "research"
@@ -1398,7 +1403,7 @@ class ThesisResponse(ThesisBase):
     file_url: str
     file_name: str
     submitted_by: Optional[UUID4] = None
-    extraction_job_id: UUID4
+    extraction_job_id: Optional[UUID4] = None
     created_at: datetime
     updated_at: datetime
 
@@ -5950,54 +5955,541 @@ async def delete_thesis(
 # Universities
 # =============================================================================
 @app.get("/universities", response_model=List[UniversityResponse], tags=["Public - Reference Data"])
+async def list_universities():
+    query = """
+        SELECT id, name_fr, name_ar, name_en, acronym, geographic_entities_id, created_at, updated_at
+        FROM universities
+        ORDER BY name_fr ASC
+    """
+    rows = execute_query_with_result(query)
+    return [
+        UniversityResponse(
+            id=row["id"],
+            name_fr=row["name_fr"],
+            name_ar=row["name_ar"],
+            name_en=row["name_en"],
+            acronym=row["acronym"],
+            geographic_entities_id=row["geographic_entities_id"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        ) for row in rows
+    ]
+
 @app.get("/universities/{university_id}", response_model=UniversityResponse, tags=["Public - Reference Data"])
+async def get_university(university_id: str):
+    row = execute_query(
+        "SELECT * FROM universities WHERE id = %s",
+        (university_id,),
+        fetch_one=True,
+    )
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="University not found")
+    return UniversityResponse(
+        id=row["id"],
+        name_fr=row["name_fr"],
+        name_ar=row["name_ar"],
+        name_en=row["name_en"],
+        acronym=row["acronym"],
+        geographic_entities_id=row["geographic_entities_id"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+def _map_thesis_row(row: Dict[str, Any]) -> ThesisResponse:
+    return ThesisResponse(
+        id=row["id"],
+        title_fr=row["title_fr"],
+        title_en=row.get("title_en"),
+        title_ar=row.get("title_ar"),
+        abstract_fr=row["abstract_fr"],
+        abstract_en=row.get("abstract_en"),
+        abstract_ar=row.get("abstract_ar"),
+        university_id=row.get("university_id"),
+        faculty_id=row.get("faculty_id"),
+        school_id=row.get("school_id"),
+        department_id=row.get("department_id"),
+        degree_id=row.get("degree_id"),
+        thesis_number=row.get("thesis_number"),
+        study_location_id=row.get("study_location_id"),
+        defense_date=row["defense_date"],
+        language_id=row["language_id"],
+        secondary_language_ids=row.get("secondary_language_ids") or [],
+        page_count=row.get("page_count"),
+        status=row.get("status", ThesisStatus.DRAFT),
+        file_url=row["file_url"],
+        file_name=row["file_name"],
+        submitted_by=row.get("submitted_by"),
+        extraction_job_id=row.get("extraction_job_id"),
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
 @app.get("/universities/{university_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+async def list_university_theses(university_id: str, page: int = Query(1, ge=1), limit: int = Query(20, ge=1, le=100)):
+    offset = (page - 1) * limit
+    rows = execute_query_with_result(
+        """
+        SELECT * FROM theses 
+        WHERE university_id = %s AND status = 'published'
+        ORDER BY defense_date DESC
+        LIMIT %s OFFSET %s
+        """,
+        (university_id, limit, offset),
+    )
+    return [_map_thesis_row(row) for row in rows]
 
 # Faculties
 # =============================================================================
 @app.get("/faculties", response_model=List[FacultyResponse], tags=["Public - Reference Data"])
+async def list_faculties():
+    rows = execute_query_with_result("SELECT id, university_id, name_fr, name_en, name_ar, acronym, created_at, updated_at FROM faculties ORDER BY name_fr ASC")
+    return [
+        FacultyResponse(
+            id=row["id"],
+            university_id=row["university_id"],
+            name_fr=row["name_fr"],
+            name_en=row.get("name_en"),
+            name_ar=row.get("name_ar"),
+            acronym=row.get("acronym"),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        ) for row in rows
+    ]
+
 @app.get("/faculties/{faculty_id}", response_model=FacultyResponse, tags=["Public - Reference Data"])
+async def get_faculty(faculty_id: str):
+    row = execute_query("SELECT * FROM faculties WHERE id = %s", (faculty_id,), fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Faculty not found")
+    return FacultyResponse(
+        id=row["id"],
+        university_id=row["university_id"],
+        name_fr=row["name_fr"],
+        name_en=row.get("name_en"),
+        name_ar=row.get("name_ar"),
+        acronym=row.get("acronym"),
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
 @app.get("/faculties/{faculty_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+async def list_faculty_theses(faculty_id: str, page: int = Query(1, ge=1), limit: int = Query(20, ge=1, le=100)):
+    offset = (page - 1) * limit
+    rows = execute_query_with_result(
+        """
+        SELECT * FROM theses 
+        WHERE faculty_id = %s AND status = 'published'
+        ORDER BY defense_date DESC
+        LIMIT %s OFFSET %s
+        """,
+        (faculty_id, limit, offset),
+    )
+    return [_map_thesis_row(row) for row in rows]
 
 # Schools
 # =============================================================================
 @app.get("/schools", response_model=List[SchoolResponse], tags=["Public - Reference Data"])
-@app.get("/schools/{school_id}", response_model=SchoolResponse, tags=["Public - Reference Data"])
-@app.get("/schools/{school_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+async def list_schools():
+    rows = execute_query_with_result("SELECT id, name_fr, name_en, name_ar, acronym, parent_university_id, parent_school_id, created_at, updated_at FROM schools ORDER BY name_fr ASC")
+    return [
+        SchoolResponse(
+            id=row["id"],
+            name_fr=row["name_fr"],
+            name_en=row.get("name_en"),
+            name_ar=row.get("name_ar"),
+            acronym=row.get("acronym"),
+            parent_university_id=row.get("parent_university_id"),
+            parent_school_id=row.get("parent_school_id"),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        ) for row in rows
+    ]
 
-# Departments
+@app.get("/schools/{school_id}", response_model=SchoolResponse, tags=["Public - Reference Data"])
+async def get_school(school_id: str):
+    row = execute_query("SELECT * FROM schools WHERE id = %s", (school_id,), fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="School not found")
+    return SchoolResponse(
+        id=row["id"],
+        name_fr=row["name_fr"],
+        name_en=row.get("name_en"),
+        name_ar=row.get("name_ar"),
+        acronym=row.get("acronym"),
+        parent_university_id=row.get("parent_university_id"),
+        parent_school_id=row.get("parent_school_id"),
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+@app.get("/schools/{school_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+async def list_school_theses(school_id: str, page: int = Query(1, ge=1), limit: int = Query(20, ge=1, le=100)):
+    offset = (page - 1) * limit
+    rows = execute_query_with_result(
+        """
+        SELECT * FROM theses 
+        WHERE school_id = %s AND status = 'published'
+        ORDER BY defense_date DESC
+        LIMIT %s OFFSET %s
+        """,
+        (school_id, limit, offset),
+    )
+    return [_map_thesis_row(row) for row in rows]
+
+# Departments (provide legacy misspelled route for backward compatibility)
 # =============================================================================
+@app.get("/departments", response_model=List[DepartmentResponse], tags=["Public - Reference Data"])
 @app.get("/depatments", response_model=List[DepartmentResponse], tags=["Public - Reference Data"])
-@app.get("/depatments/{department_id}/theses", response_model=list[ThesisResponse], tags=["Public - Reference Data"])
+async def list_departments():
+    rows = execute_query_with_result("SELECT id, faculty_id, school_id, name_fr, name_en, name_ar, acronym, created_at, updated_at FROM departments ORDER BY name_fr ASC")
+    return [
+        DepartmentResponse(
+            id=row["id"],
+            faculty_id=row.get("faculty_id"),
+            school_id=row.get("school_id"),
+            name_fr=row["name_fr"],
+            name_en=row.get("name_en"),
+            name_ar=row.get("name_ar"),
+            acronym=row.get("acronym"),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        ) for row in rows
+    ]
+
+@app.get("/departments/{department_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+@app.get("/depatments/{department_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+async def list_department_theses(department_id: str, page: int = Query(1, ge=1), limit: int = Query(20, ge=1, le=100)):
+    offset = (page - 1) * limit
+    rows = execute_query_with_result(
+        """
+        SELECT * FROM theses 
+        WHERE department_id = %s AND status = 'published'
+        ORDER BY defense_date DESC
+        LIMIT %s OFFSET %s
+        """,
+        (department_id, limit, offset),
+    )
+    return [_map_thesis_row(row) for row in rows]
 
 # Categories
 # =============================================================================
 @app.get("/categories", response_model=List[CategoryResponse], tags=["Public - Reference Data"])
-@app.get("/categories/{category_id}", response_model=CategoryResponse, tags=["Public - Reference Data"])
-@app.get("/categories/{category_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+async def list_categories():
+    rows = execute_query_with_result("SELECT id, parent_id, level, code, name_fr, name_en, name_ar, created_at, updated_at FROM categories ORDER BY level ASC, name_fr ASC")
+    return [
+        CategoryResponse(
+            id=row["id"],
+            parent_id=row.get("parent_id"),
+            level=row["level"],
+            code=row["code"],
+            name_fr=row["name_fr"],
+            name_en=row.get("name_en"),
+            name_ar=row.get("name_ar"),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        ) for row in rows
+    ]
 
-# Academic persons
+@app.get("/categories/{category_id}", response_model=CategoryResponse, tags=["Public - Reference Data"])
+async def get_category(category_id: str):
+    row = execute_query("SELECT * FROM categories WHERE id = %s", (category_id,), fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    return CategoryResponse(
+        id=row["id"],
+        parent_id=row.get("parent_id"),
+        level=row["level"],
+        code=row["code"],
+        name_fr=row["name_fr"],
+        name_en=row.get("name_en"),
+        name_ar=row.get("name_ar"),
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+@app.get("/categories/{category_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+async def list_category_theses(category_id: str, page: int = Query(1, ge=1), limit: int = Query(20, ge=1, le=100)):
+    offset = (page - 1) * limit
+    rows = execute_query_with_result(
+        """
+        SELECT t.* FROM theses t
+        INNER JOIN thesis_categories tc ON tc.thesis_id = t.id
+        WHERE tc.category_id = %s AND t.status = 'published'
+        ORDER BY t.defense_date DESC
+        LIMIT %s OFFSET %s
+        """,
+        (category_id, limit, offset),
+    )
+    return [_map_thesis_row(row) for row in rows]
+
+# Academic persons (support both hyphen and underscore paths)
 # =============================================================================
+@app.get("/academic-persons", response_model=List[AcademicPersonResponse], tags=["Public - Reference Data"])
 @app.get("/academic_persons", response_model=List[AcademicPersonResponse], tags=["Public - Reference Data"])
-@app.get("/academic_persons/{acedemic_person_id}/theses", response_model=AcademicPersonResponse, tags=["Public - Reference Data"])
+async def list_academic_persons(q: Optional[str] = Query(None, max_length=100)):
+    base = "SELECT id, complete_name_fr, complete_name_ar, first_name_fr, last_name_fr, first_name_ar, last_name_ar, title, university_id, faculty_id, school_id, external_institution_name, external_institution_country, external_institution_type, user_id, created_at, updated_at FROM academic_persons"
+    params = []
+    if q:
+        base += " WHERE LOWER(complete_name_fr) LIKE LOWER(%s) OR LOWER(first_name_fr) LIKE LOWER(%s) OR LOWER(last_name_fr) LIKE LOWER(%s)"
+        like = f"%{q}%"
+        params = [like, like, like]
+    base += " ORDER BY COALESCE(complete_name_fr, last_name_fr) ASC"
+    rows = execute_query_with_result(base, params if params else None)
+    return [
+        AcademicPersonResponse(
+            id=row["id"],
+            complete_name_fr=row.get("complete_name_fr"),
+            complete_name_ar=row.get("complete_name_ar"),
+            first_name_fr=row.get("first_name_fr"),
+            last_name_fr=row.get("last_name_fr"),
+            first_name_ar=row.get("first_name_ar"),
+            last_name_ar=row.get("last_name_ar"),
+            title=row.get("title"),
+            university_id=row.get("university_id"),
+            faculty_id=row.get("faculty_id"),
+            school_id=row.get("school_id"),
+            external_institution_name=row.get("external_institution_name"),
+            external_institution_country=row.get("external_institution_country"),
+            external_institution_type=row.get("external_institution_type"),
+            user_id=row.get("user_id"),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        ) for row in rows
+    ]
+
+@app.get("/academic-persons/{person_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+@app.get("/academic_persons/{person_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+async def list_person_theses(person_id: str, roles: Optional[str] = Query(None, description="Comma-separated roles, e.g., author,director")):
+    role_list = None
+    params: List[Any] = [person_id]
+    role_clause = ""
+    if roles:
+        role_list = [r.strip() for r in roles.split(",") if r.strip()]
+        if role_list:
+            placeholders = ",".join(["%s"] * len(role_list))
+            role_clause = f" AND tap.role IN ({placeholders})"
+            params.extend(role_list)
+    rows = execute_query_with_result(
+        f"""
+        SELECT t.* FROM theses t
+        INNER JOIN thesis_academic_persons tap ON tap.thesis_id = t.id
+        WHERE tap.person_id = %s {{role_clause}} AND t.status = 'published'
+        ORDER BY t.defense_date DESC
+        """.replace("{role_clause}", role_clause),
+        params,
+    )
+    return [_map_thesis_row(row) for row in rows]
 
 # Degrees
 # =============================================================================
 @app.get("/degrees", response_model=List[DegreeResponse], tags=["Public - Reference Data"])
-@app.get("/degrees/{degree_id}/theses", response_model=list[ThesisResponse], tags=["Public - Reference Data"])
+async def list_degrees():
+    rows = execute_query_with_result("SELECT id, name_en, name_fr, name_ar, abbreviation, type, category, created_at, updated_at FROM degrees ORDER BY display_order NULLS LAST, name_fr ASC")
+    return [
+        DegreeResponse(
+            id=row["id"],
+            name_en=row["name_en"],
+            name_fr=row["name_fr"],
+            name_ar=row["name_ar"],
+            abbreviation=row["abbreviation"],
+            type=row["type"],
+            category=row.get("category"),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        ) for row in rows
+    ]
+
+@app.get("/degrees/{degree_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+async def list_degree_theses(degree_id: str, page: int = Query(1, ge=1), limit: int = Query(20, ge=1, le=100)):
+    offset = (page - 1) * limit
+    rows = execute_query_with_result(
+        """
+        SELECT * FROM theses 
+        WHERE degree_id = %s AND status = 'published'
+        ORDER BY defense_date DESC
+        LIMIT %s OFFSET %s
+        """,
+        (degree_id, limit, offset),
+    )
+    return [_map_thesis_row(row) for row in rows]
 
 # Languages
 # =============================================================================
 @app.get("/languages", response_model=List[LanguageResponse], tags=["Public - Reference Data"])
-@app.get("/languages/{language_id}/theses", response_model=LanguageResponse, tags=["Public - Reference Data"])
+async def list_languages():
+    rows = execute_query_with_result("SELECT id, code, name, native_name, rtl, is_active, display_order, created_at, updated_at FROM languages WHERE is_active = true ORDER BY display_order ASC, name ASC")
+    return [
+        LanguageResponse(
+            id=row["id"],
+            code=row["code"],
+            name=row["name"],
+            native_name=row["native_name"],
+            rtl=row["rtl"],
+            is_active=row["is_active"],
+            display_order=row["display_order"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        ) for row in rows
+    ]
 
-# Main Search (search variables: term(s); filters (university/faculty/departments, disciplines/subdisciplines/specialities, date from-to or years, degrees, languages, academic persons (limited to author and director); sort options: relevance, popularity (sum of downloads and cites), date, alphabetical university, alphabetical title; sort order: ascending/descending; display options (number of results per page (10, 20, 50, 100)))
+@app.get("/languages/{language_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
+async def list_language_theses(language_id: str, page: int = Query(1, ge=1), limit: int = Query(20, ge=1, le=100)):
+    offset = (page - 1) * limit
+    rows = execute_query_with_result(
+        """
+        SELECT * FROM theses 
+        WHERE language_id = %s AND status = 'published'
+        ORDER BY defense_date DESC
+        LIMIT %s OFFSET %s
+        """,
+        (language_id, limit, offset),
+    )
+    return [_map_thesis_row(row) for row in rows]
+
+# Thesis search and discovery
 # =============================================================================
-@app.get("/theses", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) # liste all theses with no filters applied,default settings to (sort options to date, descending order, 10 results per page) 
-@app.get("/theses/search query", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) # Search results when filters applied and/or terms searched for
-@app.get("/theses/recent", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) # Recently published
-@app.get("/theses/popular", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) # Most downloaded/viewed
-@app.get("/theses/{thesis_id}", response_model=ThesisResponse, tags=["Public - Thesis search"]) # Get thesis details
+@app.get("/theses", response_model=List[ThesisResponse], tags=["Public - Thesis search"])
+async def list_theses(
+    q: Optional[str] = Query(None, max_length=500),
+    university_id: Optional[str] = None,
+    faculty_id: Optional[str] = None,
+    department_id: Optional[str] = None,
+    category_id: Optional[str] = None,
+    degree_id: Optional[str] = None,
+    language_id: Optional[str] = None,
+    year_from: Optional[int] = Query(None, ge=1900, le=2050),
+    year_to: Optional[int] = Query(None, ge=1900, le=2050),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    sort: str = Query("defense_date_desc", description="one of: defense_date_desc, defense_date_asc, title, downloads, views"),
+):
+    base = "SELECT t.* FROM theses t"
+    params: List[Any] = []
+    joins = []
+    wheres = ["t.status = 'published'"]
+    if q:
+        wheres.append("(LOWER(t.title_fr) LIKE LOWER(%s) OR LOWER(t.abstract_fr) LIKE LOWER(%s))")
+        like = f"%{q}%"
+        params.extend([like, like])
+    if university_id:
+        wheres.append("t.university_id = %s")
+        params.append(university_id)
+    if faculty_id:
+        wheres.append("t.faculty_id = %s")
+        params.append(faculty_id)
+    if department_id:
+        wheres.append("t.department_id = %s")
+        params.append(department_id)
+    if category_id:
+        joins.append("INNER JOIN thesis_categories tc ON tc.thesis_id = t.id")
+        wheres.append("tc.category_id = %s")
+        params.append(category_id)
+    if degree_id:
+        wheres.append("t.degree_id = %s")
+        params.append(degree_id)
+    if language_id:
+        wheres.append("t.language_id = %s")
+        params.append(language_id)
+    if year_from:
+        wheres.append("EXTRACT(YEAR FROM t.defense_date) >= %s")
+        params.append(year_from)
+    if year_to:
+        wheres.append("EXTRACT(YEAR FROM t.defense_date) <= %s")
+        params.append(year_to)
+
+    order_by = "t.defense_date DESC"
+    if sort == "defense_date_asc":
+        order_by = "t.defense_date ASC"
+    elif sort == "title":
+        order_by = "LOWER(t.title_fr) ASC"
+    elif sort == "downloads":
+        base = """
+            SELECT t.*,
+                   COALESCE(d.download_count,0) AS download_count
+            FROM theses t
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) AS download_count
+                FROM thesis_downloads GROUP BY thesis_id
+            ) d ON d.thesis_id = t.id
+        """
+        order_by = "download_count DESC, t.defense_date DESC"
+    elif sort == "views":
+        base = """
+            SELECT t.*,
+                   COALESCE(v.view_count,0) AS view_count
+            FROM theses t
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) AS view_count
+                FROM thesis_views GROUP BY thesis_id
+            ) v ON v.thesis_id = t.id
+        """
+        order_by = "view_count DESC, t.defense_date DESC"
+
+    clause = (" " + " ".join(joins) if joins else "") + (" WHERE " + " AND ".join(wheres) if wheres else "")
+    offset = (page - 1) * limit
+    sql = f"{base}{clause} ORDER BY {order_by} LIMIT %s OFFSET %s"
+    params.extend([limit, offset])
+    rows = execute_query_with_result(sql, params)
+    return [_map_thesis_row(row) for row in rows]
+
+@app.get("/theses/search", response_model=List[ThesisResponse], tags=["Public - Thesis search"])
+async def search_theses(
+    q: Optional[str] = Query(None, max_length=500),
+    university_id: Optional[str] = None,
+    faculty_id: Optional[str] = None,
+    department_id: Optional[str] = None,
+    category_id: Optional[str] = None,
+    degree_id: Optional[str] = None,
+    language_id: Optional[str] = None,
+    year_from: Optional[int] = Query(None, ge=1900, le=2050),
+    year_to: Optional[int] = Query(None, ge=1900, le=2050),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    sort: str = Query("defense_date_desc"),
+):
+    # Delegate to list_theses for unified behavior
+    return await list_theses(q, university_id, faculty_id, department_id, category_id, degree_id, language_id, year_from, year_to, page, limit, sort)
+
+@app.get("/theses/recent", response_model=List[ThesisResponse], tags=["Public - Thesis search"])
+async def recent_theses(limit: int = Query(10, ge=1, le=100)):
+    rows = execute_query_with_result(
+        """
+        SELECT * FROM theses 
+        WHERE status = 'published'
+        ORDER BY defense_date DESC, created_at DESC
+        LIMIT %s
+        """,
+        (limit,),
+    )
+    return [_map_thesis_row(row) for row in rows]
+
+@app.get("/theses/popular", response_model=List[ThesisResponse], tags=["Public - Thesis search"])
+async def popular_theses(limit: int = Query(10, ge=1, le=100)):
+    rows = execute_query_with_result(
+        """
+        SELECT t.*,
+               COALESCE(v.view_count,0) + COALESCE(d.download_count,0) AS popularity
+        FROM theses t
+        LEFT JOIN (
+            SELECT thesis_id, COUNT(*) AS view_count FROM thesis_views GROUP BY thesis_id
+        ) v ON v.thesis_id = t.id
+        LEFT JOIN (
+            SELECT thesis_id, COUNT(*) AS download_count FROM thesis_downloads GROUP BY thesis_id
+        ) d ON d.thesis_id = t.id
+        WHERE t.status = 'published'
+        ORDER BY popularity DESC, t.defense_date DESC
+        LIMIT %s
+        """,
+        (limit,),
+    )
+    return [_map_thesis_row(row) for row in rows]
+
+@app.get("/theses/{thesis_id}", response_model=ThesisResponse, tags=["Public - Thesis search"])
+async def get_thesis(thesis_id: str):
+    row = execute_query("SELECT * FROM theses WHERE id = %s", (thesis_id,), fetch_one=True)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thesis not found")
+    return _map_thesis_row(row)
 
 # =============================================================================
 # APPLICATION STARTUP
