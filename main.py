@@ -1445,13 +1445,79 @@ class ThesisKeywordResponse(ThesisKeywordBase):
     created_at: datetime
     updated_at: datetime
 
+# Enums
+class ThesisStatus(str, Enum):
+    DRAFT = "draft"
+    SUBMITTED = "submitted"
+    UNDER_REVIEW = "under_review"
+    APPROVED = "approved"
+    PUBLISHED = "published"
+    REJECTED = "rejected"
+
+class AcademicRole(str, Enum):
+    AUTHOR = "author"
+    DIRECTOR = "director"
+    CO_DIRECTOR = "co_director"
+    JURY_PRESIDENT = "jury_president"
+    JURY_EXAMINER = "jury_examiner"
+    JURY_REPORTER = "jury_reporter"
+    EXTERNAL_EXAMINER = "external_examiner"
+
+class SortOrder(str, Enum):
+    ASC = "asc"
+    DESC = "desc"
+
+class SortBy(str, Enum):
+    RELEVANCE = "relevance"
+    DATE = "date"
+    TITLE = "title"
+    POPULARITY = "popularity"
+    UNIVERSITY = "university"
+
 # Search and Filter Models
+class SearchFilters(BaseModel):
+    universities: Optional[List[UUID4]] = Field(default_factory=list)
+    faculties: Optional[List[UUID4]] = Field(default_factory=list)
+    schools: Optional[List[UUID4]] = Field(default_factory=list)
+    departments: Optional[List[UUID4]] = Field(default_factory=list)
+    categories: Optional[List[UUID4]] = Field(default_factory=list)
+    degrees: Optional[List[UUID4]] = Field(default_factory=list)
+    languages: Optional[List[UUID4]] = Field(default_factory=list)
+    authors: Optional[List[UUID4]] = Field(default_factory=list)
+    directors: Optional[List[UUID4]] = Field(default_factory=list)
+    year_from: Optional[int] = Field(None, ge=1980, le=2030)
+    year_to: Optional[int] = Field(None, ge=1980, le=2030)
+    date_from: Optional[date] = None
+    date_to: Optional[date] = None
+    status: Optional[List[ThesisStatus]] = Field(default_factory=list)
+
 class SearchRequest(BaseModel):
-    q: Optional[str] = Field(None, max_length=500)
-    title: Optional[str] = Field(None, max_length=500)
-    author: Optional[str] = Field(None, max_length=200)
-    abstract: Optional[str] = Field(None, max_length=1000)
-    keywords: Optional[str] = Field(None, max_length=500)
+    q: Optional[str] = Field(None, max_length=500, description="General search query")
+    title: Optional[str] = Field(None, max_length=500, description="Search in title")
+    author: Optional[str] = Field(None, max_length=200, description="Search by author name")
+    abstract: Optional[str] = Field(None, max_length=1000, description="Search in abstract")
+    keywords: Optional[str] = Field(None, max_length=500, description="Search by keywords")
+    filters: Optional[SearchFilters] = Field(default_factory=SearchFilters)
+    sort_by: SortBy = SortBy.DATE
+    sort_order: SortOrder = SortOrder.DESC
+    page: int = Field(1, ge=1, description="Page number")
+    page_size: int = Field(20, ge=1, le=100, description="Results per page")
+
+class SearchResponse(BaseModel):
+    results: List[ThesisResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+
+class ThesisDetailResponse(ThesisResponse):
+    academic_persons: List[ThesisAcademicPersonResponse] = Field(default_factory=list)
+    categories: List[ThesisCategoryResponse] = Field(default_factory=list)
+    keywords: List[ThesisKeywordResponse] = Field(default_factory=list)
+    download_count: int = 0
+    view_count: int = 0
     university_id: Optional[UUID4] = None
     faculty_id: Optional[UUID4] = None
     department_id: Optional[UUID4] = None
@@ -5967,8 +6033,8 @@ async def delete_thesis(
 
 # Departments
 # =============================================================================
-@app.get("/depatments", response_model=List[DepartmentResponse], tags=["Public - Reference Data"])
-@app.get("/depatments/{department_id}/theses", response_model=list[ThesisResponse], tags=["Public - Reference Data"])
+@app.get("/departments", response_model=List[DepartmentResponse], tags=["Public - Reference Data"])
+@app.get("/departments/{department_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
 
 # Categories
 # =============================================================================
@@ -5984,7 +6050,7 @@ async def delete_thesis(
 # Degrees
 # =============================================================================
 @app.get("/degrees", response_model=List[DegreeResponse], tags=["Public - Reference Data"])
-@app.get("/degrees/{degree_id}/theses", response_model=list[ThesisResponse], tags=["Public - Reference Data"])
+@app.get("/degrees/{degree_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
 
 # Languages
 # =============================================================================
@@ -5993,11 +6059,649 @@ async def delete_thesis(
 
 # Main Search (search variables: term(s); filters (university/faculty/departments, disciplines/subdisciplines/specialities, date from-to or years, degrees, languages, academic persons (limited to author and director); sort options: relevance, popularity (sum of downloads and cites), date, alphabetical university, alphabetical title; sort order: ascending/descending; display options (number of results per page (10, 20, 50, 100)))
 # =============================================================================
-@app.get("/theses", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) # liste all theses with no filters applied,default settings to (sort options to date, descending order, 10 results per page) 
-@app.get("/theses/search query", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) # Search results when filters applied and/or terms searched for
-@app.get("/theses/recent", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) # Recently published
-@app.get("/theses/popular", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) # Most downloaded/viewed
-@app.get("/theses/{thesis_id}", response_model=ThesisResponse, tags=["Public - Thesis search"]) # Get thesis details
+
+@app.get("/theses", response_model=SearchResponse, tags=["Public - Thesis Search"])
+async def list_all_theses(
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Results per page"),
+    sort_by: SortBy = Query(SortBy.DATE, description="Sort by field"),
+    sort_order: SortOrder = Query(SortOrder.DESC, description="Sort order")
+):
+    """
+    List all published theses with default settings
+    - Default sort: by date, descending order
+    - Default page size: 20 results per page
+    """
+    try:
+        # Calculate offset
+        offset = (page - 1) * page_size
+        
+        # Build sort clause
+        sort_field = "defense_date" if sort_by == SortBy.DATE else "title_fr" if sort_by == SortBy.TITLE else "defense_date"
+        sort_direction = "DESC" if sort_order == SortOrder.DESC else "ASC"
+        
+        # Get total count
+        count_query = """
+            SELECT COUNT(*) as total 
+            FROM theses 
+            WHERE status = 'published'
+        """
+        
+        total_result = execute_query(count_query, fetch_one=True)
+        total = total_result['total'] if total_result else 0
+        
+        # Get theses
+        query = f"""
+            SELECT t.*, u.name_fr as university_name, f.name_fr as faculty_name,
+                   l.name as language_name, d.title_fr as degree_title,
+                   COALESCE(dl.download_count, 0) as download_count,
+                   COALESCE(vw.view_count, 0) as view_count
+            FROM theses t
+            LEFT JOIN universities u ON t.university_id = u.id
+            LEFT JOIN faculties f ON t.faculty_id = f.id
+            LEFT JOIN languages l ON t.language_id = l.id
+            LEFT JOIN degrees d ON t.degree_id = d.id
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as download_count 
+                FROM thesis_downloads 
+                GROUP BY thesis_id
+            ) dl ON t.id = dl.thesis_id
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as view_count 
+                FROM thesis_views 
+                GROUP BY thesis_id
+            ) vw ON t.id = vw.thesis_id
+            WHERE t.status = 'published'
+            ORDER BY {sort_field} {sort_direction}
+            LIMIT %s OFFSET %s
+        """
+        
+        results = execute_query(query, (page_size, offset), fetch_all=True)
+        
+        # Calculate pagination info
+        total_pages = (total + page_size - 1) // page_size
+        has_next = page < total_pages
+        has_prev = page > 1
+        
+        # Convert to response models
+        thesis_list = []
+        for row in results:
+            thesis_list.append(ThesisResponse(
+                id=row['id'],
+                title_fr=row['title_fr'],
+                title_en=row['title_en'],
+                title_ar=row['title_ar'],
+                abstract_fr=row['abstract_fr'],
+                abstract_en=row['abstract_en'],
+                abstract_ar=row['abstract_ar'],
+                university_id=row['university_id'],
+                faculty_id=row['faculty_id'],
+                school_id=row['school_id'],
+                department_id=row['department_id'],
+                degree_id=row['degree_id'],
+                thesis_number=row['thesis_number'],
+                study_location_id=row['study_location_id'],
+                defense_date=row['defense_date'],
+                language_id=row['language_id'],
+                secondary_language_ids=row['secondary_language_ids'] or [],
+                page_count=row['page_count'],
+                status=row['status'],
+                file_url=row['file_url'],
+                file_name=row['file_name'],
+                submitted_by=row['submitted_by'],
+                extraction_job_id=row['extraction_job_id'],
+                created_at=row['created_at'],
+                updated_at=row['updated_at']
+            ))
+        
+        return SearchResponse(
+            results=thesis_list,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+            has_next=has_next,
+            has_prev=has_prev
+        )
+        
+    except Exception as e:
+        logger.error(f"Error listing theses: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/theses/search", response_model=SearchResponse, tags=["Public - Thesis Search"])
+async def search_theses(search_request: SearchRequest):
+    """Advanced search with filters and query terms"""
+    try:
+        # Build WHERE conditions
+        where_conditions = ["t.status = 'published'"]
+        params = []
+        
+        # Full-text search
+        if search_request.q:
+            where_conditions.append("""
+                (t.title_fr ILIKE %s OR t.title_en ILIKE %s OR t.title_ar ILIKE %s 
+                 OR t.abstract_fr ILIKE %s OR t.abstract_en ILIKE %s OR t.abstract_ar ILIKE %s)
+            """)
+            search_term = f"%{search_request.q}%"
+            params.extend([search_term] * 6)
+        
+        # Specific field searches
+        if search_request.title:
+            where_conditions.append("(t.title_fr ILIKE %s OR t.title_en ILIKE %s OR t.title_ar ILIKE %s)")
+            title_term = f"%{search_request.title}%"
+            params.extend([title_term] * 3)
+            
+        if search_request.abstract:
+            where_conditions.append("(t.abstract_fr ILIKE %s OR t.abstract_en ILIKE %s OR t.abstract_ar ILIKE %s)")
+            abstract_term = f"%{search_request.abstract}%"
+            params.extend([abstract_term] * 3)
+        
+        # Filters
+        if search_request.filters:
+            if search_request.filters.universities:
+                where_conditions.append("t.university_id = ANY(%s)")
+                params.append(search_request.filters.universities)
+                
+            if search_request.filters.faculties:
+                where_conditions.append("t.faculty_id = ANY(%s)")
+                params.append(search_request.filters.faculties)
+                
+            if search_request.filters.year_from:
+                where_conditions.append("EXTRACT(YEAR FROM t.defense_date) >= %s")
+                params.append(search_request.filters.year_from)
+                
+            if search_request.filters.year_to:
+                where_conditions.append("EXTRACT(YEAR FROM t.defense_date) <= %s")
+                params.append(search_request.filters.year_to)
+        
+        # Build sort clause
+        sort_field = {
+            SortBy.DATE: "t.defense_date",
+            SortBy.TITLE: "t.title_fr",
+            SortBy.UNIVERSITY: "u.name_fr",
+            SortBy.POPULARITY: "(COALESCE(dl.download_count, 0) + COALESCE(vw.view_count, 0))",
+            SortBy.RELEVANCE: "t.defense_date"
+        }.get(search_request.sort_by, "t.defense_date")
+        
+        sort_direction = "DESC" if search_request.sort_order == SortOrder.DESC else "ASC"
+        
+        # Calculate offset
+        offset = (search_request.page - 1) * search_request.page_size
+        
+        # Build WHERE clause
+        where_clause = " AND ".join(where_conditions)
+        
+        # Get total count
+        count_query = f"""
+            SELECT COUNT(*) as total 
+            FROM theses t
+            LEFT JOIN universities u ON t.university_id = u.id
+            WHERE {where_clause}
+        """
+        
+        total_result = execute_query(count_query, params, fetch_one=True)
+        total = total_result['total'] if total_result else 0
+        
+        # Get results
+        query = f"""
+            SELECT t.*,
+                   COALESCE(dl.download_count, 0) as download_count,
+                   COALESCE(vw.view_count, 0) as view_count
+            FROM theses t
+            LEFT JOIN universities u ON t.university_id = u.id
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as download_count 
+                FROM thesis_downloads 
+                GROUP BY thesis_id
+            ) dl ON t.id = dl.thesis_id
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as view_count 
+                FROM thesis_views 
+                GROUP BY thesis_id
+            ) vw ON t.id = vw.thesis_id
+            WHERE {where_clause}
+            ORDER BY {sort_field} {sort_direction}
+            LIMIT %s OFFSET %s
+        """
+        
+        # Add pagination params
+        params.extend([search_request.page_size, offset])
+        
+        results = execute_query(query, params, fetch_all=True)
+        
+        # Calculate pagination info
+        total_pages = (total + search_request.page_size - 1) // search_request.page_size
+        has_next = search_request.page < total_pages
+        has_prev = search_request.page > 1
+        
+        # Convert to response models
+        thesis_list = []
+        for row in results:
+            thesis_list.append(ThesisResponse(
+                id=row['id'],
+                title_fr=row['title_fr'],
+                title_en=row['title_en'],
+                title_ar=row['title_ar'],
+                abstract_fr=row['abstract_fr'],
+                abstract_en=row['abstract_en'],
+                abstract_ar=row['abstract_ar'],
+                university_id=row['university_id'],
+                faculty_id=row['faculty_id'],
+                school_id=row['school_id'],
+                department_id=row['department_id'],
+                degree_id=row['degree_id'],
+                thesis_number=row['thesis_number'],
+                study_location_id=row['study_location_id'],
+                defense_date=row['defense_date'],
+                language_id=row['language_id'],
+                secondary_language_ids=row['secondary_language_ids'] or [],
+                page_count=row['page_count'],
+                status=row['status'],
+                file_url=row['file_url'],
+                file_name=row['file_name'],
+                submitted_by=row['submitted_by'],
+                extraction_job_id=row['extraction_job_id'],
+                created_at=row['created_at'],
+                updated_at=row['updated_at']
+            ))
+        
+        return SearchResponse(
+            results=thesis_list,
+            total=total,
+            page=search_request.page,
+            page_size=search_request.page_size,
+            total_pages=total_pages,
+            has_next=has_next,
+            has_prev=has_prev
+        )
+        
+    except Exception as e:
+        logger.error(f"Error searching theses: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/theses/recent", response_model=SearchResponse, tags=["Public - Thesis Search"])
+async def get_recent_theses(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    days: int = Query(30, ge=1, le=365, description="Number of recent days")
+):
+    """Get recently published theses"""
+    try:
+        from datetime import datetime, timedelta
+        offset = (page - 1) * page_size
+        date_threshold = datetime.now() - timedelta(days=days)
+        
+        count_query = """
+            SELECT COUNT(*) as total 
+            FROM theses 
+            WHERE status = 'published' AND approved_at >= %s
+        """
+        
+        total_result = execute_query(count_query, (date_threshold,), fetch_one=True)
+        total = total_result['total'] if total_result else 0
+        
+        query = """
+            SELECT t.*,
+                   COALESCE(dl.download_count, 0) as download_count,
+                   COALESCE(vw.view_count, 0) as view_count
+            FROM theses t
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as download_count 
+                FROM thesis_downloads GROUP BY thesis_id
+            ) dl ON t.id = dl.thesis_id
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as view_count 
+                FROM thesis_views GROUP BY thesis_id
+            ) vw ON t.id = vw.thesis_id
+            WHERE t.status = 'published' AND t.approved_at >= %s
+            ORDER BY t.approved_at DESC
+            LIMIT %s OFFSET %s
+        """
+        
+        results = execute_query(query, (date_threshold, page_size, offset), fetch_all=True)
+        
+        total_pages = (total + page_size - 1) // page_size
+        has_next = page < total_pages
+        has_prev = page > 1
+        
+        thesis_list = []
+        for row in results:
+            thesis_list.append(ThesisResponse(
+                id=row['id'],
+                title_fr=row['title_fr'],
+                title_en=row['title_en'],
+                title_ar=row['title_ar'],
+                abstract_fr=row['abstract_fr'],
+                abstract_en=row['abstract_en'],
+                abstract_ar=row['abstract_ar'],
+                university_id=row['university_id'],
+                faculty_id=row['faculty_id'],
+                school_id=row['school_id'],
+                department_id=row['department_id'],
+                degree_id=row['degree_id'],
+                thesis_number=row['thesis_number'],
+                study_location_id=row['study_location_id'],
+                defense_date=row['defense_date'],
+                language_id=row['language_id'],
+                secondary_language_ids=row['secondary_language_ids'] or [],
+                page_count=row['page_count'],
+                status=row['status'],
+                file_url=row['file_url'],
+                file_name=row['file_name'],
+                submitted_by=row['submitted_by'],
+                extraction_job_id=row['extraction_job_id'],
+                created_at=row['created_at'],
+                updated_at=row['updated_at']
+            ))
+        
+        return SearchResponse(
+            results=thesis_list,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+            has_next=has_next,
+            has_prev=has_prev
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting recent theses: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/theses/popular", response_model=SearchResponse, tags=["Public - Thesis Search"])
+async def get_popular_theses(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    period: str = Query("all", regex="^(week|month|year|all)$", description="Time period")
+):
+    """Get most downloaded/viewed theses"""
+    try:
+        from datetime import datetime, timedelta
+        offset = (page - 1) * page_size
+        
+        date_filter = ""
+        date_params = []
+        
+        if period != "all":
+            if period == "week":
+                date_threshold = datetime.now() - timedelta(days=7)
+            elif period == "month":
+                date_threshold = datetime.now() - timedelta(days=30)
+            elif period == "year":
+                date_threshold = datetime.now() - timedelta(days=365)
+            
+            date_filter = "AND dl.downloaded_at >= %s AND vw.viewed_at >= %s"
+            date_params = [date_threshold, date_threshold]
+        
+        count_query = f"""
+            SELECT COUNT(DISTINCT t.id) as total 
+            FROM theses t
+            WHERE t.status = 'published'
+        """
+        
+        total_result = execute_query(count_query, fetch_one=True)
+        total = total_result['total'] if total_result else 0
+        
+        query = f"""
+            SELECT t.*,
+                   COALESCE(dl.download_count, 0) as download_count,
+                   COALESCE(vw.view_count, 0) as view_count,
+                   (COALESCE(dl.download_count, 0) + COALESCE(vw.view_count, 0)) as popularity_score
+            FROM theses t
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as download_count 
+                FROM thesis_downloads 
+                WHERE 1=1 {date_filter.replace('dl.downloaded_at', 'downloaded_at').replace('vw.viewed_at', 'downloaded_at') if date_filter else ''}
+                GROUP BY thesis_id
+            ) dl ON t.id = dl.thesis_id
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as view_count 
+                FROM thesis_views 
+                WHERE 1=1 {date_filter.replace('dl.downloaded_at', 'viewed_at').replace('vw.viewed_at', 'viewed_at') if date_filter else ''}
+                GROUP BY thesis_id
+            ) vw ON t.id = vw.thesis_id
+            WHERE t.status = 'published'
+            ORDER BY popularity_score DESC, t.defense_date DESC
+            LIMIT %s OFFSET %s
+        """
+        
+        query_params = date_params + date_params + [page_size, offset]
+        results = execute_query(query, query_params, fetch_all=True)
+        
+        total_pages = (total + page_size - 1) // page_size
+        has_next = page < total_pages
+        has_prev = page > 1
+        
+        thesis_list = []
+        for row in results:
+            thesis_list.append(ThesisResponse(
+                id=row['id'],
+                title_fr=row['title_fr'],
+                title_en=row['title_en'],
+                title_ar=row['title_ar'],
+                abstract_fr=row['abstract_fr'],
+                abstract_en=row['abstract_en'],
+                abstract_ar=row['abstract_ar'],
+                university_id=row['university_id'],
+                faculty_id=row['faculty_id'],
+                school_id=row['school_id'],
+                department_id=row['department_id'],
+                degree_id=row['degree_id'],
+                thesis_number=row['thesis_number'],
+                study_location_id=row['study_location_id'],
+                defense_date=row['defense_date'],
+                language_id=row['language_id'],
+                secondary_language_ids=row['secondary_language_ids'] or [],
+                page_count=row['page_count'],
+                status=row['status'],
+                file_url=row['file_url'],
+                file_name=row['file_name'],
+                submitted_by=row['submitted_by'],
+                extraction_job_id=row['extraction_job_id'],
+                created_at=row['created_at'],
+                updated_at=row['updated_at']
+            ))
+        
+        return SearchResponse(
+            results=thesis_list,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+            has_next=has_next,
+            has_prev=has_prev
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting popular theses: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/theses/{thesis_id}", response_model=ThesisDetailResponse, tags=["Public - Thesis Search"])
+async def get_thesis_details(thesis_id: str):
+    """Get detailed thesis information including related data"""
+    try:
+        # Get thesis details
+        query = """
+            SELECT t.*,
+                   COALESCE(dl.download_count, 0) as download_count,
+                   COALESCE(vw.view_count, 0) as view_count
+            FROM theses t
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as download_count 
+                FROM thesis_downloads GROUP BY thesis_id
+            ) dl ON t.id = dl.thesis_id
+            LEFT JOIN (
+                SELECT thesis_id, COUNT(*) as view_count 
+                FROM thesis_views GROUP BY thesis_id
+            ) vw ON t.id = vw.thesis_id
+            WHERE t.id = %s AND t.status = 'published'
+        """
+        
+        thesis_result = execute_query(query, (thesis_id,), fetch_one=True)
+        
+        if not thesis_result:
+            raise HTTPException(status_code=404, detail="Thesis not found")
+        
+        # Record view (async, don't wait for result)
+        try:
+            view_query = """
+                INSERT INTO thesis_views (thesis_id, viewed_at, ip_address) 
+                VALUES (%s, CURRENT_TIMESTAMP, '0.0.0.0')
+            """
+            execute_query(view_query, (thesis_id,))
+        except:
+            pass
+        
+        # Get academic persons
+        academic_persons_query = """
+            SELECT tap.*
+            FROM thesis_academic_persons tap
+            WHERE tap.thesis_id = %s
+            ORDER BY 
+                CASE tap.role 
+                    WHEN 'author' THEN 1 
+                    WHEN 'director' THEN 2 
+                    WHEN 'co_director' THEN 3 
+                    ELSE 4 
+                END
+        """
+        
+        academic_persons = execute_query(academic_persons_query, (thesis_id,), fetch_all=True)
+        
+        # Get categories
+        categories_query = """
+            SELECT tc.*
+            FROM thesis_categories tc
+            WHERE tc.thesis_id = %s
+            ORDER BY tc.is_primary DESC
+        """
+        
+        categories = execute_query(categories_query, (thesis_id,), fetch_all=True)
+        
+        # Get keywords
+        keywords_query = """
+            SELECT tk.*
+            FROM thesis_keywords tk
+            WHERE tk.thesis_id = %s
+            ORDER BY tk.keyword_position
+        """
+        
+        keywords = execute_query(keywords_query, (thesis_id,), fetch_all=True)
+        
+        # Build response
+        return ThesisDetailResponse(
+            id=thesis_result['id'],
+            title_fr=thesis_result['title_fr'],
+            title_en=thesis_result['title_en'],
+            title_ar=thesis_result['title_ar'],
+            abstract_fr=thesis_result['abstract_fr'],
+            abstract_en=thesis_result['abstract_en'],
+            abstract_ar=thesis_result['abstract_ar'],
+            university_id=thesis_result['university_id'],
+            faculty_id=thesis_result['faculty_id'],
+            school_id=thesis_result['school_id'],
+            department_id=thesis_result['department_id'],
+            degree_id=thesis_result['degree_id'],
+            thesis_number=thesis_result['thesis_number'],
+            study_location_id=thesis_result['study_location_id'],
+            defense_date=thesis_result['defense_date'],
+            language_id=thesis_result['language_id'],
+            secondary_language_ids=thesis_result['secondary_language_ids'] or [],
+            page_count=thesis_result['page_count'],
+            status=thesis_result['status'],
+            file_url=thesis_result['file_url'],
+            file_name=thesis_result['file_name'],
+            submitted_by=thesis_result['submitted_by'],
+            extraction_job_id=thesis_result['extraction_job_id'],
+            created_at=thesis_result['created_at'],
+            updated_at=thesis_result['updated_at'],
+            academic_persons=[
+                ThesisAcademicPersonResponse(
+                    id=ap['id'],
+                    thesis_id=ap['thesis_id'],
+                    person_id=ap['person_id'],
+                    role=ap['role'],
+                    faculty_id=ap['faculty_id'],
+                    is_external=ap['is_external'],
+                    external_institution_name=ap['external_institution_name'],
+                    created_at=ap['created_at'],
+                    updated_at=ap['updated_at']
+                ) for ap in academic_persons
+            ],
+            categories=[
+                ThesisCategoryResponse(
+                    id=cat['id'],
+                    thesis_id=cat['thesis_id'],
+                    category_id=cat['category_id'],
+                    is_primary=cat['is_primary'],
+                    created_at=cat['created_at'],
+                    updated_at=cat['updated_at']
+                ) for cat in categories
+            ],
+            keywords=[
+                ThesisKeywordResponse(
+                    id=kw['id'],
+                    thesis_id=kw['thesis_id'],
+                    keyword_id=kw['keyword_id'],
+                    keyword_position=kw['keyword_position'],
+                    created_at=kw['created_at'],
+                    updated_at=kw['updated_at']
+                ) for kw in keywords
+            ],
+            download_count=thesis_result['download_count'],
+            view_count=thesis_result['view_count']
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting thesis details: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Add file download endpoint
+@app.get("/theses/{thesis_id}/download", tags=["Public - Thesis Search"])
+async def download_thesis(thesis_id: str, request: Request):
+    """Download thesis PDF file"""
+    try:
+        # Get thesis details
+        query = """
+            SELECT file_url, file_name, status
+            FROM theses 
+            WHERE id = %s AND status = 'published'
+        """
+        
+        thesis = execute_query(query, (thesis_id,), fetch_one=True)
+        
+        if not thesis:
+            raise HTTPException(status_code=404, detail="Thesis not found")
+        
+        # Record download
+        try:
+            download_query = """
+                INSERT INTO thesis_downloads (thesis_id, downloaded_at, ip_address) 
+                VALUES (%s, CURRENT_TIMESTAMP, %s)
+            """
+            client_ip = request.client.host if request.client else "0.0.0.0"
+            execute_query(download_query, (thesis_id, client_ip))
+        except:
+            pass
+        
+        # Return file
+        file_path = Path(thesis['file_url'])
+        if file_path.exists():
+            return FileResponse(
+                path=str(file_path),
+                filename=thesis['file_name'],
+                media_type='application/pdf'
+            )
+        else:
+            raise HTTPException(status_code=404, detail="File not found")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading thesis: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 # =============================================================================
 # APPLICATION STARTUP
