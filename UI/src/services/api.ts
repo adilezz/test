@@ -29,7 +29,7 @@ import {
   ErrorResponse
 } from '../types/api';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 class ApiError extends Error {
   constructor(
@@ -358,7 +358,7 @@ class ApiService {
       }
     });
     
-    return this.request<PaginatedResponse>(`/admin/theses?${params}`);
+    return this.request<PaginatedResponse>(`/theses?${params}`);
   }
 
   async getThesis(id: string): Promise<ThesisResponse> {
@@ -436,7 +436,7 @@ class ApiService {
         reject(new ApiError(0, 'NETWORK_ERROR', 'Network error during upload'));
       });
 
-      xhr.open('POST', `${this.baseUrl}/admin/files/upload`);
+      xhr.open('POST', `${this.baseUrl}/admin/thesis-content/upload-file`);
       if (this.token) {
         xhr.setRequestHeader('Authorization', `Bearer ${this.token}`);
       }

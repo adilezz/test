@@ -7143,6 +7143,287 @@ async def public_thesis_download(thesis_id: str, request: Request):
 # PUBLIC API - TREES AND LISTS
 # =============================================================================
 
+@app.get("/statistics", response_model=StatisticsResponse, tags=["Public - Statistics"])
+async def public_statistics():
+    """Public statistics for homepage widgets"""
+    try:
+        total_theses_row = execute_query(
+            "SELECT COUNT(*) AS c FROM theses WHERE status IN ('approved','published')",
+            fetch_one=True,
+        )
+        total_universities_row = execute_query(
+            "SELECT COUNT(*) AS c FROM universities",
+            fetch_one=True,
+        )
+        total_faculties_row = execute_query(
+            "SELECT COUNT(*) AS c FROM faculties",
+            fetch_one=True,
+        )
+        total_authors_row = execute_query(
+            "SELECT COUNT(DISTINCT person_id) AS c FROM thesis_academic_persons WHERE role = 'author'",
+            fetch_one=True,
+        )
+
+        # Recent theses (latest published/approved)
+        recent_rows = execute_query_with_result(
+            """
+            SELECT id, title_fr, title_en, title_ar, defense_date, file_url, created_at
+            FROM theses
+            WHERE status IN ('approved','published')
+            ORDER BY created_at DESC
+            LIMIT 6
+            """,
+        )
+        recent_theses = []
+        for r in recent_rows:
+            recent_theses.append({
+                "id": str(r["id"]),
+                "title_fr": r.get("title_fr"),
+                "title_en": r.get("title_en"),
+                "title_ar": r.get("title_ar"),
+                "defense_date": r.get("defense_date").isoformat() if r.get("defense_date") else None,
+                "file_url": r.get("file_url"),
+                "created_at": r.get("created_at").isoformat() if r.get("created_at") else None,
+            })
+
+        # Popular categories by usage
+        popular_rows = execute_query_with_result(
+            """
+            SELECT c.id, c.name_fr AS name, COUNT(*) AS count
+            FROM thesis_categories tc
+            JOIN categories c ON c.id = tc.category_id
+            JOIN theses t ON t.id = tc.thesis_id
+            WHERE t.status IN ('approved','published')
+            GROUP BY c.id, c.name_fr
+            ORDER BY count DESC
+            LIMIT 10
+            """,
+        )
+        popular_categories = [{
+            "id": str(r["id"]),
+            "name": r["name"],
+            "count": r["count"],
+        } for r in popular_rows]
+
+        # Top universities by thesis count
+        uni_rows = execute_query_with_result(
+            """
+            SELECT u.id, u.name_fr AS name, u.acronym, COUNT(t.id) AS count
+            FROM theses t
+            JOIN universities u ON u.id = t.university_id
+            WHERE t.status IN ('approved','published')
+            GROUP BY u.id, u.name_fr, u.acronym
+            ORDER BY count DESC
+            LIMIT 8
+            """,
+        )
+        top_universities = [{
+            "id": str(r["id"]),
+            "name": r["name"],
+            "acronym": r.get("acronym"),
+            "count": r["count"],
+        } for r in uni_rows]
+
+        return StatisticsResponse(
+            total_theses=total_theses_row["c"],
+            total_universities=total_universities_row["c"],
+            total_faculties=total_faculties_row["c"],
+            total_authors=total_authors_row["c"],
+            recent_theses=recent_theses,
+            popular_categories=popular_categories,
+            top_universities=top_universities,
+        )
+    except Exception as e:
+        logger.error(f"Failed to compute statistics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch statistics",
+        )
+
+@app.get("/theses", response_model=PaginatedResponse, tags=["Public - Thesis search"])
+async def public_theses_list(
+    request: Request,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None),
+    university_id: Optional[str] = Query(None),
+    faculty_id: Optional[str] = Query(None),
+    department_id: Optional[str] = Query(None),
+    degree_id: Optional[str] = Query(None),
+    language_id: Optional[str] = Query(None),
+    category_id: Optional[str] = Query(None),
+    order_by: str = Query("created_at"),
+    order_dir: str = Query("desc", regex="^(asc|desc)$"),
+    year_from: Optional[int] = Query(None),
+    year_to: Optional[int] = Query(None),
+    defense_date_from: Optional[date] = Query(None),
+    defense_date_to: Optional[date] = Query(None),
+):
+    """Public list/search of theses (approved/published only)"""
+    try:
+        base_query = """
+            SELECT 
+                t.*,
+                u.name_fr AS university_name,
+                f.name_fr AS faculty_name,
+                d.name_fr AS degree_name,
+                l.name AS language_name
+            FROM theses t
+            LEFT JOIN universities u ON t.university_id = u.id
+            LEFT JOIN faculties f ON t.faculty_id = f.id
+            LEFT JOIN degrees d ON t.degree_id = d.id
+            LEFT JOIN languages l ON t.language_id = l.id
+            WHERE t.status IN ('approved','published')
+        """
+        count_query = "SELECT COUNT(*) AS total FROM theses t WHERE t.status IN ('approved','published')"
+        params: List[Any] = []
+        count_params: List[Any] = []
+
+        if search:
+            cond = (
+                """
+                AND (
+                    LOWER(t.title_fr) LIKE LOWER(%s) OR
+                    LOWER(t.title_ar) LIKE LOWER(%s) OR
+                    LOWER(t.title_en) LIKE LOWER(%s) OR
+                    LOWER(t.thesis_number) LIKE LOWER(%s)
+                )
+                """
+            )
+            base_query += cond
+            count_query += cond
+            pattern = f"%{search}%"
+            params.extend([pattern] * 4)
+            count_params.extend([pattern] * 4)
+
+        if university_id:
+            cond = " AND t.university_id = %s"
+            base_query += cond
+            count_query += cond
+            params.append(university_id)
+            count_params.append(university_id)
+
+        if faculty_id:
+            cond = " AND t.faculty_id = %s"
+            base_query += cond
+            count_query += cond
+            params.append(faculty_id)
+            count_params.append(faculty_id)
+
+        if department_id:
+            cond = " AND t.department_id = %s"
+            base_query += cond
+            count_query += cond
+            params.append(department_id)
+            count_params.append(department_id)
+
+        if degree_id:
+            cond = " AND t.degree_id = %s"
+            base_query += cond
+            count_query += cond
+            params.append(degree_id)
+            count_params.append(degree_id)
+
+        if language_id:
+            cond = " AND t.language_id = %s"
+            base_query += cond
+            count_query += cond
+            params.append(language_id)
+            count_params.append(language_id)
+
+        if year_from is not None:
+            cond = " AND EXTRACT(YEAR FROM t.defense_date) >= %s"
+            base_query += cond
+            count_query += cond
+            params.append(year_from)
+            count_params.append(year_from)
+
+        if year_to is not None:
+            cond = " AND EXTRACT(YEAR FROM t.defense_date) <= %s"
+            base_query += cond
+            count_query += cond
+            params.append(year_to)
+            count_params.append(year_to)
+
+        if defense_date_from is not None:
+            cond = " AND t.defense_date >= %s"
+            base_query += cond
+            count_query += cond
+            params.append(defense_date_from)
+            count_params.append(defense_date_from)
+
+        if defense_date_to is not None:
+            cond = " AND t.defense_date <= %s"
+            base_query += cond
+            count_query += cond
+            params.append(defense_date_to)
+            count_params.append(defense_date_to)
+
+        # Filter by category if provided
+        if category_id:
+            cond = " AND EXISTS (SELECT 1 FROM thesis_categories tc WHERE tc.thesis_id = t.id AND tc.category_id = %s)"
+            base_query += cond
+            count_query += cond
+            params.append(category_id)
+            count_params.append(category_id)
+
+        allowed_order_fields = ["title_fr", "defense_date", "status", "created_at", "updated_at"]
+        if order_by not in allowed_order_fields:
+            order_by = "created_at"
+
+        base_query += f" ORDER BY t.{order_by} {order_dir.upper()}"
+        offset = (page - 1) * limit
+        base_query += " LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+
+        total = execute_query(count_query, count_params, fetch_one=True)["total"]
+        rows = execute_query_with_result(base_query, params)
+
+        results: List[Dict[str, Any]] = []
+        for row in rows:
+            # Try to fetch primary author name
+            author_row = execute_query(
+                """
+                SELECT ap.complete_name_fr 
+                FROM thesis_academic_persons tap
+                JOIN academic_persons ap ON tap.person_id = ap.id
+                WHERE tap.thesis_id = %s AND tap.role = 'author'
+                LIMIT 1
+                """,
+                (row["id"],),
+                fetch_one=True,
+            )
+            results.append({
+                "id": str(row["id"]),
+                "title_fr": row["title_fr"],
+                "title_ar": row.get("title_ar"),
+                "title_en": row.get("title_en"),
+                "author_name": author_row["complete_name_fr"] if author_row else "Unknown",
+                "university_name": row.get("university_name"),
+                "faculty_name": row.get("faculty_name"),
+                "degree_name": row.get("degree_name"),
+                "defense_date": row["defense_date"].isoformat() if row.get("defense_date") else None,
+                "language_name": row.get("language_name"),
+                "status": row.get("status"),
+                "file_url": row.get("file_url"),
+                "file_name": row.get("file_name"),
+                "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
+                "updated_at": row["updated_at"].isoformat() if row.get("updated_at") else None,
+            })
+
+        pages = (total + limit - 1) // limit
+        return PaginatedResponse(
+            success=True,
+            data=results,
+            meta=PaginationMeta(total=total, page=page, limit=limit, pages=pages),
+        )
+    except Exception as e:
+        logger.error(f"Error fetching public theses: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch theses",
+        )
+
 @app.get("/universities/tree", tags=["Public - Trees"])
 async def public_universities_tree(
     include_counts: bool = Query(True),
@@ -8017,7 +8298,7 @@ if __name__ == "__main__":
     
     uvicorn.run(
         "main:app",  # Update this to match your actual filename
-        host="127.0.0.1",
+        host="0.0.0.0",
         port=8000,
         reload=settings.DEBUG,
         log_level=settings.LOG_LEVEL.lower(),
