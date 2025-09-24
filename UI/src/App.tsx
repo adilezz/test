@@ -12,6 +12,7 @@ import ThesisDetailPage from './components/pages/ThesisDetailPage';
 import AdminThesisPage from './components/pages/AdminThesisPage';
 import AdminDashboardPage from './components/pages/AdminDashboardPage';
 import AdminUniversitiesPage from './components/pages/AdminUniversitiesPage';
+import AdminSchoolsPage from './components/pages/AdminSchoolsPage';
 import AdminFacultiesPage from './components/pages/AdminFacultiesPage';
 import AdminCategoriesPage from './components/pages/AdminCategoriesPage';
 import AdminAcademicPersonsPage from './components/pages/AdminAcademicPersonsPage';
@@ -133,6 +134,13 @@ function App() {
                     <ProtectedRoute>
                       <AdminRoute>
                         <AdminUniversitiesPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/schools" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminSchoolsPage />
                       </AdminRoute>
                     </ProtectedRoute>
                   } />
