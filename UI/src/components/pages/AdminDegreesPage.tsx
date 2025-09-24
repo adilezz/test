@@ -6,8 +6,8 @@ import {
   Edit,
   Trash2,
   Eye,
-  Tag,
-  Tags,
+  GraduationCap,
+  Award,
   X,
   Check,
   AlertCircle,
@@ -15,77 +15,79 @@ import {
   Hash
 } from 'lucide-react';
 import { apiService } from '../../services/api';
-import AdminHeader from '../layout/AdminHeader';
 import { 
-  KeywordResponse,
+  DegreeResponse,
   PaginatedResponse,
-  KeywordCreate,
-  KeywordUpdate,
-  CategoryResponse
+  DegreeCreate,
+  DegreeUpdate,
+  DegreeType,
+  DegreeCategory
 } from '../../types/api';
 
 interface ModalState {
   isOpen: boolean;
   mode: 'create' | 'edit' | 'delete' | 'view';
-  item?: KeywordResponse;
+  item?: DegreeResponse;
 }
 
-export default function AdminKeywordsPage() {
-  const [data, setData] = useState<KeywordResponse[]>([]);
+// Degree types and categories based on the API enums
+const DEGREE_TYPES = [
+  { value: DegreeType.DOCTORATE, label: 'Doctorat' },
+  { value: DegreeType.MEDICAL_DOCTORATE, label: 'Doctorat en Médecine' },
+  { value: DegreeType.MASTER, label: 'Master' }
+];
+
+const DEGREE_CATEGORIES = [
+  { value: DegreeCategory.RESEARCH, label: 'Recherche' },
+  { value: DegreeCategory.PROFESSIONAL, label: 'Professionnel' },
+  { value: DegreeCategory.HONORARY, label: 'Honorifique' },
+  { value: DegreeCategory.JOINT, label: 'Conjoint' },
+  { value: DegreeCategory.INTERNATIONAL, label: 'International' }
+];
+
+export default function AdminDegreesPage() {
+  const [data, setData] = useState<DegreeResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [categories, setCategories] = useState<CategoryResponse[]>([]);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
-  const [formData, setFormData] = useState<KeywordCreate>({
-    parent_keyword_id: null,
-    keyword_fr: '',
-    keyword_en: '',
-    keyword_ar: '',
-    category_id: null
+  const [formData, setFormData] = useState<DegreeCreate>({
+    name_en: '',
+    name_fr: '',
+    name_ar: '',
+    abbreviation: '',
+    type: DegreeType.DOCTORATE,
+    category: null
   });
 
   useEffect(() => {
     loadData();
-    loadCategories();
   }, []);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const response = await apiService.adminList<PaginatedResponse>('keywords', { limit: 1000 });
+      const response = await apiService.adminList<PaginatedResponse>('degrees', { limit: 1000 });
       setData(response.data);
     } catch (error) {
-      console.error('Error loading keywords:', error);
+      console.error('Error loading degrees:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadCategories = async () => {
-    try {
-      const response = await apiService.adminList<PaginatedResponse>('categories', { limit: 1000 });
-      setCategories(response.data);
-    } catch (error) {
-      console.error('Error loading categories:', error);
-    }
-  };
-
   const handleCreate = async () => {
     try {
-      // Clean the form data to ensure empty strings become null for optional UUID fields
+      // Clean the form data to ensure empty strings become null for optional fields
       const cleanedData = {
         ...formData,
-        parent_keyword_id: formData.parent_keyword_id || null,
-        category_id: formData.category_id || null,
-        keyword_en: formData.keyword_en || null,
-        keyword_ar: formData.keyword_ar || null
+        category: formData.category || null
       };
-      await apiService.adminCreate('keywords', cleanedData);
+      await apiService.adminCreate('degrees', cleanedData);
       setModal({ isOpen: false, mode: 'create' });
       resetForm();
       loadData();
     } catch (error) {
-      console.error('Error creating keyword:', error);
+      console.error('Error creating degree:', error);
     }
   };
 
@@ -93,61 +95,61 @@ export default function AdminKeywordsPage() {
     if (!modal.item) return;
     
     try {
-      // Clean the form data to ensure empty strings become null for optional UUID fields
+      // Clean the form data to ensure empty strings become null for optional fields
       const cleanedData = {
         ...formData,
-        parent_keyword_id: formData.parent_keyword_id || null,
-        category_id: formData.category_id || null,
-        keyword_en: formData.keyword_en || null,
-        keyword_ar: formData.keyword_ar || null
+        category: formData.category || null
       };
-      await apiService.adminUpdate('keywords', modal.item.id, cleanedData);
+      await apiService.adminUpdate('degrees', modal.item.id, cleanedData);
       setModal({ isOpen: false, mode: 'edit' });
       loadData();
     } catch (error) {
-      console.error('Error updating keyword:', error);
+      console.error('Error updating degree:', error);
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
-      await apiService.adminDelete('keywords', id);
+      await apiService.adminDelete('degrees', id);
       loadData();
     } catch (error) {
-      console.error('Error deleting keyword:', error);
+      console.error('Error deleting degree:', error);
     }
   };
 
   const resetForm = () => {
     setFormData({
-      parent_keyword_id: null,
-      keyword_fr: '',
-      keyword_en: '',
-      keyword_ar: '',
-      category_id: null
+      name_en: '',
+      name_fr: '',
+      name_ar: '',
+      abbreviation: '',
+      type: DegreeType.DOCTORATE,
+      category: null
     });
   };
 
-  const openModal = (mode: ModalState['mode'], item?: KeywordResponse) => {
+  const openModal = (mode: ModalState['mode'], item?: DegreeResponse) => {
     setModal({ isOpen: true, mode, item });
     
     if (mode === 'edit' && item) {
       setFormData({
-        parent_keyword_id: item.parent_keyword_id || null,
-        keyword_fr: item.keyword_fr,
-        keyword_en: item.keyword_en || '',
-        keyword_ar: item.keyword_ar || '',
-        category_id: item.category_id || null
+        name_en: item.name_en,
+        name_fr: item.name_fr,
+        name_ar: item.name_ar,
+        abbreviation: item.abbreviation,
+        type: item.type,
+        category: item.category || null
       });
     } else if (mode === 'create') {
       resetForm();
     }
   };
 
-  const filteredData = data.filter(keyword => 
-    keyword.keyword_fr.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (keyword.keyword_en && keyword.keyword_en.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (keyword.keyword_ar && keyword.keyword_ar.includes(searchTerm))
+  const filteredData = data.filter(degree => 
+    degree.name_fr.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    degree.name_en.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    degree.name_ar.includes(searchTerm) ||
+    degree.abbreviation.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const renderModal = () => {
@@ -158,10 +160,10 @@ export default function AdminKeywordsPage() {
         <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-900">
-              {modal.mode === 'create' && 'Nouveau Mot-clé'}
-              {modal.mode === 'edit' && 'Modifier Mot-clé'}
-              {modal.mode === 'view' && 'Détails Mot-clé'}
-              {modal.mode === 'delete' && 'Supprimer Mot-clé'}
+              {modal.mode === 'create' && 'Nouveau Diplôme'}
+              {modal.mode === 'edit' && 'Modifier Diplôme'}
+              {modal.mode === 'view' && 'Détails Diplôme'}
+              {modal.mode === 'delete' && 'Supprimer Diplôme'}
             </h2>
             <button
               onClick={() => setModal({ isOpen: false, mode: 'create' })}
@@ -177,91 +179,107 @@ export default function AdminKeywordsPage() {
               modal.mode === 'create' ? handleCreate() : handleUpdate();
             }} className="space-y-6">
               
-              {/* Hierarchy Section */}
+              {/* Names Section */}
               <div className="border-b border-gray-200 pb-4">
-                <h3 className="text-lg font-medium text-gray-900 mb-3">Hiérarchie</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Dénominations</h3>
+                <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Mot-clé parent
+                      Nom (Français) *
                     </label>
-                    <select
-                      value={formData.parent_keyword_id || ''}
-                      onChange={(e) => setFormData({ ...formData, parent_keyword_id: e.target.value || null })}
+                    <input
+                      type="text"
+                      value={formData.name_fr}
+                      onChange={(e) => setFormData({ ...formData, name_fr: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Aucun parent (mot-clé racine)</option>
-                      {data.filter(k => k.id !== modal.item?.id).map(keyword => (
-                        <option key={keyword.id} value={keyword.id}>
-                          {keyword.keyword_fr}
-                        </option>
-                      ))}
-                    </select>
+                      required
+                      placeholder="Nom du diplôme en français"
+                    />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Catégorie
+                      Name (English) *
                     </label>
-                    <select
-                      value={formData.category_id || ''}
-                      onChange={(e) => setFormData({ ...formData, category_id: e.target.value || null })}
+                    <input
+                      type="text"
+                      value={formData.name_en}
+                      onChange={(e) => setFormData({ ...formData, name_en: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Aucune catégorie</option>
-                      {categories.map(category => (
-                        <option key={category.id} value={category.id}>
-                          {category.name_fr}
-                        </option>
-                      ))}
-                    </select>
+                      required
+                      placeholder="Degree name in English"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      الاسم (العربية) *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.name_ar}
+                      onChange={(e) => setFormData({ ...formData, name_ar: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                      placeholder="اسم الشهادة بالعربية"
+                      dir="rtl"
+                    />
                   </div>
                 </div>
               </div>
 
-              {/* Keywords Section */}
+              {/* Details Section */}
               <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-3">Traductions</h3>
-                <div className="space-y-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Détails</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Mot-clé (Français) *
+                      Abréviation *
                     </label>
                     <input
                       type="text"
-                      value={formData.keyword_fr}
-                      onChange={(e) => setFormData({ ...formData, keyword_fr: e.target.value })}
+                      value={formData.abbreviation}
+                      onChange={(e) => setFormData({ ...formData, abbreviation: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       required
-                      placeholder="Mot-clé en français"
+                      placeholder="Ex: PhD, MSc, MD"
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Keyword (English)
+                      Type *
                     </label>
-                    <input
-                      type="text"
-                      value={formData.keyword_en || ''}
-                      onChange={(e) => setFormData({ ...formData, keyword_en: e.target.value })}
+                    <select
+                      value={formData.type}
+                      onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Keyword in English"
-                    />
+                      required
+                    >
+                      {DEGREE_TYPES.map(type => (
+                        <option key={type.value} value={type.value}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
-                  <div>
+                  <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      الكلمة المفتاحية (العربية)
+                      Catégorie
                     </label>
-                    <input
-                      type="text"
-                      value={formData.keyword_ar || ''}
-                      onChange={(e) => setFormData({ ...formData, keyword_ar: e.target.value })}
+                    <select
+                      value={formData.category || ''}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value || null })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="الكلمة المفتاحية بالعربية"
-                      dir="rtl"
-                    />
+                    >
+                      <option value="">Aucune catégorie</option>
+                      {DEGREE_CATEGORIES.map(category => (
+                        <option key={category.value} value={category.value}>
+                          {category.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>
@@ -286,72 +304,51 @@ export default function AdminKeywordsPage() {
 
           {modal.mode === 'view' && modal.item && (
             <div className="space-y-6">
-              {/* Hierarchy Information */}
-              {(modal.item.parent_keyword_id || modal.item.category_id) && (
-                <div className="border-b border-gray-200 pb-4">
-                  <h3 className="text-lg font-medium text-gray-900 mb-3">Hiérarchie</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {modal.item.parent_keyword_id && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">Mot-clé parent</label>
-                        <p className="mt-1 text-gray-900">
-                          {data.find(k => k.id === modal.item?.parent_keyword_id)?.keyword_fr || modal.item.parent_keyword_id}
-                        </p>
-                      </div>
-                    )}
-                    {modal.item.category_id && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">Catégorie</label>
-                        <p className="mt-1 text-gray-900">
-                          {categories.find(c => c.id === modal.item?.category_id)?.name_fr || modal.item.category_id}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Keywords */}
+              {/* Names */}
               <div className="border-b border-gray-200 pb-4">
-                <h3 className="text-lg font-medium text-gray-900 mb-3">Traductions</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Dénominations</h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Mot-clé (Français)</label>
-                    <p className="mt-1 text-gray-900">{modal.item.keyword_fr}</p>
+                    <label className="block text-sm font-medium text-gray-700">Nom (Français)</label>
+                    <p className="mt-1 text-gray-900">{modal.item.name_fr}</p>
                   </div>
                   
-                  {modal.item.keyword_en && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Keyword (English)</label>
-                      <p className="mt-1 text-gray-900">{modal.item.keyword_en}</p>
-                    </div>
-                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Name (English)</label>
+                    <p className="mt-1 text-gray-900">{modal.item.name_en}</p>
+                  </div>
                   
-                  {modal.item.keyword_ar && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">الاسم (العربية)</label>
+                    <p className="mt-1 text-gray-900" dir="rtl">{modal.item.name_ar}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Details */}
+              <div className="border-b border-gray-200 pb-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Détails</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Abréviation</label>
+                    <p className="mt-1 text-gray-900">{modal.item.abbreviation}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Type</label>
+                    <p className="mt-1 text-gray-900">
+                      {DEGREE_TYPES.find(t => t.value === modal.item?.type)?.label || modal.item.type}
+                    </p>
+                  </div>
+                  {modal.item.category && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">الكلمة المفتاحية (العربية)</label>
-                      <p className="mt-1 text-gray-900" dir="rtl">{modal.item.keyword_ar}</p>
+                      <label className="block text-sm font-medium text-gray-700">Catégorie</label>
+                      <p className="mt-1 text-gray-900">
+                        {DEGREE_CATEGORIES.find(c => c.value === modal.item?.category)?.label || modal.item.category}
+                      </p>
                     </div>
                   )}
                 </div>
               </div>
-
-              {/* Child Keywords */}
-              {data.filter(k => k.parent_keyword_id === modal.item?.id).length > 0 && (
-                <div className="border-b border-gray-200 pb-4">
-                  <h3 className="text-lg font-medium text-gray-900 mb-3">Mots-clés enfants</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {data.filter(k => k.parent_keyword_id === modal.item?.id).map(child => (
-                      <span
-                        key={child.id}
-                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-                      >
-                        {child.keyword_fr}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
               
               {/* Metadata */}
               <div>
@@ -383,15 +380,14 @@ export default function AdminKeywordsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AdminHeader />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Mots-clés</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Diplômes</h1>
               <p className="text-gray-600 mt-2">
-                Gérer le vocabulaire contrôlé pour l'indexation des thèses
+                Gérer les types de diplômes et leurs caractéristiques
               </p>
             </div>
             <button
@@ -399,7 +395,7 @@ export default function AdminKeywordsPage() {
               className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
             >
               <Plus className="w-4 h-4" />
-              <span>Nouveau Mot-clé</span>
+              <span>Nouveau Diplôme</span>
             </button>
           </div>
         </div>
@@ -409,10 +405,10 @@ export default function AdminKeywordsPage() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-blue-100 text-blue-600">
-                <Tags className="w-6 h-6" />
+                <GraduationCap className="w-6 h-6" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Mots-clés</p>
+                <p className="text-sm font-medium text-gray-600">Total Diplômes</p>
                 <p className="text-2xl font-semibold text-gray-900">
                   {data.length.toLocaleString()}
                 </p>
@@ -423,12 +419,12 @@ export default function AdminKeywordsPage() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-green-100 text-green-600">
-                <Globe className="w-6 h-6" />
+                <Award className="w-6 h-6" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Multilingues</p>
+                <p className="text-sm font-medium text-gray-600">Doctorats</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {data.filter(k => k.keyword_en || k.keyword_ar).length.toLocaleString()}
+                  {data.filter(d => d.type === 'doctorate' || d.type === 'medical doctorate').length.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -440,9 +436,9 @@ export default function AdminKeywordsPage() {
                 <Hash className="w-6 h-6" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Avec hiérarchie</p>
+                <p className="text-sm font-medium text-gray-600">Masters</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {data.filter(k => k.parent_keyword_id || k.category_id).length.toLocaleString()}
+                  {data.filter(d => d.type === 'master').length.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -457,7 +453,7 @@ export default function AdminKeywordsPage() {
                 <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Rechercher des mots-clés..."
+                  placeholder="Rechercher des diplômes..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -470,7 +466,7 @@ export default function AdminKeywordsPage() {
             </div>
 
             <div className="text-sm text-gray-600">
-              {filteredData.length} mot{filteredData.length !== 1 ? 's' : ''}-clé{filteredData.length !== 1 ? 's' : ''}
+              {filteredData.length} diplôme{filteredData.length !== 1 ? 's' : ''}
             </div>
           </div>
         </div>
@@ -482,16 +478,16 @@ export default function AdminKeywordsPage() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Mot-clé (Français)
+                    Diplôme
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Anglais
+                    Abréviation
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Arabe
+                    Type
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Hiérarchie
+                    Catégorie
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Créé le
@@ -502,70 +498,67 @@ export default function AdminKeywordsPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredData.map((keyword) => (
-                  <tr key={keyword.id} className="hover:bg-gray-50">
+                {filteredData.map((degree) => (
+                  <tr key={degree.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
-                          <Tag className="w-4 h-4 text-white" />
+                          <GraduationCap className="w-4 h-4 text-white" />
                         </div>
                         <div className="ml-3">
                           <div className="text-sm font-medium text-gray-900">
-                            {keyword.keyword_fr}
+                            {degree.name_fr}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {degree.name_en}
                           </div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {keyword.keyword_en || <span className="text-gray-400">-</span>}
+                      <div className="text-sm font-medium text-gray-900">
+                        {degree.abbreviation}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900" dir="rtl">
-                        {keyword.keyword_ar || <span className="text-gray-400">-</span>}
-                      </div>
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        degree.type === 'doctorate' || degree.type === 'medical doctorate' 
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {DEGREE_TYPES.find(t => t.value === degree.type)?.label || degree.type}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {keyword.parent_keyword_id && (
-                          <div className="flex items-center space-x-1">
-                            <span className="text-xs text-gray-500">Parent:</span>
-                            <span>{data.find(k => k.id === keyword.parent_keyword_id)?.keyword_fr || 'N/A'}</span>
-                          </div>
-                        )}
-                        {keyword.category_id && (
-                          <div className="flex items-center space-x-1 mt-1">
-                            <span className="text-xs text-gray-500">Cat:</span>
-                            <span>{categories.find(c => c.id === keyword.category_id)?.name_fr || 'N/A'}</span>
-                          </div>
-                        )}
-                        {!keyword.parent_keyword_id && !keyword.category_id && (
+                        {degree.category ? (
+                          DEGREE_CATEGORIES.find(c => c.value === degree.category)?.label || degree.category
+                        ) : (
                           <span className="text-gray-400">-</span>
                         )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(keyword.created_at).toLocaleDateString('fr-FR')}
+                      {new Date(degree.created_at).toLocaleDateString('fr-FR')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center space-x-2">
                         <button
-                          onClick={() => openModal('view', keyword)}
+                          onClick={() => openModal('view', degree)}
                           className="text-gray-400 hover:text-gray-600"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => openModal('edit', keyword)}
+                          onClick={() => openModal('edit', degree)}
                           className="text-blue-600 hover:text-blue-900"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => {
-                            if (confirm('Êtes-vous sûr de vouloir supprimer ce mot-clé ?')) {
-                              handleDelete(keyword.id);
+                            if (confirm('Êtes-vous sûr de vouloir supprimer ce diplôme ?')) {
+                              handleDelete(degree.id);
                             }
                           }}
                           className="text-red-600 hover:text-red-900"
@@ -581,9 +574,9 @@ export default function AdminKeywordsPage() {
 
             {filteredData.length === 0 && (
               <div className="text-center py-12">
-                <Tags className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                <GraduationCap className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                 <p className="text-gray-500">
-                  {searchTerm ? 'Aucun mot-clé trouvé pour cette recherche' : 'Aucun mot-clé trouvé'}
+                  {searchTerm ? 'Aucun diplôme trouvé pour cette recherche' : 'Aucun diplôme trouvé'}
                 </p>
               </div>
             )}

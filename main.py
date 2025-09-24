@@ -5305,6 +5305,8 @@ def build_references_tree(
     if ref_type == ReferenceTree.GEOGRAPHIC:
         # levels: country(0) -> region(1) -> province/prefecture(2) -> city(3)
         map_to_idx = {"country": 0, "region": 1, "province": 2, "prefecture": 2, "city": 3}
+        # Database level codes to API enum mapping
+        db_level_to_api = {"C": "country", "R": "region", "2": "province", "3": "city"}
         def to_idx(val: Optional[str], default: int) -> int:
             if val is None:
                 return default
@@ -5319,7 +5321,9 @@ def build_references_tree(
         by_parent: Dict[Optional[str], List[Dict[str, Any]]] = {}
         nodes: Dict[str, Dict[str, Any]] = {}
         for r in rows:
-            lvl = map_to_idx.get(str(r.get("level") or "").lower(), 99)
+            db_level = str(r.get("level") or "")
+            api_level = db_level_to_api.get(db_level, db_level.lower())
+            lvl = map_to_idx.get(api_level, 99)
             if lvl < s_idx or lvl > e_idx:
                 continue
             pid = normalize_id(r.get("parent_id"))
@@ -5327,7 +5331,7 @@ def build_references_tree(
                 "id": normalize_id(r.get("id")),
                 "type": "geographic",
                 "name_fr": r.get("name_fr"),
-                "level": r.get("level"),
+                "level": api_level,
                 "children": [],
             }
             if include_counts:
@@ -6562,6 +6566,25 @@ async def delete_language(request: Request, language_id: str, admin_user: dict =
 # Geographic entities
 # =============================================================================
 
+def convert_geographic_entity_response(row: Dict[str, Any]) -> GeographicEntityResponse:
+    """Convert database row to GeographicEntityResponse with proper level mapping"""
+    db_level_to_api = {"C": "country", "R": "region", "2": "province", "3": "city"}
+    api_level = db_level_to_api.get(str(row["level"]), str(row["level"]).lower())
+    
+    return GeographicEntityResponse(
+        id=row["id"], 
+        name_en=row["name_en"], 
+        name_fr=row["name_fr"], 
+        name_ar=row["name_ar"], 
+        parent_id=row["parent_id"], 
+        level=api_level, 
+        code=row["code"], 
+        latitude=float(row["latitude"]) if row["latitude"] is not None else None, 
+        longitude=float(row["longitude"]) if row["longitude"] is not None else None, 
+        created_at=row["created_at"], 
+        updated_at=row["updated_at"]
+    )
+
 @app.get("/admin/geographic-entities", response_model=PaginatedResponse, tags=["Admin - Geographic Entities"])
 async def get_admin_geographic_entities(
     request: Request,
@@ -6611,6 +6634,8 @@ async def get_admin_geographic_entities(
         base += " ORDER BY name_fr LIMIT %s OFFSET %s"
         params.extend([limit, offset])
         rows = execute_query_with_result(base, params)
+    # Convert database level codes to API enum values
+    db_level_to_api = {"C": "country", "R": "region", "2": "province", "3": "city"}
     data = [
         {
             "id": str(r["id"]),
@@ -6618,7 +6643,7 @@ async def get_admin_geographic_entities(
             "name_en": r["name_en"],
             "name_ar": r["name_ar"],
             "parent_id": str(r["parent_id"]) if r["parent_id"] else None,
-            "level": r["level"],
+            "level": db_level_to_api.get(str(r["level"]), str(r["level"]).lower()),
             "code": r["code"],
             "latitude": float(r["latitude"]) if r["latitude"] is not None else None,
             "longitude": float(r["longitude"]) if r["longitude"] is not None else None,
@@ -6632,29 +6657,33 @@ async def get_admin_geographic_entities(
 
 @app.post("/admin/geographic-entities", response_model=GeographicEntityResponse, tags=["Admin - Geographic Entities"])
 async def create_geographic_entity(request: Request, body: GeographicEntityBase, admin_user: dict = Depends(get_admin_user)):
+    # API enum to database level codes mapping
+    api_to_db_level = {"country": "C", "region": "R", "province": "2", "city": "3"}
+    db_level = api_to_db_level.get(body.level.value, body.level.value) if body.level else None
+    
     row = execute_query(
         """
         INSERT INTO geographic_entities (id, name_en, name_fr, name_ar, parent_id, level, code, latitude, longitude)
         VALUES (gen_random_uuid(), %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *
         """,
-        (body.name_en, body.name_fr, body.name_ar, str(body.parent_id) if body.parent_id else None, body.level.value if body.level else None, body.code, body.latitude, body.longitude),
+        (body.name_en, body.name_fr, body.name_ar, str(body.parent_id) if body.parent_id else None, db_level, body.code, body.latitude, body.longitude),
         fetch_one=True,
     )
-    return GeographicEntityResponse(
-        id=row["id"], name_en=row["name_en"], name_fr=row["name_fr"], name_ar=row["name_ar"], parent_id=row["parent_id"], level=row["level"], code=row["code"], latitude=float(row["latitude"]) if row["latitude"] is not None else None, longitude=float(row["longitude"]) if row["longitude"] is not None else None, created_at=row["created_at"], updated_at=row["updated_at"]
-    )
+    return convert_geographic_entity_response(row)
 
 @app.get("/admin/geographic-entities/{entity_id}", response_model=GeographicEntityResponse, tags=["Admin - Geographic Entities"])
 async def get_geographic_entity(request: Request, entity_id: str, admin_user: dict = Depends(get_admin_user)):
     row = execute_query("SELECT * FROM geographic_entities WHERE id = %s", (entity_id,), fetch_one=True)
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Geographic entity not found")
-    return GeographicEntityResponse(
-        id=row["id"], name_en=row["name_en"], name_fr=row["name_fr"], name_ar=row["name_ar"], parent_id=row["parent_id"], level=row["level"], code=row["code"], latitude=float(row["latitude"]) if row["latitude"] is not None else None, longitude=float(row["longitude"]) if row["longitude"] is not None else None, created_at=row["created_at"], updated_at=row["updated_at"]
-    )
+    return convert_geographic_entity_response(row)
 
 @app.put("/admin/geographic-entities/{entity_id}", response_model=GeographicEntityResponse, tags=["Admin - Geographic Entities"])
 async def update_geographic_entity(request: Request, entity_id: str, body: GeographicEntityUpdate, admin_user: dict = Depends(get_admin_user)):
+    # API enum to database level codes mapping
+    api_to_db_level = {"country": "C", "region": "R", "province": "2", "city": "3"}
+    db_level = api_to_db_level.get(body.level.value, body.level.value) if body.level else None
+    
     fields = []
     params: List[Any] = []
     mapping = {
@@ -6662,7 +6691,7 @@ async def update_geographic_entity(request: Request, entity_id: str, body: Geogr
         "name_fr": body.name_fr,
         "name_ar": body.name_ar,
         "parent_id": str(body.parent_id) if body.parent_id else None,
-        "level": body.level.value if body.level else None,
+        "level": db_level,
         "code": body.code,
         "latitude": body.latitude,
         "longitude": body.longitude,
@@ -6679,9 +6708,7 @@ async def update_geographic_entity(request: Request, entity_id: str, body: Geogr
     row = execute_query(f"UPDATE geographic_entities SET {', '.join(fields)} WHERE id = %s RETURNING *", params, fetch_one=True)
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Geographic entity not found")
-    return GeographicEntityResponse(
-        id=row["id"], name_en=row["name_en"], name_fr=row["name_fr"], name_ar=row["name_ar"], parent_id=row["parent_id"], level=row["level"], code=row["code"], latitude=float(row["latitude"]) if row["latitude"] is not None else None, longitude=float(row["longitude"]) if row["longitude"] is not None else None, created_at=row["created_at"], updated_at=row["updated_at"]
-    )
+    return convert_geographic_entity_response(row)
 
 @app.delete("/admin/geographic-entities/{entity_id}", response_model=BaseResponse, tags=["Admin - Geographic Entities"])
 async def delete_geographic_entity(request: Request, entity_id: str, admin_user: dict = Depends(get_admin_user)):
@@ -6698,12 +6725,17 @@ async def get_geographic_tree(
     theses_per_entity: int = Query(3, ge=0, le=10),
     admin_user: dict = Depends(get_admin_user)
 ):
+    # Database level codes to API enum mapping
+    db_level_to_api = {"C": "country", "R": "region", "2": "province", "3": "city"}
+    
     rows = execute_query_with_result("SELECT id, parent_id, name_fr, level FROM geographic_entities ORDER BY level, name_fr")
     by_parent: Dict[Optional[str], List[Dict[str, Any]]] = {}
     nodes: Dict[str, Dict[str, Any]] = {}
     for r in rows:
         pid = str(r["parent_id"]) if r["parent_id"] else None
-        node: Dict[str, Any] = {"id": str(r["id"]), "name_fr": r["name_fr"], "level": r["level"], "children": []}
+        db_level = str(r["level"]) if r["level"] else ""
+        api_level = db_level_to_api.get(db_level, db_level.lower())
+        node: Dict[str, Any] = {"id": str(r["id"]), "name_fr": r["name_fr"], "level": api_level, "children": []}
         if include_counts:
             node["thesis_count"] = 0
         if include_theses and theses_per_entity > 0:
@@ -8473,12 +8505,17 @@ async def public_geographic_tree(
     include_theses: bool = Query(False),
     theses_per_entity: int = Query(3, ge=0, le=10)
 ):
+    # Database level codes to API enum mapping
+    db_level_to_api = {"C": "country", "R": "region", "2": "province", "3": "city"}
+    
     rows = execute_query_with_result("SELECT id, parent_id, name_fr, level FROM geographic_entities ORDER BY level, name_fr")
     by_parent: Dict[Optional[str], List[Dict[str, Any]]] = {}
     nodes: Dict[str, Dict[str, Any]] = {}
     for r in rows:
         pid = str(r["parent_id"]) if r["parent_id"] else None
-        node: Dict[str, Any] = {"id": str(r["id"]), "name_fr": r["name_fr"], "level": r["level"], "children": []}
+        db_level = str(r["level"]) if r["level"] else ""
+        api_level = db_level_to_api.get(db_level, db_level.lower())
+        node: Dict[str, Any] = {"id": str(r["id"]), "name_fr": r["name_fr"], "level": api_level, "children": []}
         if include_counts:
             node["thesis_count"] = 0
         if include_theses and theses_per_entity > 0:

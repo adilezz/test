@@ -12,12 +12,18 @@ import ThesisDetailPage from './components/pages/ThesisDetailPage';
 import AdminThesisPage from './components/pages/AdminThesisPage';
 import AdminDashboardPage from './components/pages/AdminDashboardPage';
 import AdminUniversitiesPage from './components/pages/AdminUniversitiesPage';
+import AdminSchoolsPage from './components/pages/AdminSchoolsPage';
+import AdminFacultiesPage from './components/pages/AdminFacultiesPage';
 import AdminCategoriesPage from './components/pages/AdminCategoriesPage';
 import AdminAcademicPersonsPage from './components/pages/AdminAcademicPersonsPage';
 import AdminKeywordsPage from './components/pages/AdminKeywordsPage';
+import AdminDegreesPage from './components/pages/AdminDegreesPage';
 import AdminThesesListPage from './components/pages/AdminThesesListPage';
+
+
 import AdminStatisticsPage from './components/pages/AdminStatisticsPage';
 import AdminReportsPage from './components/pages/AdminReportsPage';
+import AdminGeographicEntitiesPage from './components/pages/AdminGeographicEntitiesPage';
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
 import LoadingSpinner from './components/ui/LoadingSpinner';
@@ -193,7 +199,98 @@ function App() {
                       <UploadPage />
                     </ProtectedRoute>
                   } />
-                  
+                  {/* Admin Routes */}
+                  <Route path="/admin" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminDashboardPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/dashboard" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminDashboardPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/universities" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminUniversitiesPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/schools" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminSchoolsPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/faculties" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminFacultiesPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/categories" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminCategoriesPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/academic-persons" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminAcademicPersonsPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/keywords" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminKeywordsPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/degrees" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminDegreesPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/geographic-entities" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminGeographicEntitiesPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/theses" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminThesesListPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/theses/new" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminThesisPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/theses/:id" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminThesisPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
                   {/* Catch all route */}
                   <Route path="*" element={
                     <div className="min-h-screen flex items-center justify-center">

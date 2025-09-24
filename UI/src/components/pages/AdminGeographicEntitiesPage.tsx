@@ -6,7 +6,7 @@ import {
   Edit,
   Trash2,
   Eye,
-  Tags,
+  Globe,
   ChevronDown,
   ChevronRight,
   Folder,
@@ -16,27 +16,29 @@ import {
   AlertCircle,
   ArrowUp,
   ArrowDown,
-  Move
+  Move,
+  MapPin
 } from 'lucide-react';
 import { apiService } from '../../services/api';
-import AdminHeader from '../layout/AdminHeader';
 import { 
-  CategoryResponse, 
+  GeographicEntityResponse, 
   TreeNodeData,
   PaginatedResponse,
-  CategoryCreate,
-  CategoryUpdate
+  GeographicEntityCreate,
+  GeographicEntityUpdate,
+  GeographicLevel
 } from '../../types/api';
 
 interface TreeNode {
   id: string;
-  code?: string;
   name_fr: string;
   name_en?: string;
   name_ar?: string;
-  description?: string;
-  level: number;
+  level: GeographicLevel;
   parent_id?: string;
+  code?: string;
+  latitude?: number;
+  longitude?: number;
   children?: TreeNode[];
   expanded?: boolean;
   thesis_count?: number;
@@ -45,53 +47,47 @@ interface TreeNode {
 interface ModalState {
   isOpen: boolean;
   mode: 'create' | 'edit' | 'delete' | 'view';
-  item?: CategoryResponse;
+  item?: GeographicEntityResponse;
   parent?: TreeNode;
 }
 
-export default function AdminCategoriesPage() {
+export default function AdminGeographicEntitiesPage() {
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
-  const [flatList, setFlatList] = useState<CategoryResponse[]>([]);
+  const [flatList, setFlatList] = useState<GeographicEntityResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
-  const [startLevel, setStartLevel] = useState<'domain' | 'discipline' | 'specialty' | 'subdiscipline'>('domain');
-  const [stopLevel, setStopLevel] = useState<'domain' | 'discipline' | 'specialty' | 'subdiscipline'>('subdiscipline');
   const [searchTerm, setSearchTerm] = useState('');
-  const [showAllCategories, setShowAllCategories] = useState(false);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
-  const [formData, setFormData] = useState<CategoryCreate>({
-    code: '',
+  const [formData, setFormData] = useState<GeographicEntityCreate>({
     name_fr: '',
     name_en: '',
     name_ar: '',
-    description: '',
-    level: 0,
-    parent_id: ''
+    level: GeographicLevel.COUNTRY,
+    parent_id: '',
+    code: '',
+    latitude: undefined,
+    longitude: undefined
   });
 
   useEffect(() => {
     loadData();
-    setShowAllCategories(false); // Reset pagination when switching views
-  }, [viewMode, startLevel, stopLevel]);
+  }, [viewMode]);
 
   const loadData = async () => {
     setLoading(true);
     try {
       if (viewMode === 'tree') {
         const treeResponse = await apiService.getAdminReferencesTree({
-          ref_type: 'categories',
-          start_level: startLevel,
-          stop_level: stopLevel,
+          ref_type: 'geographic',
           include_counts: true
         });
         setTreeData(transformToTreeNodesFromNested(treeResponse));
       } else {
-        const allCategories = await apiService.getAllCategories();
-        const hierarchicalList = buildHierarchicalList(allCategories);
-        setFlatList(hierarchicalList);
+        const listResponse = await apiService.adminList<PaginatedResponse>('geographic_entities');
+        setFlatList(listResponse.data);
       }
     } catch (error) {
-      console.error('Error loading categories:', error);
+      console.error('Error loading geographic entities:', error);
     } finally {
       setLoading(false);
     }
@@ -100,71 +96,20 @@ export default function AdminCategoriesPage() {
   const transformToTreeNodesFromNested = (data: any[]): TreeNode[] => {
     const build = (node: any, level: number): TreeNode => ({
       id: node.id,
-      code: node.code,
       name_fr: node.name_fr,
       name_en: node.name_en,
       name_ar: node.name_ar,
-      description: node.description,
-      level: typeof node.level === 'number' ? node.level : level,
+      level: node.level || GeographicLevel.COUNTRY,
       parent_id: node.parent_id,
+      code: node.code,
+      latitude: node.latitude,
+      longitude: node.longitude,
       thesis_count: node.thesis_count,
       expanded: false,
-      children: Array.isArray(node.children) ? node.children.map((ch: any) => build(ch, (typeof node.level === 'number' ? node.level : level) + 1)) : []
+      children: Array.isArray(node.children) ? node.children.map((ch: any) => build(ch, level + 1)) : []
     });
     return data.map(n => build(n, 0));
   };
-
-  const buildHierarchicalList = (categories: CategoryResponse[]): CategoryResponse[] => {
-    // Sort by level first, then by name
-    const sorted = [...categories].sort((a, b) => {
-      if (a.level !== b.level) return a.level - b.level;
-      return a.name_fr.localeCompare(b.name_fr);
-    });
-
-    // Create a map for quick parent lookup
-    const categoryMap = new Map(sorted.map(cat => [cat.id, cat]));
-    const result: CategoryResponse[] = [];
-
-    // Group by parent_id to maintain hierarchy
-    const byParent = new Map<string | null, CategoryResponse[]>();
-    sorted.forEach(cat => {
-      const parentId = cat.parent_id || null;
-      if (!byParent.has(parentId)) {
-        byParent.set(parentId, []);
-      }
-      byParent.get(parentId)!.push(cat);
-    });
-
-    // Recursive function to build the flat hierarchical list
-    const addChildren = (parentId: string | null, depth: number = 0) => {
-      const children = byParent.get(parentId) || [];
-      children.forEach(child => {
-        // Add indentation info for display
-        (child as any).depth = depth;
-        result.push(child);
-        addChildren(child.id, depth + 1);
-      });
-    };
-
-    addChildren(null);
-    return result;
-  };
-
-  const filteredCategories = flatList.filter(category => {
-    if (!searchTerm) return true;
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      category.name_fr.toLowerCase().includes(searchLower) ||
-      category.code.toLowerCase().includes(searchLower) ||
-      (category.name_en && category.name_en.toLowerCase().includes(searchLower)) ||
-      (category.name_ar && category.name_ar.toLowerCase().includes(searchLower)) ||
-      (category.description && category.description.toLowerCase().includes(searchLower))
-    );
-  });
-
-  const displayedCategories = viewMode === 'list' && !showAllCategories 
-    ? filteredCategories.slice(0, 50) 
-    : filteredCategories;
 
   const toggleNode = (nodeId: string) => {
     const updateNode = (nodes: TreeNode[]): TreeNode[] => {
@@ -187,15 +132,16 @@ export default function AdminCategoriesPage() {
       const createData = {
         ...formData,
         parent_id: formData.parent_id || undefined,
-        level: modal.parent ? modal.parent.level + 1 : 0
+        latitude: formData.latitude || undefined,
+        longitude: formData.longitude || undefined
       };
       
-      await apiService.adminCreate('categories', createData);
+      await apiService.adminCreate('geographic_entities', createData);
       setModal({ isOpen: false, mode: 'create' });
       resetForm();
       loadData();
     } catch (error) {
-      console.error('Error creating category:', error);
+      console.error('Error creating geographic entity:', error);
     }
   };
 
@@ -203,73 +149,111 @@ export default function AdminCategoriesPage() {
     if (!modal.item) return;
     
     try {
-      await apiService.adminUpdate('categories', modal.item.id, formData);
+      const updateData = {
+        ...formData,
+        latitude: formData.latitude || undefined,
+        longitude: formData.longitude || undefined
+      };
+      await apiService.adminUpdate('geographic_entities', modal.item.id, updateData);
       setModal({ isOpen: false, mode: 'edit' });
       loadData();
     } catch (error) {
-      console.error('Error updating category:', error);
+      console.error('Error updating geographic entity:', error);
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
-      await apiService.adminDelete('categories', id);
+      await apiService.adminDelete('geographic_entities', id);
       loadData();
     } catch (error) {
-      console.error('Error deleting category:', error);
+      console.error('Error deleting geographic entity:', error);
     }
   };
 
   const resetForm = () => {
     setFormData({
-      code: '',
       name_fr: '',
       name_en: '',
       name_ar: '',
-      description: '',
-      level: 0,
-      parent_id: ''
+      level: GeographicLevel.COUNTRY,
+      parent_id: '',
+      code: '',
+      latitude: undefined,
+      longitude: undefined
     });
   };
 
-  const openModal = (mode: ModalState['mode'], item?: CategoryResponse, parent?: TreeNode) => {
+  const openModal = (mode: ModalState['mode'], item?: GeographicEntityResponse, parent?: TreeNode) => {
     setModal({ isOpen: true, mode, item, parent });
     
     if (mode === 'edit' && item) {
       setFormData({
-        code: item.code,
         name_fr: item.name_fr,
         name_en: item.name_en || '',
         name_ar: item.name_ar || '',
-        description: item.description || '',
         level: item.level,
-        parent_id: item.parent_id || ''
+        parent_id: item.parent_id || '',
+        code: item.code || '',
+        latitude: item.latitude || undefined,
+        longitude: item.longitude || undefined
       });
     } else if (mode === 'create') {
       resetForm();
       if (parent) {
+        // Determine child level based on parent level
+        let childLevel = GeographicLevel.COUNTRY;
+        switch (parent.level) {
+          case GeographicLevel.COUNTRY:
+            childLevel = GeographicLevel.REGION;
+            break;
+          case GeographicLevel.REGION:
+            childLevel = GeographicLevel.PROVINCE;
+            break;
+          case GeographicLevel.PROVINCE:
+            childLevel = GeographicLevel.CITY;
+            break;
+          default:
+            childLevel = GeographicLevel.CITY;
+        }
+        
         setFormData(prev => ({
           ...prev,
           parent_id: parent.id,
-          level: parent.level + 1
+          level: childLevel
         }));
       }
     }
   };
 
-  const getLevelLabel = (level: number): string => {
-    const labels = ['Discipline', 'Sous-discipline', 'Spécialité', 'Sous-spécialité'];
-    return labels[level] || `Niveau ${level + 1}`;
+  const getLevelLabel = (level: GeographicLevel): string => {
+    switch (level) {
+      case GeographicLevel.COUNTRY:
+        return 'Pays';
+      case GeographicLevel.REGION:
+        return 'Région';
+      case GeographicLevel.PROVINCE:
+        return 'Province/Préfecture';
+      case GeographicLevel.CITY:
+        return 'Ville';
+      default:
+        return level;
+    }
   };
 
-  const getLevelColor = (level: number): string => {
-    const colors = [
-      'text-blue-600 bg-blue-100',
-      'text-green-600 bg-green-100', 
-      'text-purple-600 bg-purple-100',
-      'text-orange-600 bg-orange-100'
-    ];
-    return colors[level] || 'text-gray-600 bg-gray-100';
+  const getLevelColor = (level: GeographicLevel): string => {
+    switch (level) {
+      case GeographicLevel.COUNTRY:
+        return 'text-blue-600 bg-blue-100';
+      case GeographicLevel.REGION:
+        return 'text-green-600 bg-green-100';
+      case GeographicLevel.PROVINCE:
+        return 'text-purple-600 bg-purple-100';
+      case GeographicLevel.CITY:
+        return 'text-orange-600 bg-orange-100';
+      default:
+        return 'text-gray-600 bg-gray-100';
+    }
   };
 
   const renderTreeNode = (node: TreeNode, depth: number = 0) => {
@@ -305,7 +289,7 @@ export default function AdminCategoriesPage() {
                 <Folder className="w-4 h-4 text-blue-600" />
               )
             ) : (
-              <Tags className="w-4 h-4 text-gray-500" />
+              <MapPin className="w-4 h-4 text-gray-500" />
             )}
             
             <div className="flex-1">
@@ -314,6 +298,11 @@ export default function AdminCategoriesPage() {
                 <span className={`text-xs px-2 py-1 rounded-full ${getLevelColor(node.level)}`}>
                   {getLevelLabel(node.level)}
                 </span>
+                {node.code && (
+                  <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
+                    {node.code}
+                  </span>
+                )}
               </div>
               
               {(node.name_en || node.name_ar) && (
@@ -324,9 +313,9 @@ export default function AdminCategoriesPage() {
                 </div>
               )}
               
-              {node.description && (
-                <div className="text-sm text-gray-500 truncate max-w-md">
-                  {node.description}
+              {(node.latitude && node.longitude) && (
+                <div className="text-sm text-gray-500">
+                  📍 {node.latitude.toFixed(4)}, {node.longitude.toFixed(4)}
                 </div>
               )}
             </div>
@@ -344,7 +333,7 @@ export default function AdminCategoriesPage() {
                   openModal('create', undefined, node);
                 }}
                 className="p-1 text-gray-400 hover:text-green-600"
-                title="Ajouter une sous-catégorie"
+                title="Ajouter une sous-entité"
               >
                 <Plus className="w-4 h-4" />
               </button>
@@ -369,7 +358,7 @@ export default function AdminCategoriesPage() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (confirm('Êtes-vous sûr de vouloir supprimer cette catégorie ?')) {
+                  if (confirm('Êtes-vous sûr de vouloir supprimer cette entité géographique ?')) {
                     handleDelete(node.id);
                   }
                 }}
@@ -398,10 +387,10 @@ export default function AdminCategoriesPage() {
         <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-900">
-              {modal.mode === 'create' && (modal.parent ? `Nouvelle sous-catégorie de "${modal.parent.name_fr}"` : 'Nouvelle Catégorie')}
-              {modal.mode === 'edit' && 'Modifier Catégorie'}
-              {modal.mode === 'view' && 'Détails Catégorie'}
-              {modal.mode === 'delete' && 'Supprimer Catégorie'}
+              {modal.mode === 'create' && (modal.parent ? `Nouvelle sous-entité de "${modal.parent.name_fr}"` : 'Nouvelle Entité Géographique')}
+              {modal.mode === 'edit' && 'Modifier Entité Géographique'}
+              {modal.mode === 'view' && 'Détails Entité Géographique'}
+              {modal.mode === 'delete' && 'Supprimer Entité Géographique'}
             </h2>
             <button
               onClick={() => setModal({ isOpen: false, mode: 'create' })}
@@ -419,7 +408,7 @@ export default function AdminCategoriesPage() {
               {modal.parent && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                   <div className="flex items-center space-x-2">
-                    <span className="text-sm text-blue-800">Catégorie parente:</span>
+                    <span className="text-sm text-blue-800">Entité parente:</span>
                     <span className="font-medium text-blue-900">{modal.parent.name_fr}</span>
                     <span className={`text-xs px-2 py-1 rounded-full ${getLevelColor(modal.parent.level)}`}>
                       {getLevelLabel(modal.parent.level)}
@@ -428,33 +417,17 @@ export default function AdminCategoriesPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Code *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="ex: MATH, PHYS, INFO"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nom (Français) *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name_fr}
-                    onChange={(e) => setFormData({ ...formData, name_fr: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nom (Français) *
+                </label>
+                <input
+                  type="text"
+                  value={formData.name_fr}
+                  onChange={(e) => setFormData({ ...formData, name_fr: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -484,25 +457,74 @@ export default function AdminCategoriesPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
-                </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Description optionnelle de la catégorie"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Niveau *
+                  </label>
+                  <select
+                    value={formData.level}
+                    onChange={(e) => setFormData({ ...formData, level: e.target.value as GeographicLevel })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={!!modal.parent}
+                  >
+                    <option value={GeographicLevel.COUNTRY}>Pays</option>
+                    <option value={GeographicLevel.REGION}>Région</option>
+                    <option value={GeographicLevel.PROVINCE}>Province/Préfecture</option>
+                    <option value={GeographicLevel.CITY}>Ville</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Code
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Code ISO, postal, etc."
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Latitude
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={formData.latitude || ''}
+                    onChange={(e) => setFormData({ ...formData, latitude: e.target.value ? parseFloat(e.target.value) : undefined })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Ex: 33.5731"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Longitude
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={formData.longitude || ''}
+                    onChange={(e) => setFormData({ ...formData, longitude: e.target.value ? parseFloat(e.target.value) : undefined })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Ex: -7.5898"
+                  />
+                </div>
               </div>
 
               {modal.parent && (
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                   <div className="flex items-center space-x-2">
                     <span className="text-sm text-gray-600">Niveau:</span>
-                    <span className={`text-sm px-2 py-1 rounded-full ${getLevelColor(modal.parent.level + 1)}`}>
-                      {getLevelLabel(modal.parent.level + 1)}
+                    <span className={`text-sm px-2 py-1 rounded-full ${getLevelColor(formData.level)}`}>
+                      {getLevelLabel(formData.level)}
                     </span>
                   </div>
                 </div>
@@ -532,46 +554,38 @@ export default function AdminCategoriesPage() {
                 <span className={`px-3 py-1 rounded-full text-sm ${getLevelColor(modal.item.level)}`}>
                   {getLevelLabel(modal.item.level)}
                 </span>
+                {modal.item.code && (
+                  <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded text-sm">
+                    {modal.item.code}
+                  </span>
+                )}
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Code</label>
-                  <p className="mt-1">
-                    <code className="px-2 py-1 bg-gray-100 rounded text-sm font-mono">
-                      {modal.item.code}
-                    </code>
-                  </p>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Nom (Français)</label>
-                  <p className="mt-1 text-gray-900">{modal.item.name_fr}</p>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Nom (Français)</label>
+                <p className="mt-1 text-gray-900">{modal.item.name_fr}</p>
               </div>
               
-              {(modal.item.name_en || modal.item.name_ar) && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {modal.item.name_en && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Nom (Anglais)</label>
-                      <p className="mt-1 text-gray-900">{modal.item.name_en}</p>
-                    </div>
-                  )}
-                  
-                  {modal.item.name_ar && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Nom (Arabe)</label>
-                      <p className="mt-1 text-gray-900" dir="rtl">{modal.item.name_ar}</p>
-                    </div>
-                  )}
+              {modal.item.name_en && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Nom (Anglais)</label>
+                  <p className="mt-1 text-gray-900">{modal.item.name_en}</p>
                 </div>
               )}
               
-              {modal.item.description && (
+              {modal.item.name_ar && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Description</label>
-                  <p className="mt-1 text-gray-900">{modal.item.description}</p>
+                  <label className="block text-sm font-medium text-gray-700">Nom (Arabe)</label>
+                  <p className="mt-1 text-gray-900" dir="rtl">{modal.item.name_ar}</p>
+                </div>
+              )}
+              
+              {(modal.item.latitude && modal.item.longitude) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Coordonnées</label>
+                  <p className="mt-1 text-gray-900">
+                    📍 {modal.item.latitude.toFixed(4)}, {modal.item.longitude.toFixed(4)}
+                  </p>
                 </div>
               )}
               
@@ -598,15 +612,14 @@ export default function AdminCategoriesPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AdminHeader />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Catégories</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Entités Géographiques</h1>
               <p className="text-gray-600 mt-2">
-                Gérer les disciplines, sous-disciplines et spécialités
+                Gérer les pays, régions, provinces et villes
               </p>
             </div>
             <button
@@ -614,7 +627,7 @@ export default function AdminCategoriesPage() {
               className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
             >
               <Plus className="w-4 h-4" />
-              <span>Nouvelle Catégorie</span>
+              <span>Nouvelle Entité</span>
             </button>
           </div>
         </div>
@@ -623,7 +636,7 @@ export default function AdminCategoriesPage() {
         <div className="bg-white rounded-lg shadow p-4 mb-6">
           <h3 className="text-sm font-medium text-gray-700 mb-3">Légende des niveaux:</h3>
           <div className="flex flex-wrap gap-3">
-            {[0, 1, 2, 3].map(level => (
+            {[GeographicLevel.COUNTRY, GeographicLevel.REGION, GeographicLevel.PROVINCE, GeographicLevel.CITY].map(level => (
               <div key={level} className="flex items-center space-x-2">
                 <span className={`px-2 py-1 rounded-full text-xs ${getLevelColor(level)}`}>
                   {getLevelLabel(level)}
@@ -652,37 +665,6 @@ export default function AdminCategoriesPage() {
                 <span>Filtres</span>
               </button>
             </div>
-
-            {viewMode === 'tree' && (
-              <div className="flex items-center space-x-3">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Niveau départ</label>
-                  <select
-                    value={startLevel}
-                    onChange={(e) => setStartLevel(e.target.value as any)}
-                    className="px-2 py-1 border border-gray-300 rounded"
-                  >
-                    <option value="domain">Domaine</option>
-                    <option value="discipline">Discipline</option>
-                    <option value="specialty">Spécialité</option>
-                    <option value="subdiscipline">Sous-discipline</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Niveau fin</label>
-                  <select
-                    value={stopLevel}
-                    onChange={(e) => setStopLevel(e.target.value as any)}
-                    className="px-2 py-1 border border-gray-300 rounded"
-                  >
-                    <option value="domain">Domaine</option>
-                    <option value="discipline">Discipline</option>
-                    <option value="specialty">Spécialité</option>
-                    <option value="subdiscipline">Sous-discipline</option>
-                  </select>
-                </div>
-              </div>
-            )}
 
             <div className="flex items-center space-x-2">
               <button
@@ -714,15 +696,15 @@ export default function AdminCategoriesPage() {
           {viewMode === 'tree' ? (
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                Structure Hiérarchique des Catégories
+                Structure Hiérarchique des Entités Géographiques
               </h2>
               <div className="space-y-1">
                 {treeData.map((node) => renderTreeNode(node))}
               </div>
               {treeData.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
-                  <Tags className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                  <p>Aucune catégorie trouvée</p>
+                  <Globe className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p>Aucune entité géographique trouvée</p>
                 </div>
               )}
             </div>
@@ -732,16 +714,16 @@ export default function AdminCategoriesPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Catégorie
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Code
+                      Entité
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Niveau
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Description
+                      Code
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Coordonnées
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Créée le
@@ -752,118 +734,70 @@ export default function AdminCategoriesPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {displayedCategories.map((category) => {
-                    const depth = (category as any).depth || 0;
-                    return (
-                      <tr key={category.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div style={{ marginLeft: `${depth * 20}px` }} className="flex items-center space-x-2">
-                            {depth > 0 && (
-                              <div className="flex items-center text-gray-300">
-                                {'└─'.repeat(1)}
-                              </div>
-                            )}
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">
-                                {category.name_fr}
-                              </div>
-                              {(category.name_en || category.name_ar) && (
-                                <div className="text-sm text-gray-500">
-                                  {category.name_en && <span>{category.name_en}</span>}
-                                  {category.name_en && category.name_ar && <span> • </span>}
-                                  {category.name_ar && <span>{category.name_ar}</span>}
-                                </div>
-                              )}
+                  {flatList.map((entity) => (
+                    <tr key={entity.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {entity.name_fr}
+                          </div>
+                          {(entity.name_en || entity.name_ar) && (
+                            <div className="text-sm text-gray-500">
+                              {entity.name_en && <span>{entity.name_en}</span>}
+                              {entity.name_en && entity.name_ar && <span> • </span>}
+                              {entity.name_ar && <span>{entity.name_ar}</span>}
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <code className="px-2 py-1 bg-gray-100 rounded text-sm font-mono">
-                            {category.code}
-                          </code>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs rounded-full ${getLevelColor(category.level)}`}>
-                            {getLevelLabel(category.level)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-900 max-w-xs truncate">
-                            {category.description || '-'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(category.created_at).toLocaleDateString('fr-FR')}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex items-center space-x-2">
-                            <button
-                              onClick={() => openModal('view', category)}
-                              className="text-gray-400 hover:text-gray-600"
-                              title="Voir les détails"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => openModal('edit', category)}
-                              className="text-blue-600 hover:text-blue-900"
-                              title="Modifier"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (confirm('Êtes-vous sûr de vouloir supprimer cette catégorie ?')) {
-                                  handleDelete(category.id);
-                                }
-                              }}
-                              className="text-red-600 hover:text-red-900"
-                              title="Supprimer"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs rounded-full ${getLevelColor(entity.level)}`}>
+                          {getLevelLabel(entity.level)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {entity.code || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {entity.latitude && entity.longitude ? (
+                          <span>📍 {entity.latitude.toFixed(4)}, {entity.longitude.toFixed(4)}</span>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(entity.created_at).toLocaleDateString('fr-FR')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => openModal('view', entity)}
+                            className="text-gray-400 hover:text-gray-600"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => openModal('edit', entity)}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm('Êtes-vous sûr de vouloir supprimer cette entité géographique ?')) {
+                                handleDelete(entity.id);
+                              }
+                            }}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
-              
-              {/* Show more button for list view */}
-              {viewMode === 'list' && filteredCategories.length > 50 && !showAllCategories && (
-                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-gray-600">
-                      Affichage de 50 sur {filteredCategories.length} catégories
-                    </p>
-                    <button
-                      onClick={() => setShowAllCategories(true)}
-                      className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      <span>Afficher toutes les catégories</span>
-                      <ChevronDown className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              )}
-              
-              {viewMode === 'list' && showAllCategories && filteredCategories.length > 50 && (
-                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-gray-600">
-                      Affichage de toutes les {filteredCategories.length} catégories
-                    </p>
-                    <button
-                      onClick={() => setShowAllCategories(false)}
-                      className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-                    >
-                      <span>Afficher moins</span>
-                      <ChevronRight className="w-4 h-4 rotate-90" />
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
