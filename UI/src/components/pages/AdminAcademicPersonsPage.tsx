@@ -22,6 +22,8 @@ import {
   Globe
 } from 'lucide-react';
 import { apiService } from '../../services/api';
+import TreeView from '../ui/TreeView/TreeView';
+import { TreeNode as UITreeNode } from '../../types/tree';
 import { 
   AcademicPersonResponse,
   PaginatedResponse,
@@ -46,6 +48,9 @@ export default function AdminAcademicPersonsPage() {
   const [universities, setUniversities] = useState<UniversityResponse[]>([]);
   const [faculties, setFaculties] = useState<FacultyResponse[]>([]);
   const [schools, setSchools] = useState<SchoolResponse[]>([]);
+  const [institutionsTree, setInstitutionsTree] = useState<any[]>([]);
+  const [geoCountryModalOpen, setGeoCountryModalOpen] = useState(false);
+  const [geoCountryNodes, setGeoCountryNodes] = useState<UITreeNode[]>([]);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
   const [formData, setFormData] = useState<AcademicPersonCreate>({
     complete_name_fr: '',
@@ -69,7 +74,34 @@ export default function AdminAcademicPersonsPage() {
     loadUniversities();
     loadFaculties();
     loadSchools();
+    // Institution tree (for richer selection when needed)
+    apiService.getAdminReferencesTree({ ref_type: 'schools', start_level: 'university', include_counts: false, max_depth: 3 })
+      .then(setInstitutionsTree)
+      .catch(() => {});
   }, []);
+
+  const openCountryGeoModal = async () => {
+    try {
+      setGeoCountryModalOpen(true);
+      const tree = await apiService.getAdminReferencesTree({
+        ref_type: 'geographic',
+        start_level: 'country',
+        stop_level: 'country',
+        include_counts: false
+      });
+      const nodes = (Array.isArray(tree) ? tree : []).map((n: any): UITreeNode => ({
+        id: n.id,
+        label: n.name_fr,
+        type: 'location',
+        level: 0,
+        count: n.thesis_count || 0,
+        children: []
+      }));
+      setGeoCountryNodes(nodes);
+    } catch (e) {
+      console.error('Failed to load countries', e);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -374,14 +406,23 @@ export default function AdminAcademicPersonsPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Pays de l'institution externe
                     </label>
-                    <input
-                      type="text"
-                      value={formData.external_institution_country || ''}
-                      onChange={(e) => setFormData({ ...formData, external_institution_country: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Pays"
-                      maxLength={100}
-                    />
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="text"
+                        value={formData.external_institution_country || ''}
+                        onChange={(e) => setFormData({ ...formData, external_institution_country: e.target.value })}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Pays"
+                        maxLength={100}
+                      />
+                      <button
+                        type="button"
+                        onClick={openCountryGeoModal}
+                        className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                      >
+                        Parcourir…
+                      </button>
+                    </div>
                   </div>
 
                   <div>
@@ -1034,6 +1075,35 @@ export default function AdminAcademicPersonsPage() {
         )}
 
         {renderModal()}
+
+        {/* Country Picker Modal for External Institution */}
+        {geoCountryModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Sélectionner un pays</h3>
+                <button
+                  onClick={() => setGeoCountryModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <TreeView
+                nodes={geoCountryNodes}
+                onNodeSelect={(node) => {
+                  setFormData(prev => ({ ...prev, external_institution_country: node.label }));
+                  setGeoCountryModalOpen(false);
+                }}
+                multiSelect={false}
+                searchable={true}
+                maxHeight="360px"
+                showCounts={false}
+                showIcons={true}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -29,6 +29,8 @@ import {
 } from 'lucide-react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { apiService } from '../../services/api';
+import TreeView from '../ui/TreeView/TreeView';
+import { TreeNode as UITreeNode } from '../../types/tree';
 import { 
   ThesisCreate,
   ThesisUpdate, 
@@ -86,6 +88,10 @@ export default function AdminThesisPage() {
   const [categories, setCategories] = useState<CategoryResponse[]>([]);
   const [keywords, setKeywords] = useState<KeywordResponse[]>([]);
   const [academicPersons, setAcademicPersons] = useState<AcademicPersonResponse[]>([]);
+  const [geographicEntities, setGeographicEntities] = useState<any[]>([]);
+  const [geoModalOpen, setGeoModalOpen] = useState(false);
+  const [geoNodes, setGeoNodes] = useState<UITreeNode[]>([]);
+  const [selectedGeoLabel, setSelectedGeoLabel] = useState<string>('');
 
   // Form data
   const [formData, setFormData] = useState<ThesisCreate>({
@@ -127,6 +133,13 @@ export default function AdminThesisPage() {
     }
   }, [id]);
 
+  useEffect(() => {
+    if (geographicEntities && formData.study_location_id) {
+      const sel = geographicEntities.find((e) => e.id === formData.study_location_id);
+      setSelectedGeoLabel(sel ? sel.name_fr : '');
+    }
+  }, [geographicEntities, formData.study_location_id]);
+
   const loadReferenceData = async () => {
     try {
       const [
@@ -135,14 +148,16 @@ export default function AdminThesisPage() {
         languagesRes,
         categoriesRes,
         keywordsRes,
-        academicPersonsRes
+        academicPersonsRes,
+        geoRes
       ] = await Promise.all([
         apiService.adminList<PaginatedResponse>('universities', { load_all: 'true' }),
         apiService.adminList<PaginatedResponse>('degrees', { load_all: 'true' }),
         apiService.adminList<PaginatedResponse>('languages', { load_all: 'true' }),
         apiService.adminList<PaginatedResponse>('categories', { load_all: 'true' }),
         apiService.adminList<PaginatedResponse>('keywords', { load_all: 'true' }),
-        apiService.adminList<PaginatedResponse>('academic_persons', { load_all: 'true' })
+        apiService.adminList<PaginatedResponse>('academic_persons', { load_all: 'true' }),
+        apiService.adminList<PaginatedResponse>('geographic_entities', { load_all: 'true' })
       ]);
 
       setUniversities(universitiesRes.data);
@@ -151,8 +166,32 @@ export default function AdminThesisPage() {
       setCategories(categoriesRes.data);
       setKeywords(keywordsRes.data);
       setAcademicPersons(academicPersonsRes.data);
+      setGeographicEntities(geoRes.data);
     } catch (error) {
       console.error('Error loading reference data:', error);
+    }
+  };
+
+  const openGeoModal = async () => {
+    try {
+      setGeoModalOpen(true);
+      const tree = await apiService.getAdminReferencesTree({
+        ref_type: 'geographic',
+        start_level: 'country',
+        stop_level: 'city',
+        include_counts: false
+      });
+      const mapNode = (n: any, level: number = 0): UITreeNode => ({
+        id: n.id,
+        label: n.name_fr,
+        type: 'location',
+        level,
+        count: n.thesis_count || 0,
+        children: Array.isArray(n.children) ? n.children.map((c: any) => mapNode(c, level + 1)) : []
+      });
+      setGeoNodes(Array.isArray(tree) ? tree.map((n: any) => mapNode(n, 0)) : []);
+    } catch (e) {
+      console.error('Failed to load geographic tree', e);
     }
   };
 
@@ -577,6 +616,38 @@ export default function AdminThesisPage() {
                   </div>
                 </div>
 
+                {/* Study Location */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Lieu d'étude
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    <select
+                      name="study_location_id"
+                      value={formData.study_location_id || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, study_location_id: e.target.value }))}
+                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Sélectionnez une localisation</option>
+                      {geographicEntities.map((entity) => (
+                        <option key={entity.id} value={entity.id}>
+                          {entity.name_fr} {entity.level && `(${entity.level})`}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={openGeoModal}
+                      className="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      Parcourir…
+                    </button>
+                  </div>
+                  {selectedGeoLabel && (
+                    <p className="mt-1 text-xs text-gray-500">Sélectionné: {selectedGeoLabel}</p>
+                  )}
+                </div>
+
                 {/* Academic Persons */}
                 <div>
                   <div className="flex items-center justify-between mb-4">
@@ -916,6 +987,39 @@ export default function AdminThesisPage() {
                   Créer
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Geographic Tree Modal */}
+        {geoModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-3xl mx-4 max-h-[80vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Sélectionner une localisation</h2>
+                <button
+                  onClick={() => setGeoModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="mb-4 text-sm text-gray-600">
+                Pays → Région → Province/Préfecture → Ville
+              </div>
+              <TreeView
+                nodes={geoNodes}
+                onNodeSelect={(node) => {
+                  setFormData(prev => ({ ...prev, study_location_id: node.id }));
+                  setSelectedGeoLabel(node.label);
+                  setGeoModalOpen(false);
+                }}
+                multiSelect={false}
+                searchable={true}
+                maxHeight="500px"
+                showCounts={false}
+                showIcons={true}
+              />
             </div>
           </div>
         )}

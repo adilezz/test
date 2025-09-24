@@ -52,6 +52,8 @@ export default function AdminCategoriesPage() {
   const [flatList, setFlatList] = useState<CategoryResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
+  const [startLevel, setStartLevel] = useState<'domain' | 'discipline' | 'specialty' | 'subdiscipline'>('domain');
+  const [stopLevel, setStopLevel] = useState<'domain' | 'discipline' | 'specialty' | 'subdiscipline'>('subdiscipline');
   const [searchTerm, setSearchTerm] = useState('');
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
   const [formData, setFormData] = useState<CategoryCreate>({
@@ -65,14 +67,19 @@ export default function AdminCategoriesPage() {
 
   useEffect(() => {
     loadData();
-  }, [viewMode]);
+  }, [viewMode, startLevel, stopLevel]);
 
   const loadData = async () => {
     setLoading(true);
     try {
       if (viewMode === 'tree') {
-        const treeResponse = await apiService.getCategoriesTree();
-        setTreeData(transformToTreeNodes(treeResponse));
+        const treeResponse = await apiService.getAdminReferencesTree({
+          ref_type: 'categories',
+          start_level: startLevel,
+          stop_level: stopLevel,
+          include_counts: true
+        });
+        setTreeData(transformToTreeNodesFromNested(treeResponse));
       } else {
         const listResponse = await apiService.adminList<PaginatedResponse>('categories');
         setFlatList(listResponse.data);
@@ -84,25 +91,20 @@ export default function AdminCategoriesPage() {
     }
   };
 
-  const transformToTreeNodes = (data: TreeNodeData[]): TreeNode[] => {
-    const buildTree = (items: TreeNodeData[], parentId: string | null = null, level: number = 0): TreeNode[] => {
-      return items
-        .filter(item => (parentId === null ? !item.parent_id : item.parent_id === parentId))
-        .map(item => ({
-          id: item.id,
-          name_fr: item.name_fr,
-          name_en: item.name_en,
-          name_ar: item.name_ar,
-          description: item.description,
-          level,
-          parent_id: item.parent_id,
-          thesis_count: item.thesis_count,
-          expanded: false,
-          children: buildTree(items, item.id, level + 1)
-        }));
-    };
-
-    return buildTree(data);
+  const transformToTreeNodesFromNested = (data: any[]): TreeNode[] => {
+    const build = (node: any, level: number): TreeNode => ({
+      id: node.id,
+      name_fr: node.name_fr,
+      name_en: node.name_en,
+      name_ar: node.name_ar,
+      description: node.description,
+      level: typeof node.level === 'number' ? node.level : level,
+      parent_id: node.parent_id,
+      thesis_count: node.thesis_count,
+      expanded: false,
+      children: Array.isArray(node.children) ? node.children.map((ch: any) => build(ch, (typeof node.level === 'number' ? node.level : level) + 1)) : []
+    });
+    return data.map(n => build(n, 0));
   };
 
   const toggleNode = (nodeId: string) => {
@@ -557,6 +559,37 @@ export default function AdminCategoriesPage() {
                 <span>Filtres</span>
               </button>
             </div>
+
+            {viewMode === 'tree' && (
+              <div className="flex items-center space-x-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Niveau départ</label>
+                  <select
+                    value={startLevel}
+                    onChange={(e) => setStartLevel(e.target.value as any)}
+                    className="px-2 py-1 border border-gray-300 rounded"
+                  >
+                    <option value="domain">Domaine</option>
+                    <option value="discipline">Discipline</option>
+                    <option value="specialty">Spécialité</option>
+                    <option value="subdiscipline">Sous-discipline</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Niveau fin</label>
+                  <select
+                    value={stopLevel}
+                    onChange={(e) => setStopLevel(e.target.value as any)}
+                    className="px-2 py-1 border border-gray-300 rounded"
+                  >
+                    <option value="domain">Domaine</option>
+                    <option value="discipline">Discipline</option>
+                    <option value="specialty">Spécialité</option>
+                    <option value="subdiscipline">Sous-discipline</option>
+                  </select>
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center space-x-2">
               <button
