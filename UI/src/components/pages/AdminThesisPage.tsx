@@ -137,12 +137,12 @@ export default function AdminThesisPage() {
         keywordsRes,
         academicPersonsRes
       ] = await Promise.all([
-        apiService.adminList<PaginatedResponse>('universities', { limit: 1000 }),
-        apiService.adminList<PaginatedResponse>('degrees', { limit: 100 }),
-        apiService.adminList<PaginatedResponse>('languages', { limit: 50 }),
-        apiService.adminList<PaginatedResponse>('categories', { limit: 1000 }),
-        apiService.adminList<PaginatedResponse>('keywords', { limit: 1000 }),
-        apiService.adminList<PaginatedResponse>('academic_persons', { limit: 1000 })
+        apiService.adminList<PaginatedResponse>('universities', { load_all: 'true' }),
+        apiService.adminList<PaginatedResponse>('degrees', { load_all: 'true' }),
+        apiService.adminList<PaginatedResponse>('languages', { load_all: 'true' }),
+        apiService.adminList<PaginatedResponse>('categories', { load_all: 'true' }),
+        apiService.adminList<PaginatedResponse>('keywords', { load_all: 'true' }),
+        apiService.adminList<PaginatedResponse>('academic_persons', { load_all: 'true' })
       ]);
 
       setUniversities(universitiesRes.data);

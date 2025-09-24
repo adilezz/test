@@ -85,7 +85,7 @@ export default function AdminAcademicPersonsPage() {
 
   const loadUniversities = async () => {
     try {
-      const response = await apiService.adminList<PaginatedResponse>('universities', { limit: 1000 });
+      const response = await apiService.adminList<PaginatedResponse>('universities', { load_all: 'true' });
       setUniversities(response.data);
     } catch (error) {
       console.error('Error loading universities:', error);
@@ -94,7 +94,7 @@ export default function AdminAcademicPersonsPage() {
 
   const loadFaculties = async () => {
     try {
-      const response = await apiService.adminList<PaginatedResponse>('faculties', { limit: 1000 });
+      const response = await apiService.adminList<PaginatedResponse>('faculties', { load_all: 'true' });
       setFaculties(response.data);
     } catch (error) {
       console.error('Error loading faculties:', error);
