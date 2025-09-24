@@ -40,21 +40,10 @@ import os
 import uuid
 import re
 import logging
-from datetime import datetime, timedelta, date, timezone
+from datetime import datetime, timedelta, date
 from typing import Optional, List, Dict, Any, Union
 import json
 from enum import Enum
-from contextlib import asynccontextmanager
-
-# =============================================================================
-# DATETIME UTILITIES
-# =============================================================================
-def utcnow() -> datetime:
-    """Return current UTC time as a naive datetime (legacy-compatible).
-
-    Uses timezone-aware clock under the hood to avoid deprecated datetime.utcnow().
-    """
-    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 # =============================================================================
 # CONFIGURATION
@@ -326,9 +315,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     """Create a JWT access token"""
     to_encode = data.copy()
     if expires_delta:
-        expire = utcnow() + expires_delta
+        expire = datetime.utcnow() + expires_delta
     else:
-        expire = utcnow() + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.utcnow() + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
     
     to_encode.update({"exp": expire, "type": "access"})
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
@@ -337,7 +326,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def create_refresh_token(data: dict) -> str:
     """Create a JWT refresh token"""
     to_encode = data.copy()
-    expire = utcnow() + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
+    expire = datetime.utcnow() + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire, "type": "refresh"})
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
     return encoded_jwt
@@ -353,7 +342,7 @@ def verify_token(token: str, token_type: str = "access") -> Optional[dict]:
             
         # Check expiration
         exp = payload.get("exp")
-        if exp is None or utcnow() > datetime.fromtimestamp(exp):
+        if exp is None or datetime.utcnow() > datetime.fromtimestamp(exp):
             return None
             
         return payload
@@ -642,8 +631,8 @@ def create_manual_extraction_job(file_id: str, original_filename: str, file_size
         "completed",  # Manual entry is immediately "completed"
         "manual_entry",
         "fr",  # Default to French
-        utcnow(),
-        utcnow()
+        datetime.utcnow(),
+        datetime.utcnow()
     )
     
     result = execute_query(query, params, fetch_one=True)
@@ -670,7 +659,7 @@ def move_file_to_published(file_id: str) -> str:
             SET file_url = %s, updated_at = %s 
             WHERE file_url = %s
         """
-        execute_query(update_query, (f"/published/{file_id}.pdf", utcnow(), f"/temp/{file_id}.pdf"))
+        execute_query(update_query, (f"/published/{file_id}.pdf", datetime.utcnow(), f"/temp/{file_id}.pdf"))
         
         return f"/published/{file_id}.pdf"
         
@@ -1548,7 +1537,7 @@ def create_error_response(
             "details": details or {}
         },
         "request_id": request_id,
-        "timestamp": utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat()
     }
 
 def create_success_response(
@@ -1559,7 +1548,7 @@ def create_success_response(
     """Create standardized success response"""
     response = {
         "success": True,
-        "timestamp": utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat()
     }
     
     if data is not None:
@@ -1591,11 +1580,11 @@ def create_paginated_response(
             "pages": pages
         },
         "request_id": request_id,
-        "timestamp": utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat()
     }
 
 # Application start time for uptime calculation
-APP_START_TIME = utcnow()
+APP_START_TIME = datetime.utcnow()
 
 def check_storage_health():
     """Check file storage directories health"""
@@ -1644,7 +1633,7 @@ def check_storage_health():
 
 def calculate_uptime():
     """Calculate application uptime"""
-    uptime = utcnow() - APP_START_TIME
+    uptime = datetime.utcnow() - APP_START_TIME
     total_seconds = int(uptime.total_seconds())
     
     days = total_seconds // 86400
@@ -1672,7 +1661,6 @@ def create_app() -> FastAPI:
         docs_url="/docs" if settings.DEBUG else None,
         redoc_url="/redoc" if settings.DEBUG else None,
         openapi_url="/openapi.json" if settings.DEBUG else None,
-        lifespan=lifespan,
     )
     
     # Add CORS middleware
@@ -1829,7 +1817,7 @@ async def health_check(request: Request):
             "published_dir": storage_health["directories"].get("published", {}).get("healthy", False),
             "bulk_dir": storage_health["directories"].get("bulk", {}).get("healthy", False)
         },
-        "timestamp": utcnow().isoformat() + "Z"
+        "timestamp": datetime.utcnow().isoformat() + "Z"
     }
     
     return JSONResponse(
@@ -1920,7 +1908,7 @@ async def readiness_check(request: Request):
         "ready": is_ready,
         "checks": checks,
         "issues": issues if not is_ready else [],
-        "timestamp": utcnow().isoformat() + "Z"
+        "timestamp": datetime.utcnow().isoformat() + "Z"
     }
     
     return JSONResponse(
@@ -1988,7 +1976,7 @@ async def login(request: Request, login_data: LoginRequest):
         # Get client info
         client_ip = request.client.host if request.client else None
         user_agent = request.headers.get("user-agent", "Unknown")
-        expires_at = utcnow() + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
+        expires_at = datetime.utcnow() + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
         
         execute_query(
             query,
@@ -1999,8 +1987,8 @@ async def login(request: Request, login_data: LoginRequest):
                 client_ip,
                 user_agent,
                 expires_at,
-                utcnow(),
-                utcnow()
+                datetime.utcnow(),
+                datetime.utcnow()
             )
         )
         
@@ -2132,7 +2120,7 @@ async def refresh_token(request: Request, refresh_data: TokenRefreshRequest):
         SET last_used_at = %s 
         WHERE id = %s
     """
-    execute_query(update_query, (utcnow(), session["id"]))
+    execute_query(update_query, (datetime.utcnow(), session["id"]))
     
     # Create new tokens
     new_access_token = create_access_token(
@@ -2151,7 +2139,7 @@ async def refresh_token(request: Request, refresh_data: TokenRefreshRequest):
         SET token_hash = %s, last_used_at = %s 
         WHERE id = %s
     """
-    execute_query(update_token_query, (new_token_hash, utcnow(), session["id"]))
+    execute_query(update_token_query, (new_token_hash, datetime.utcnow(), session["id"]))
     
     # Prepare user data
     user_data = {
@@ -2285,7 +2273,7 @@ async def update_profile(
     
     # Add updated_at and user_id to params
     update_fields.append("updated_at = %s")
-    params.extend([utcnow(), current_user["id"]])
+    params.extend([datetime.utcnow(), current_user["id"]])
     
     # Execute update
     query = f"""
@@ -2361,7 +2349,7 @@ async def change_password(
         WHERE id = %s
     """
     
-    execute_query(query, (new_password_hash, utcnow(), current_user["id"]))
+    execute_query(query, (new_password_hash, datetime.utcnow(), current_user["id"]))
     
     # Invalidate all existing sessions for security
     session_query = """
@@ -2391,7 +2379,7 @@ async def get_admin_universities(
     limit: int = Query(20, ge=1, le=10000, description="Items per page"),
     search: Optional[str] = Query(None, description="Search in name fields"),
     order_by: str = Query("name_fr", description="Field to order by"),
-    order_dir: str = Query("asc", pattern="^(asc|desc)$", description="Order direction"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$", description="Order direction"),
     load_all: bool = Query(False, description="Load all entities without pagination"),
     admin_user: dict = Depends(get_admin_user)
 ):
@@ -2560,8 +2548,8 @@ async def create_university(
             university_data.name_en,
             university_data.acronym,
             str(university_data.geographic_entities_id) if university_data.geographic_entities_id else None,
-            utcnow(),
-            utcnow()
+            datetime.utcnow(),
+            datetime.utcnow()
         )
         
         result = execute_query(query, params, fetch_one=True)
@@ -2694,7 +2682,7 @@ async def update_university(
         
         # Add updated_at
         update_fields.append("updated_at = %s")
-        params.append(utcnow())
+        params.append(datetime.utcnow())
         
         # Add university_id to params
         params.append(university_id)
@@ -3025,7 +3013,7 @@ async def get_admin_faculties(
     search: Optional[str] = Query(None, description="Search in name fields"),
     university_id: Optional[str] = Query(None, description="Filter by university"),
     order_by: str = Query("name_fr", description="Field to order by"),
-    order_dir: str = Query("asc", pattern="^(asc|desc)$", description="Order direction"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$", description="Order direction"),
     load_all: bool = Query(False, description="Load all entities without pagination"),
     admin_user: dict = Depends(get_admin_user)
 ):
@@ -3198,8 +3186,8 @@ async def create_faculty(
             faculty_data.name_ar,
             faculty_data.name_en,
             faculty_data.acronym,
-            utcnow(),
-            utcnow()
+            datetime.utcnow(),
+            datetime.utcnow()
         )
         
         result = execute_query(query, params, fetch_one=True)
@@ -3348,7 +3336,7 @@ async def update_faculty(
         
         # Add updated_at
         update_fields.append("updated_at = %s")
-        params.append(utcnow())
+        params.append(datetime.utcnow())
         
         # Add faculty_id to params
         params.append(faculty_id)
@@ -3541,7 +3529,7 @@ async def get_admin_schools(
     parent_university_id: Optional[str] = Query(None, description="Filter by parent university"),
     parent_school_id: Optional[str] = Query(None, description="Filter by parent school"),
     order_by: str = Query("name_fr", description="Field to order by"),
-    order_dir: str = Query("asc", pattern="^(asc|desc)$", description="Order direction"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$", description="Order direction"),
     admin_user: dict = Depends(get_admin_user)
 ):
     """
@@ -3737,8 +3725,8 @@ async def create_school(
             school_data.acronym,
             str(school_data.parent_university_id) if school_data.parent_university_id else None,
             str(school_data.parent_school_id) if school_data.parent_school_id else None,
-            utcnow(),
-            utcnow()
+            datetime.utcnow(),
+            datetime.utcnow()
         )
         
         result = execute_query(query, params, fetch_one=True)
@@ -3930,7 +3918,7 @@ async def update_school(
         
         # Add updated_at
         update_fields.append("updated_at = %s")
-        params.append(utcnow())
+        params.append(datetime.utcnow())
         
         # Add school_id to params
         params.append(school_id)
@@ -4407,7 +4395,7 @@ async def get_admin_departments(
     faculty_id: Optional[str] = Query(None),
     school_id: Optional[str] = Query(None),
     order_by: str = Query("name_fr"),
-    order_dir: str = Query("asc", pattern="^(asc|desc)$"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$"),
     admin_user: dict = Depends(get_admin_user)
 ):
     try:
@@ -4565,7 +4553,7 @@ async def update_department(
     if not fields:
         return await get_department(request, department_id, admin_user)  # type: ignore
     fields.append("updated_at = %s")
-    params.append(utcnow())
+    params.append(datetime.utcnow())
     params.append(department_id)
     q = f"UPDATE departments SET {', '.join(fields)} WHERE id = %s RETURNING *"
     row = execute_query(q, params, fetch_one=True)
@@ -4729,7 +4717,7 @@ async def update_category(request: Request, category_id: str, body: CategoryUpda
     if not fields:
         return await get_category(request, category_id, admin_user)  # type: ignore
     fields.append("updated_at = %s")
-    params.append(utcnow())
+    params.append(datetime.utcnow())
     params.append(category_id)
     row = execute_query(f"UPDATE categories SET {', '.join(fields)} WHERE id = %s RETURNING *", params, fetch_one=True)
     if not row:
@@ -5561,7 +5549,7 @@ async def update_keyword(request: Request, keyword_id: str, body: KeywordUpdate,
     if not fields:
         return await get_keyword(request, keyword_id, admin_user)  # type: ignore
     fields.append("updated_at = %s")
-    params.append(utcnow())
+    params.append(datetime.utcnow())
     params.append(keyword_id)
     row = execute_query(f"UPDATE keywords SET {', '.join(fields)} WHERE id = %s RETURNING *", params, fetch_one=True)
     if not row:
@@ -5595,7 +5583,7 @@ async def get_admin_academic_persons(
     is_external: Optional[bool] = Query(None, description="Filter by external status"),
     load_all: bool = Query(False, description="Load all entities without pagination"),
     order_by: str = Query("complete_name_fr", description="Field to order by"),
-    order_dir: str = Query("asc", pattern="^(asc|desc)$", description="Order direction"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$", description="Order direction"),
     admin_user: dict = Depends(get_admin_user)
 ):
     """
@@ -5825,8 +5813,8 @@ async def create_academic_person(
             person_data.external_institution_country,
             person_data.external_institution_type,
             str(person_data.user_id) if person_data.user_id else None,
-            utcnow(),
-            utcnow()
+            datetime.utcnow(),
+            datetime.utcnow()
         )
         
         result = execute_query(query, params, fetch_one=True)
@@ -6042,7 +6030,7 @@ async def update_academic_person(
         
         # Add updated_at and person_id to params
         update_fields.append("updated_at = %s")
-        params.append(utcnow())
+        params.append(datetime.utcnow())
         params.append(person_id)
         
         # Execute update
@@ -6431,7 +6419,7 @@ async def update_degree(request: Request, degree_id: str, body: DegreeUpdate, ad
     if not fields:
         return await get_degree(request, degree_id, admin_user)  # type: ignore
     fields.append("updated_at = %s")
-    params.append(utcnow())
+    params.append(datetime.utcnow())
     params.append(degree_id)
     row = execute_query(f"UPDATE degrees SET {', '.join(fields)} WHERE id = %s RETURNING *", params, fetch_one=True)
     if not row:
@@ -6546,7 +6534,7 @@ async def update_language(request: Request, language_id: str, body: LanguageUpda
     if not fields:
         return await get_language(request, language_id, admin_user)  # type: ignore
     fields.append("updated_at = %s")
-    params.append(utcnow())
+    params.append(datetime.utcnow())
     params.append(language_id)
     row = execute_query(f"UPDATE languages SET {', '.join(fields)} WHERE id = %s RETURNING *", params, fetch_one=True)
     if not row:
@@ -6680,7 +6668,7 @@ async def update_geographic_entity(request: Request, entity_id: str, body: Geogr
     if not fields:
         return await get_geographic_entity(request, entity_id, admin_user)  # type: ignore
     fields.append("updated_at = %s")
-    params.append(utcnow())
+    params.append(datetime.utcnow())
     params.append(entity_id)
     row = execute_query(f"UPDATE geographic_entities SET {', '.join(fields)} WHERE id = %s RETURNING *", params, fetch_one=True)
     if not row:
@@ -6792,7 +6780,7 @@ async def upload_thesis_file(
             SET submitted_by = %s, updated_at = %s 
             WHERE id = %s
         """
-        execute_query(update_query, (admin_user["id"], utcnow(), file_info["extraction_job_id"]))
+        execute_query(update_query, (admin_user["id"], datetime.utcnow(), file_info["extraction_job_id"]))
         
         logger.info(f"File uploaded: {file_info['original_filename']} by {admin_user['email']}")
         
@@ -7044,9 +7032,9 @@ async def create_thesis_manual(
             extraction_job_id,
             thesis_data.status.value,
             admin_user["id"],
-            utcnow(),
-            utcnow(),
-            utcnow()
+            datetime.utcnow(),
+            datetime.utcnow(),
+            datetime.utcnow()
         )
         
         thesis_result = execute_query(thesis_query, thesis_params, fetch_one=True)
@@ -7182,9 +7170,9 @@ async def add_thesis_academic_person(
             person_data.is_external,
             person_data.external_institution_name,
             admin_user["id"],
-            utcnow(),
-            utcnow(),
-            utcnow()
+            datetime.utcnow(),
+            datetime.utcnow(),
+            datetime.utcnow()
         )
         
         result = execute_query(query, params, fetch_one=True)
@@ -7247,7 +7235,7 @@ async def add_thesis_category(
                 SET is_primary = false, updated_at = %s 
                 WHERE thesis_id = %s AND is_primary = true
             """
-            execute_query(update_primary, (utcnow(), thesis_id))
+            execute_query(update_primary, (datetime.utcnow(), thesis_id))
         
         # Create relation
         relation_id = str(uuid.uuid4())
@@ -7267,9 +7255,9 @@ async def add_thesis_category(
             str(category_data.category_id),
             category_data.is_primary,
             admin_user["id"],
-            utcnow(),
-            utcnow(),
-            utcnow()
+            datetime.utcnow(),
+            datetime.utcnow(),
+            datetime.utcnow()
         )
         
         result = execute_query(query, params, fetch_one=True)
@@ -7338,8 +7326,8 @@ async def add_thesis_keyword(
             str(keyword_data.keyword_id),
             keyword_data.keyword_position,
             admin_user["id"],
-            utcnow(),
-            utcnow()
+            datetime.utcnow(),
+            datetime.utcnow()
         )
         
         result = execute_query(query, params, fetch_one=True)
@@ -7376,7 +7364,7 @@ async def get_admin_theses(
     university_id: Optional[str] = Query(None),
     faculty_id: Optional[str] = Query(None),
     order_by: str = Query("created_at"),
-    order_dir: str = Query("desc", pattern="^(asc|desc)$"),
+    order_dir: str = Query("desc", regex="^(asc|desc)$"),
     admin_user: dict = Depends(get_admin_user)
 ):
     """
@@ -7735,17 +7723,17 @@ async def update_thesis(
         
         # Add metadata fields
         update_fields.append("updated_at = %s")
-        params.append(utcnow())
+        params.append(datetime.utcnow())
         
         # Add status-specific fields
         if update_data.status == ThesisStatus.APPROVED:
             update_fields.append("approved_by = %s")
             update_fields.append("approved_at = %s")
-            params.extend([admin_user["id"], utcnow()])
+            params.extend([admin_user["id"], datetime.utcnow()])
         elif update_data.status == ThesisStatus.UNDER_REVIEW:
             update_fields.append("reviewed_by = %s")
             update_fields.append("reviewed_at = %s")
-            params.extend([admin_user["id"], utcnow()])
+            params.extend([admin_user["id"], datetime.utcnow()])
         
         params.append(thesis_id)
         
@@ -7991,7 +7979,7 @@ async def public_theses_list(
     language_id: Optional[str] = Query(None),
     category_id: Optional[str] = Query(None),
     order_by: str = Query("created_at"),
-    order_dir: str = Query("desc", pattern="^(asc|desc)$"),
+    order_dir: str = Query("desc", regex="^(asc|desc)$"),
     year_from: Optional[int] = Query(None),
     year_to: Optional[int] = Query(None),
     defense_date_from: Optional[date] = Query(None),
@@ -8510,7 +8498,7 @@ async def public_universities_list(
     page_size: Optional[int] = Query(None),
     search: Optional[str] = Query(None),
     order_by: str = Query("name_fr"),
-    order_dir: str = Query("asc", pattern="^(asc|desc)$"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$"),
 ):
     try:
         limit = resolve_limit(limit, page_size)
@@ -8565,7 +8553,7 @@ async def public_faculties_list(
     search: Optional[str] = Query(None),
     university_id: Optional[str] = Query(None),
     order_by: str = Query("name_fr"),
-    order_dir: str = Query("asc", pattern="^(asc|desc)$"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$"),
 ):
     try:
         limit = resolve_limit(limit, page_size)
@@ -8627,7 +8615,7 @@ async def public_schools_list(
     parent_university_id: Optional[str] = Query(None),
     parent_school_id: Optional[str] = Query(None),
     order_by: str = Query("name_fr"),
-    order_dir: str = Query("asc", pattern="^(asc|desc)$"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$"),
 ):
     try:
         limit = resolve_limit(limit, page_size)
@@ -8690,7 +8678,7 @@ async def public_departments_list(
     faculty_id: Optional[str] = Query(None),
     school_id: Optional[str] = Query(None),
     order_by: str = Query("name_fr"),
-    order_dir: str = Query("asc", pattern="^(asc|desc)$"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$"),
 ):
     try:
         limit = resolve_limit(limit, page_size)
@@ -8752,7 +8740,7 @@ async def public_categories_list(
     search: Optional[str] = Query(None),
     parent_id: Optional[str] = Query(None),
     order_by: str = Query("level"),
-    order_dir: str = Query("asc", pattern="^(asc|desc)$"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$"),
 ):
     try:
         limit = resolve_limit(limit, page_size)
@@ -8807,7 +8795,7 @@ async def public_academic_persons_list(
     page_size: Optional[int] = Query(None),
     search: Optional[str] = Query(None),
     order_by: str = Query("complete_name_fr"),
-    order_dir: str = Query("asc", pattern="^(asc|desc)$"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$"),
 ):
     try:
         limit = resolve_limit(limit, page_size)
@@ -8856,7 +8844,7 @@ async def public_degrees_list(
     page_size: Optional[int] = Query(None),
     search: Optional[str] = Query(None),
     order_by: str = Query("name_fr"),
-    order_dir: str = Query("asc", pattern="^(asc|desc)$"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$"),
 ):
     try:
         limit = resolve_limit(limit, page_size)
@@ -8905,7 +8893,7 @@ async def public_languages_list(
     page_size: Optional[int] = Query(None),
     search: Optional[str] = Query(None),
     order_by: str = Query("display_order"),
-    order_dir: str = Query("asc", pattern="^(asc|desc)$"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$"),
 ):
     try:
         limit = resolve_limit(limit, page_size)
@@ -8951,8 +8939,8 @@ async def public_languages_list(
 # APPLICATION STARTUP/SHUTDOWN
 # =============================================================================
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+@app.on_event("startup")
+async def startup_event():
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     try:
         skip_db_init = os.getenv("SKIP_DB_INIT", "false").lower() == "true"
@@ -8967,16 +8955,16 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to initialize application: {e}")
         raise
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("Shutting down application...")
     try:
-        yield
-    finally:
-        logger.info("Shutting down application...")
-        try:
-            if db_pool:
-                db_pool.close_all()
-                logger.info("Database connections closed")
-        except Exception as e:
-            logger.error(f"Error during shutdown: {e}")
+        if db_pool:
+            db_pool.close_all()
+            logger.info("Database connections closed")
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}")
 
 # Root endpoint
 @app.get("/", tags=["Root"])
