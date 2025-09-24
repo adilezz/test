@@ -290,6 +290,7 @@ export interface DepartmentResponse extends DepartmentBase {
 // Category Types
 export interface CategoryBase {
   parent_id?: string;
+  code: string;
   name_fr: string;
   name_en?: string;
   name_ar?: string;
@@ -301,6 +302,7 @@ export interface CategoryCreate extends CategoryBase {}
 
 export interface CategoryUpdate {
   parent_id?: string;
+  code?: string;
   name_fr?: string;
   name_en?: string;
   name_ar?: string;

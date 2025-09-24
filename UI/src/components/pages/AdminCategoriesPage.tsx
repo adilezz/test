@@ -29,6 +29,7 @@ import {
 
 interface TreeNode {
   id: string;
+  code?: string;
   name_fr: string;
   name_en?: string;
   name_ar?: string;
@@ -55,8 +56,10 @@ export default function AdminCategoriesPage() {
   const [startLevel, setStartLevel] = useState<'domain' | 'discipline' | 'specialty' | 'subdiscipline'>('domain');
   const [stopLevel, setStopLevel] = useState<'domain' | 'discipline' | 'specialty' | 'subdiscipline'>('subdiscipline');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAllCategories, setShowAllCategories] = useState(false);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
   const [formData, setFormData] = useState<CategoryCreate>({
+    code: '',
     name_fr: '',
     name_en: '',
     name_ar: '',
@@ -67,6 +70,7 @@ export default function AdminCategoriesPage() {
 
   useEffect(() => {
     loadData();
+    setShowAllCategories(false); // Reset pagination when switching views
   }, [viewMode, startLevel, stopLevel]);
 
   const loadData = async () => {
@@ -81,8 +85,9 @@ export default function AdminCategoriesPage() {
         });
         setTreeData(transformToTreeNodesFromNested(treeResponse));
       } else {
-        const listResponse = await apiService.adminList<PaginatedResponse>('categories');
-        setFlatList(listResponse.data);
+        const allCategories = await apiService.getAllCategories();
+        const hierarchicalList = buildHierarchicalList(allCategories);
+        setFlatList(hierarchicalList);
       }
     } catch (error) {
       console.error('Error loading categories:', error);
@@ -94,6 +99,7 @@ export default function AdminCategoriesPage() {
   const transformToTreeNodesFromNested = (data: any[]): TreeNode[] => {
     const build = (node: any, level: number): TreeNode => ({
       id: node.id,
+      code: node.code,
       name_fr: node.name_fr,
       name_en: node.name_en,
       name_ar: node.name_ar,
@@ -106,6 +112,58 @@ export default function AdminCategoriesPage() {
     });
     return data.map(n => build(n, 0));
   };
+
+  const buildHierarchicalList = (categories: CategoryResponse[]): CategoryResponse[] => {
+    // Sort by level first, then by name
+    const sorted = [...categories].sort((a, b) => {
+      if (a.level !== b.level) return a.level - b.level;
+      return a.name_fr.localeCompare(b.name_fr);
+    });
+
+    // Create a map for quick parent lookup
+    const categoryMap = new Map(sorted.map(cat => [cat.id, cat]));
+    const result: CategoryResponse[] = [];
+
+    // Group by parent_id to maintain hierarchy
+    const byParent = new Map<string | null, CategoryResponse[]>();
+    sorted.forEach(cat => {
+      const parentId = cat.parent_id || null;
+      if (!byParent.has(parentId)) {
+        byParent.set(parentId, []);
+      }
+      byParent.get(parentId)!.push(cat);
+    });
+
+    // Recursive function to build the flat hierarchical list
+    const addChildren = (parentId: string | null, depth: number = 0) => {
+      const children = byParent.get(parentId) || [];
+      children.forEach(child => {
+        // Add indentation info for display
+        (child as any).depth = depth;
+        result.push(child);
+        addChildren(child.id, depth + 1);
+      });
+    };
+
+    addChildren(null);
+    return result;
+  };
+
+  const filteredCategories = flatList.filter(category => {
+    if (!searchTerm) return true;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      category.name_fr.toLowerCase().includes(searchLower) ||
+      category.code.toLowerCase().includes(searchLower) ||
+      (category.name_en && category.name_en.toLowerCase().includes(searchLower)) ||
+      (category.name_ar && category.name_ar.toLowerCase().includes(searchLower)) ||
+      (category.description && category.description.toLowerCase().includes(searchLower))
+    );
+  });
+
+  const displayedCategories = viewMode === 'list' && !showAllCategories 
+    ? filteredCategories.slice(0, 50) 
+    : filteredCategories;
 
   const toggleNode = (nodeId: string) => {
     const updateNode = (nodes: TreeNode[]): TreeNode[] => {
@@ -163,6 +221,7 @@ export default function AdminCategoriesPage() {
 
   const resetForm = () => {
     setFormData({
+      code: '',
       name_fr: '',
       name_en: '',
       name_ar: '',
@@ -177,6 +236,7 @@ export default function AdminCategoriesPage() {
     
     if (mode === 'edit' && item) {
       setFormData({
+        code: item.code,
         name_fr: item.name_fr,
         name_en: item.name_en || '',
         name_ar: item.name_ar || '',
@@ -367,17 +427,33 @@ export default function AdminCategoriesPage() {
                 </div>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nom (Français) *
-                </label>
-                <input
-                  type="text"
-                  value={formData.name_fr}
-                  onChange={(e) => setFormData({ ...formData, name_fr: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Code *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="ex: MATH, PHYS, INFO"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Nom (Français) *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.name_fr}
+                    onChange={(e) => setFormData({ ...formData, name_fr: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -457,22 +533,37 @@ export default function AdminCategoriesPage() {
                 </span>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Nom (Français)</label>
-                <p className="mt-1 text-gray-900">{modal.item.name_fr}</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Code</label>
+                  <p className="mt-1">
+                    <code className="px-2 py-1 bg-gray-100 rounded text-sm font-mono">
+                      {modal.item.code}
+                    </code>
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Nom (Français)</label>
+                  <p className="mt-1 text-gray-900">{modal.item.name_fr}</p>
+                </div>
               </div>
               
-              {modal.item.name_en && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Nom (Anglais)</label>
-                  <p className="mt-1 text-gray-900">{modal.item.name_en}</p>
-                </div>
-              )}
-              
-              {modal.item.name_ar && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Nom (Arabe)</label>
-                  <p className="mt-1 text-gray-900" dir="rtl">{modal.item.name_ar}</p>
+              {(modal.item.name_en || modal.item.name_ar) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {modal.item.name_en && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Nom (Anglais)</label>
+                      <p className="mt-1 text-gray-900">{modal.item.name_en}</p>
+                    </div>
+                  )}
+                  
+                  {modal.item.name_ar && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Nom (Arabe)</label>
+                      <p className="mt-1 text-gray-900" dir="rtl">{modal.item.name_ar}</p>
+                    </div>
+                  )}
                 </div>
               )}
               
@@ -642,6 +733,9 @@ export default function AdminCategoriesPage() {
                       Catégorie
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Code
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Niveau
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -656,65 +750,118 @@ export default function AdminCategoriesPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {flatList.map((category) => (
-                    <tr key={category.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {category.name_fr}
-                          </div>
-                          {(category.name_en || category.name_ar) && (
-                            <div className="text-sm text-gray-500">
-                              {category.name_en && <span>{category.name_en}</span>}
-                              {category.name_en && category.name_ar && <span> • </span>}
-                              {category.name_ar && <span>{category.name_ar}</span>}
+                  {displayedCategories.map((category) => {
+                    const depth = (category as any).depth || 0;
+                    return (
+                      <tr key={category.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div style={{ marginLeft: `${depth * 20}px` }} className="flex items-center space-x-2">
+                            {depth > 0 && (
+                              <div className="flex items-center text-gray-300">
+                                {'└─'.repeat(1)}
+                              </div>
+                            )}
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">
+                                {category.name_fr}
+                              </div>
+                              {(category.name_en || category.name_ar) && (
+                                <div className="text-sm text-gray-500">
+                                  {category.name_en && <span>{category.name_en}</span>}
+                                  {category.name_en && category.name_ar && <span> • </span>}
+                                  {category.name_ar && <span>{category.name_ar}</span>}
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 text-xs rounded-full ${getLevelColor(category.level)}`}>
-                          {getLevelLabel(category.level)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900 max-w-xs truncate">
-                          {category.description || '-'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(category.created_at).toLocaleDateString('fr-FR')}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => openModal('view', category)}
-                            className="text-gray-400 hover:text-gray-600"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => openModal('edit', category)}
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm('Êtes-vous sûr de vouloir supprimer cette catégorie ?')) {
-                                handleDelete(category.id);
-                              }
-                            }}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <code className="px-2 py-1 bg-gray-100 rounded text-sm font-mono">
+                            {category.code}
+                          </code>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 text-xs rounded-full ${getLevelColor(category.level)}`}>
+                            {getLevelLabel(category.level)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-900 max-w-xs truncate">
+                            {category.description || '-'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(category.created_at).toLocaleDateString('fr-FR')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => openModal('view', category)}
+                              className="text-gray-400 hover:text-gray-600"
+                              title="Voir les détails"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => openModal('edit', category)}
+                              className="text-blue-600 hover:text-blue-900"
+                              title="Modifier"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm('Êtes-vous sûr de vouloir supprimer cette catégorie ?')) {
+                                  handleDelete(category.id);
+                                }
+                              }}
+                              className="text-red-600 hover:text-red-900"
+                              title="Supprimer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
+              
+              {/* Show more button for list view */}
+              {viewMode === 'list' && filteredCategories.length > 50 && !showAllCategories && (
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-gray-600">
+                      Affichage de 50 sur {filteredCategories.length} catégories
+                    </p>
+                    <button
+                      onClick={() => setShowAllCategories(true)}
+                      className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <span>Afficher toutes les catégories</span>
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              {viewMode === 'list' && showAllCategories && filteredCategories.length > 50 && (
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-gray-600">
+                      Affichage de toutes les {filteredCategories.length} catégories
+                    </p>
+                    <button
+                      onClick={() => setShowAllCategories(false)}
+                      className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                    >
+                      <span>Afficher moins</span>
+                      <ChevronRight className="w-4 h-4 rotate-90" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
