@@ -11,7 +11,8 @@ export enum LanguageCode {
   FRENCH = 'fr',
   ARABIC = 'ar',
   ENGLISH = 'en',
-  BERBER = 'ber'
+  SPANISH = 'es',
+  TAMAZIGHT = 'zgh'
 }
 
 export enum GeographicLevel {
@@ -428,18 +429,21 @@ export interface DegreeResponse extends DegreeBase {
 // Language Types
 export interface LanguageBase {
   name: string;
-  code: string;
-  native_name?: string;
-  is_rtl: boolean;
+  code: LanguageCode;
+  native_name: string;
+  rtl: boolean;
+  is_active: boolean;
+  display_order: number;
 }
 
 export interface LanguageCreate extends LanguageBase {}
 
 export interface LanguageUpdate {
   name?: string;
-  code?: string;
   native_name?: string;
-  is_rtl?: boolean;
+  rtl?: boolean;
+  is_active?: boolean;
+  display_order?: number;
 }
 
 export interface LanguageResponse extends LanguageBase {

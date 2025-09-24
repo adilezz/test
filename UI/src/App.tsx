@@ -18,6 +18,7 @@ import AdminCategoriesPage from './components/pages/AdminCategoriesPage';
 import AdminAcademicPersonsPage from './components/pages/AdminAcademicPersonsPage';
 import AdminKeywordsPage from './components/pages/AdminKeywordsPage';
 import AdminDegreesPage from './components/pages/AdminDegreesPage';
+import AdminLanguagesPage from './components/pages/AdminLanguagesPage';
 import AdminThesesListPage from './components/pages/AdminThesesListPage';
 
 
@@ -267,6 +268,13 @@ function App() {
                     <ProtectedRoute>
                       <AdminRoute>
                         <AdminGeographicEntitiesPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/languages" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminLanguagesPage />
                       </AdminRoute>
                     </ProtectedRoute>
                   } />
