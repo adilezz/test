@@ -321,13 +321,40 @@ class ApiService {
   async getTheses(searchParams: Partial<SearchRequest> = {}): Promise<PaginatedResponse> {
     const params = new URLSearchParams();
     
+    // Map UI filter keys to backend expected query params
+    const orderByMap: Record<string, string> = {
+      created_at: 'created_at',
+      updated_at: 'updated_at',
+      title: 'title_fr',
+      defense_date: 'defense_date',
+      // Fallback mappings for unsupported sort fields
+      author: 'created_at',
+      university: 'created_at'
+    };
+    
     Object.entries(searchParams).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        if (Array.isArray(value)) {
-          value.forEach(v => params.append(key, v.toString()));
-        } else {
-          params.append(key, value.toString());
-        }
+      if (value === undefined || value === null) return;
+      
+      // Translate known keys
+      if (key === 'q') {
+        params.append('search', String(value));
+        return;
+      }
+      if (key === 'sort_field') {
+        const mapped = orderByMap[String(value)] || 'created_at';
+        params.append('order_by', mapped);
+        return;
+      }
+      if (key === 'sort_order') {
+        params.append('order_dir', String(value));
+        return;
+      }
+      
+      // Pass-through for other keys
+      if (Array.isArray(value)) {
+        value.forEach(v => params.append(key, v.toString()));
+      } else {
+        params.append(key, value.toString());
       }
     });
     
