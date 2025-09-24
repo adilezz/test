@@ -72,7 +72,8 @@ const filterGroups: FilterGroup[] = [
       { label: 'Français', value: LanguageCode.FRENCH },
       { label: 'Arabe', value: LanguageCode.ARABIC },
       { label: 'Anglais', value: LanguageCode.ENGLISH },
-      { label: 'Tamazight', value: LanguageCode.BERBER }
+      { label: 'Espagnol', value: LanguageCode.SPANISH },
+      { label: 'Tamazight', value: LanguageCode.TAMAZIGHT }
     ]
   },
   {
