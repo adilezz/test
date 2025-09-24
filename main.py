@@ -1652,13 +1652,24 @@ def create_app() -> FastAPI:
     )
     
     # Add CORS middleware
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.ALLOWED_ORIGINS,
-        allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["*"],
-    )
+    # In development, allow any origin to simplify local testing (including file:// and custom ports)
+    cors_common_kwargs = {
+        "allow_credentials": True,
+        "allow_methods": ["*"],
+        "allow_headers": ["*"],
+    }
+    if settings.DEBUG:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origin_regex=".*",
+            **cors_common_kwargs,
+        )
+    else:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.ALLOWED_ORIGINS,
+            **cors_common_kwargs,
+        )
     
     # Add request ID middleware
     @app.middleware("http")
@@ -8217,8 +8228,12 @@ async def public_languages_list(
 async def startup_event():
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     try:
-        init_database()
-        logger.info("Database connection initialized successfully")
+        skip_db_init = os.getenv("SKIP_DB_INIT", "false").lower() == "true"
+        if skip_db_init:
+            logger.warning("SKIP_DB_INIT=true detected. Skipping database initialization for local testing.")
+        else:
+            init_database()
+            logger.info("Database connection initialized successfully")
         for directory in [TEMP_UPLOAD_DIR, PUBLISHED_DIR, BULK_UPLOAD_DIR]:
             directory.mkdir(parents=True, exist_ok=True)
         logger.info("Upload directories created/verified")
@@ -8235,39 +8250,6 @@ async def shutdown_event():
             logger.info("Database connections closed")
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
-
-# Basic health check endpoint for testing
-@app.get("/health", tags=["Health"])
-async def health_check(request: Request):
-    """Basic health check endpoint"""
-    request_id = getattr(request.state, "request_id", None)
-    
-    # Check database connectivity
-    db_healthy = check_database_health()
-    
-    # Check upload directories
-    dirs_healthy = all(
-        directory.exists() and directory.is_dir() 
-        for directory in [TEMP_UPLOAD_DIR, PUBLISHED_DIR, BULK_UPLOAD_DIR]
-    )
-    
-    status = "healthy" if db_healthy and dirs_healthy else "unhealthy"
-    status_code = status.HTTP_200_OK if status == "healthy" else status.HTTP_503_SERVICE_UNAVAILABLE
-    
-    return JSONResponse(
-        status_code=status_code,
-        content=create_success_response(
-            data={
-                "status": status,
-                "database": "connected" if db_healthy else "disconnected",
-                "file_storage": "accessible" if dirs_healthy else "inaccessible",
-                "version": settings.APP_VERSION,
-                "environment": "development" if settings.DEBUG else "production"
-            },
-            message=f"Application is {status}",
-            request_id=request_id
-        )
-    )
 
 # Root endpoint
 @app.get("/", tags=["Root"])
