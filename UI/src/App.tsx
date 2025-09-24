@@ -19,6 +19,10 @@ import AdminAcademicPersonsPage from './components/pages/AdminAcademicPersonsPag
 import AdminKeywordsPage from './components/pages/AdminKeywordsPage';
 import AdminDegreesPage from './components/pages/AdminDegreesPage';
 import AdminThesesListPage from './components/pages/AdminThesesListPage';
+
+
+import AdminStatisticsPage from './components/pages/AdminStatisticsPage';
+import AdminReportsPage from './components/pages/AdminReportsPage';
 import AdminGeographicEntitiesPage from './components/pages/AdminGeographicEntitiesPage';
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
@@ -91,6 +95,85 @@ function App() {
           <Routes>
             {/* Public Routes */}
             <Route path="/login" element={<LoginPage />} />
+            
+            {/* Admin Routes - No Layout (they have their own AdminHeader) */}
+            <Route path="/admin" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminDashboardPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/dashboard" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminDashboardPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/statistics" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminStatisticsPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/reports" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminReportsPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/universities" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminUniversitiesPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/categories" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminCategoriesPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/academic-persons" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminAcademicPersonsPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/keywords" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminKeywordsPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/theses" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminThesesListPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/theses/new" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminThesisPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/theses/:id" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminThesisPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
             
             {/* Routes with Layout */}
             <Route path="/*" element={
@@ -208,7 +291,6 @@ function App() {
                       </AdminRoute>
                     </ProtectedRoute>
                   } />
-                  
                   {/* Catch all route */}
                   <Route path="*" element={
                     <div className="min-h-screen flex items-center justify-center">

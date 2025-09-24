@@ -18,11 +18,14 @@ import {
   BarChart3,
   TrendingUp,
   Calendar,
-  FileText
+  FileText,
+  Languages,
+  MapPin
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../../services/api';
 import { StatisticsResponse } from '../../types/api';
+import AdminHeader from '../layout/AdminHeader';
 
 interface AdminCard {
   title: string;
@@ -81,6 +84,7 @@ export default function AdminDashboardPage() {
       title: 'Écoles',
       description: 'Gérer les écoles et leurs hiérarchies',
       icon: <BookOpen className="w-6 h-6" />,
+      count: statistics?.total_schools,
       path: '/admin/schools',
       color: 'bg-purple-500'
     },
@@ -96,6 +100,7 @@ export default function AdminDashboardPage() {
       title: 'Catégories',
       description: 'Gérer les disciplines et spécialités',
       icon: <Tags className="w-6 h-6" />,
+      count: statistics?.total_categories,
       path: '/admin/categories',
       color: 'bg-pink-500'
     },
@@ -103,6 +108,7 @@ export default function AdminDashboardPage() {
       title: 'Mots-clés',
       description: 'Gérer le vocabulaire contrôlé',
       icon: <Tags className="w-6 h-6" />,
+      count: statistics?.total_keywords,
       path: '/admin/keywords',
       color: 'bg-indigo-500'
     },
@@ -110,20 +116,23 @@ export default function AdminDashboardPage() {
       title: 'Diplômes',
       description: 'Gérer les types de diplômes',
       icon: <GraduationCap className="w-6 h-6" />,
+      count: statistics?.total_degrees,
       path: '/admin/degrees',
       color: 'bg-teal-500'
     },
     {
       title: 'Langues',
       description: 'Gérer les langues disponibles',
-      icon: <Globe className="w-6 h-6" />,
+      icon: <Languages className="w-6 h-6" />,
+      count: statistics?.total_languages,
       path: '/admin/languages',
       color: 'bg-cyan-500'
     },
     {
       title: 'Entités Géographiques',
       description: 'Gérer les localisations',
-      icon: <Globe className="w-6 h-6" />,
+      icon: <MapPin className="w-6 h-6" />,
+      count: statistics?.total_geographic_entities,
       path: '/admin/geographic-entities',
       color: 'bg-emerald-500'
     }
@@ -170,70 +179,130 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <AdminHeader />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Tableau de Bord Admin</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Tableau de Bord</h1>
           <p className="text-gray-600 mt-2">
-            Gérer les données de référence et les thèses du système
+            Vue d'ensemble du système et gestion des données de référence
           </p>
         </div>
 
         {/* Statistics Overview */}
         {statistics && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center">
-                <div className="p-3 rounded-full bg-blue-100 text-blue-600">
-                  <FileText className="w-6 h-6" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Thèses</p>
-                  <p className="text-2xl font-semibold text-gray-900">
-                    {statistics.total_theses.toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center">
-                <div className="p-3 rounded-full bg-green-100 text-green-600">
-                  <Building2 className="w-6 h-6" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Universités</p>
-                  <p className="text-2xl font-semibold text-gray-900">
-                    {statistics.total_universities.toLocaleString()}
-                  </p>
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">Vue d'ensemble</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <div className="p-3 rounded-full bg-blue-100 text-blue-600">
+                    <FileText className="w-6 h-6" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Total Thèses</p>
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {statistics.total_theses.toLocaleString()}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center">
-                <div className="p-3 rounded-full bg-purple-100 text-purple-600">
-                  <GraduationCap className="w-6 h-6" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Facultés</p>
-                  <p className="text-2xl font-semibold text-gray-900">
-                    {statistics.total_faculties.toLocaleString()}
-                  </p>
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <div className="p-3 rounded-full bg-green-100 text-green-600">
+                    <Building2 className="w-6 h-6" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Universités</p>
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {statistics.total_universities.toLocaleString()}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center">
-                <div className="p-3 rounded-full bg-orange-100 text-orange-600">
-                  <Users className="w-6 h-6" />
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <div className="p-3 rounded-full bg-purple-100 text-purple-600">
+                    <GraduationCap className="w-6 h-6" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Facultés</p>
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {statistics.total_faculties.toLocaleString()}
+                    </p>
+                  </div>
                 </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Auteurs</p>
-                  <p className="text-2xl font-semibold text-gray-900">
-                    {statistics.total_authors.toLocaleString()}
-                  </p>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <div className="p-3 rounded-full bg-orange-100 text-orange-600">
+                    <Users className="w-6 h-6" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Auteurs</p>
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {statistics.total_authors.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <div className="p-3 rounded-full bg-indigo-100 text-indigo-600">
+                    <BookOpen className="w-6 h-6" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Écoles</p>
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {statistics.total_schools.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <div className="p-3 rounded-full bg-pink-100 text-pink-600">
+                    <Tags className="w-6 h-6" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Catégories</p>
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {statistics.total_categories.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <div className="p-3 rounded-full bg-teal-100 text-teal-600">
+                    <Tags className="w-6 h-6" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Mots-clés</p>
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {statistics.total_keywords.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <div className="p-3 rounded-full bg-cyan-100 text-cyan-600">
+                    <Languages className="w-6 h-6" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Langues</p>
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {statistics.total_languages.toLocaleString()}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

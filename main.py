@@ -1493,6 +1493,12 @@ class StatisticsResponse(BaseModel):
     total_theses: int = 0
     total_universities: int = 0
     total_faculties: int = 0
+    total_schools: int = 0
+    total_categories: int = 0
+    total_keywords: int = 0
+    total_degrees: int = 0
+    total_languages: int = 0
+    total_geographic_entities: int = 0
     total_authors: int = 0
     recent_theses: List[Dict[str, Any]] = Field(default_factory=list)
     popular_categories: List[Dict[str, Any]] = Field(default_factory=list)
@@ -7917,6 +7923,30 @@ async def public_statistics():
             "SELECT COUNT(*) AS c FROM faculties",
             fetch_one=True,
         )
+        total_schools_row = execute_query(
+            "SELECT COUNT(*) AS c FROM schools",
+            fetch_one=True,
+        )
+        total_categories_row = execute_query(
+            "SELECT COUNT(*) AS c FROM categories",
+            fetch_one=True,
+        )
+        total_keywords_row = execute_query(
+            "SELECT COUNT(*) AS c FROM keywords",
+            fetch_one=True,
+        )
+        total_degrees_row = execute_query(
+            "SELECT COUNT(*) AS c FROM degrees",
+            fetch_one=True,
+        )
+        total_languages_row = execute_query(
+            "SELECT COUNT(*) AS c FROM languages WHERE is_active = true",
+            fetch_one=True,
+        )
+        total_geographic_entities_row = execute_query(
+            "SELECT COUNT(*) AS c FROM geographic_entities",
+            fetch_one=True,
+        )
         total_authors_row = execute_query(
             "SELECT COUNT(DISTINCT person_id) AS c FROM thesis_academic_persons WHERE role = 'author'",
             fetch_one=True,
@@ -7986,6 +8016,12 @@ async def public_statistics():
             total_theses=total_theses_row["c"],
             total_universities=total_universities_row["c"],
             total_faculties=total_faculties_row["c"],
+            total_schools=total_schools_row["c"],
+            total_categories=total_categories_row["c"],
+            total_keywords=total_keywords_row["c"],
+            total_degrees=total_degrees_row["c"],
+            total_languages=total_languages_row["c"],
+            total_geographic_entities=total_geographic_entities_row["c"],
             total_authors=total_authors_row["c"],
             recent_theses=recent_theses,
             popular_categories=popular_categories,

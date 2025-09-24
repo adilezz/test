@@ -24,6 +24,7 @@ import {
 import { apiService } from '../../services/api';
 import TreeView from '../ui/TreeView/TreeView';
 import { TreeNode as UITreeNode } from '../../types/tree';
+import AdminHeader from '../layout/AdminHeader';
 import { 
   AcademicPersonResponse,
   PaginatedResponse,
@@ -680,6 +681,7 @@ export default function AdminAcademicPersonsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <AdminHeader />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">

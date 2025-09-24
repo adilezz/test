@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { apiService } from '../../services/api';
+import AdminHeader from '../layout/AdminHeader';
 import TreeView from '../ui/TreeView/TreeView';
 import { TreeNode as UITreeNode } from '../../types/tree';
 import { 
@@ -371,6 +372,7 @@ export default function AdminThesisPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <AdminHeader />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
