@@ -56,6 +56,8 @@ export default function AdminUniversitiesPage() {
   const [flatList, setFlatList] = useState<UniversityResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
+  const [startLevel, setStartLevel] = useState<'university' | 'faculty' | 'department'>('university');
+  const [stopLevel, setStopLevel] = useState<'university' | 'faculty' | 'department'>('department');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
@@ -90,7 +92,7 @@ export default function AdminUniversitiesPage() {
 
   useEffect(() => {
     loadData();
-  }, [viewMode]);
+  }, [viewMode, startLevel, stopLevel]);
 
   // Debounced search effect
   useEffect(() => {
@@ -141,7 +143,14 @@ export default function AdminUniversitiesPage() {
     setLoading(true);
     try {
       if (viewMode === 'tree') {
-        const treeResponse = await apiService.getUniversitiesTree(true, 5);
+        const treeResponse = await apiService.getAdminReferencesTree({
+          ref_type: 'universities',
+          start_level: startLevel,
+          stop_level: stopLevel,
+          include_counts: true,
+          include_theses: true,
+          theses_per_node: 5
+        });
         setTreeData(transformToTreeNodes(treeResponse));
       } else {
         const params: Record<string, string | number> = {};
@@ -162,37 +171,45 @@ export default function AdminUniversitiesPage() {
   };
 
   const transformToTreeNodes = (data: any[]): TreeNode[] => {
-    return data.map(item => ({
-      id: item.id,
-      name_fr: item.name_fr,
-      name_en: item.name_en,
-      name_ar: item.name_ar,
-      acronym: item.acronym,
+    const mapUniversity = (u: any): TreeNode => ({
+      id: u.id,
+      name_fr: u.name_fr,
+      name_en: u.name_en,
+      name_ar: u.name_ar,
+      acronym: u.acronym,
       type: 'university',
-      thesis_count: item.thesis_count,
+      thesis_count: u.thesis_count,
       expanded: false,
-      children: item.faculties && item.faculties.length > 0 ? item.faculties.map((faculty: any) => ({
-        id: faculty.id,
-        name_fr: faculty.name_fr,
-        name_en: faculty.name_en,
-        name_ar: faculty.name_ar,
-        acronym: faculty.acronym,
-        type: 'faculty' as const,
-        parent_id: item.id,
-        thesis_count: faculty.thesis_count,
-        expanded: false,
-        children: faculty.departments && faculty.departments.length > 0 ? faculty.departments.map((dept: any) => ({
-          id: dept.id,
-          name_fr: dept.name_fr,
-          name_en: dept.name_en,
-          name_ar: dept.name_ar,
-          acronym: dept.acronym,
-          type: 'department' as const,
-          parent_id: faculty.id,
-          thesis_count: dept.thesis_count
-        })) : []
-      })) : []
-    }));
+      children: (u.faculties || []).map(mapFaculty)
+    });
+    const mapFaculty = (f: any): TreeNode => ({
+      id: f.id,
+      name_fr: f.name_fr,
+      name_en: f.name_en,
+      name_ar: f.name_ar,
+      acronym: f.acronym,
+      type: 'faculty',
+      parent_id: f.parent_id,
+      thesis_count: f.thesis_count,
+      expanded: false,
+      children: (f.departments || []).map(mapDepartment)
+    });
+    const mapDepartment = (d: any): TreeNode => ({
+      id: d.id,
+      name_fr: d.name_fr,
+      name_en: d.name_en,
+      name_ar: d.name_ar,
+      acronym: d.acronym,
+      type: 'department',
+      parent_id: d.parent_id,
+      thesis_count: d.thesis_count
+    });
+    // Roots can be universities, faculties, or departments depending on startLevel
+    return data.map((node: any) => {
+      if (node.type === 'university') return mapUniversity(node);
+      if (node.type === 'faculty') return mapFaculty(node);
+      return mapDepartment(node);
+    });
   };
 
   const toggleNode = (nodeId: string, path: number[] = []) => {
@@ -614,6 +631,35 @@ export default function AdminUniversitiesPage() {
                 <span>Filtres</span>
               </button>
             </div>
+
+            {viewMode === 'tree' && (
+              <div className="flex items-center space-x-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Niveau départ</label>
+                  <select
+                    value={startLevel}
+                    onChange={(e) => setStartLevel(e.target.value as any)}
+                    className="px-2 py-1 border border-gray-300 rounded"
+                  >
+                    <option value="university">Université</option>
+                    <option value="faculty">Faculté</option>
+                    <option value="department">Département</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Niveau fin</label>
+                  <select
+                    value={stopLevel}
+                    onChange={(e) => setStopLevel(e.target.value as any)}
+                    className="px-2 py-1 border border-gray-300 rounded"
+                  >
+                    <option value="university">Université</option>
+                    <option value="faculty">Faculté</option>
+                    <option value="department">Département</option>
+                  </select>
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center space-x-2">
               <button

@@ -46,6 +46,7 @@ export default function AdminAcademicPersonsPage() {
   const [universities, setUniversities] = useState<UniversityResponse[]>([]);
   const [faculties, setFaculties] = useState<FacultyResponse[]>([]);
   const [schools, setSchools] = useState<SchoolResponse[]>([]);
+  const [institutionsTree, setInstitutionsTree] = useState<any[]>([]);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
   const [formData, setFormData] = useState<AcademicPersonCreate>({
     complete_name_fr: '',
@@ -69,6 +70,10 @@ export default function AdminAcademicPersonsPage() {
     loadUniversities();
     loadFaculties();
     loadSchools();
+    // Institution tree (for richer selection when needed)
+    apiService.getAdminReferencesTree({ ref_type: 'schools', start_level: 'university', include_counts: false, max_depth: 3 })
+      .then(setInstitutionsTree)
+      .catch(() => {});
   }, []);
 
   const loadData = async () => {

@@ -78,6 +78,11 @@ class ApiService {
     return this.request<T>(`${path}/${id}`);
   }
 
+  // Convenience for nested admin routes
+  async adminGetUniversityFaculties(universityId: string): Promise<FacultyResponse[]> {
+    return this.request<FacultyResponse[]>(`/admin/universities/${universityId}/faculties`);
+  }
+
   async adminCreate<T = any>(entity: keyof ApiService['adminPaths'], data: any): Promise<T> {
     const path = this.adminPaths[entity];
     return this.request<T>(path, { method: 'POST', body: JSON.stringify(data) });
@@ -228,6 +233,41 @@ class ApiService {
   }
 
   // Public Tree endpoints
+  // Unified flexible trees (new)
+  async getAdminReferencesTree(params: {
+    ref_type: 'universities' | 'schools' | 'categories' | 'geographic';
+    start_level?: string;
+    stop_level?: string;
+    root_id?: string;
+    max_depth?: number;
+    include_counts?: boolean;
+    include_theses?: boolean;
+    theses_per_node?: number;
+  }): Promise<any[]> {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) qs.append(k, String(v));
+    });
+    return this.request<any[]>(`/admin/references/tree?${qs.toString()}`);
+  }
+
+  async getPublicReferencesTree(params: {
+    ref_type: 'universities' | 'schools' | 'categories' | 'geographic';
+    start_level?: string;
+    stop_level?: string;
+    root_id?: string;
+    max_depth?: number;
+    include_counts?: boolean;
+    include_theses?: boolean;
+    theses_per_node?: number;
+  }): Promise<any[]> {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) qs.append(k, String(v));
+    });
+    return this.request<any[]>(`/references/tree?${qs.toString()}`);
+  }
+
   async getUniversitiesTree(
     includeTheses: boolean = false,
     thesesPerDepartment: number = 3
