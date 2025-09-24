@@ -346,7 +346,6 @@ def verify_token(token: str, token_type: str = "access") -> Optional[dict]:
         return payload
     except JWTError:
         return None
-
 def get_user_by_email(email: str) -> Optional[dict]:
     """Get user by email from database"""
     query = """
@@ -683,7 +682,6 @@ def check_file_duplicate(file_hash: str) -> Optional[dict]:
         WHERE file_hash = %s
     """
     return execute_query(query, (file_hash,), fetch_one=True)
-
 async def save_bulk_files(files: List[UploadFile], metadata_csv: UploadFile = None) -> dict:
     """Save multiple files for bulk processing"""
     bulk_batch_id = str(uuid.uuid4())
@@ -1028,7 +1026,6 @@ class ErrorResponse(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
-
 class LoginResponse(BaseResponse):
     access_token: str
     refresh_token: str
@@ -1372,7 +1369,6 @@ class ThesisBase(BaseModel):
 
 class ThesisCreate(ThesisBase):
     file_id: str  # From file upload response
-
 class ThesisUpdate(BaseModel):
     title_fr: Optional[str] = Field(None, min_length=1, max_length=500)
     title_en: Optional[str] = Field(None, max_length=500)
@@ -1717,7 +1713,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             request_id=request_id
         )
     )
-
 @app.exception_handler(StarletteHTTPException)
 async def starlette_exception_handler(request: Request, exc: StarletteHTTPException):
     """Handle Starlette HTTP exceptions"""
@@ -2041,7 +2036,6 @@ async def logout(request: Request, current_user: dict = Depends(get_current_user
             success=True,
             message="Logged out successfully"
         )
-
 @app.post("/auth/refresh", response_model=LoginResponse, tags=["Authentication"])
 async def refresh_token(request: Request, refresh_data: TokenRefreshRequest):
     """
@@ -2798,6 +2792,154 @@ async def get_university_faculties(
         )
     
 
+@app.get("/admin/universities/tree", response_model=List[Dict], tags=["Admin - Universities"])
+async def get_universities_tree(
+    request: Request,
+    include_counts: bool = Query(True, description="Include aggregated counts on nodes"),
+    include_theses: bool = Query(False, description="Include sample theses under departments"),
+    theses_per_department: int = Query(3, ge=0, le=10, description="Number of theses to include per department when include_theses=true"),
+    admin_user: dict = Depends(get_admin_user)
+):
+    """
+    Return a hierarchical tree of universities -> faculties -> departments.
+    Optionally include per-node counts and sample theses under each department.
+    """
+    try:
+        # Load all universities, faculties and departments
+        universities = execute_query_with_result(
+            "SELECT id, name_fr, acronym FROM universities ORDER BY name_fr"
+        )
+        faculties = execute_query_with_result(
+            "SELECT id, university_id, name_fr, acronym FROM faculties ORDER BY name_fr"
+        )
+        departments = execute_query_with_result(
+            "SELECT id, faculty_id, name_fr, acronym FROM departments ORDER BY name_fr"
+        )
+
+        # Group by parent relations
+        faculties_by_university: Dict[str, List[Dict[str, Any]]] = {}
+        for f in faculties:
+            uid = str(f["university_id"]) if f["university_id"] else None
+            if not uid:
+                continue
+            faculties_by_university.setdefault(uid, []).append({
+                "id": str(f["id"]),
+                "name_fr": f["name_fr"],
+                "acronym": f.get("acronym"),
+                "departments": []
+            })
+
+        departments_by_faculty: Dict[str, List[Dict[str, Any]]] = {}
+        department_ids: List[str] = []
+        for d in departments:
+            fid = str(d["faculty_id"]) if d["faculty_id"] else None
+            if not fid:
+                continue
+            dep_node = {
+                "id": str(d["id"]),
+                "name_fr": d["name_fr"],
+                "acronym": d.get("acronym"),
+            }
+            if include_counts:
+                dep_node["thesis_count"] = 0  # will populate later if needed
+            if include_theses and theses_per_department > 0:
+                dep_node["theses"] = []  # will populate later
+            departments_by_faculty.setdefault(fid, []).append(dep_node)
+            department_ids.append(str(d["id"]))
+
+        # Attach departments to faculties
+        for uid, fac_list in faculties_by_university.items():
+            for fac in fac_list:
+                fid = fac["id"]
+                fac["departments"] = departments_by_faculty.get(fid, [])
+                if include_counts:
+                    fac["department_count"] = len(fac["departments"])
+
+        # Precompute thesis counts per department if requested
+        thesis_counts: Dict[str, int] = {}
+        if include_counts and department_ids:
+            placeholders = ",".join(["%s"] * len(department_ids))
+            count_query = f"""
+                SELECT department_id, COUNT(*) AS c
+                FROM theses
+                WHERE status IN ('approved','published') AND department_id IN ({placeholders})
+                GROUP BY department_id
+            """
+            rows = execute_query_with_result(count_query, department_ids)
+            thesis_counts = {str(r["department_id"]): r["c"] for r in rows}
+            # fill counts
+            for fac_list in faculties_by_university.values():
+                for fac in fac_list:
+                    for dep in fac["departments"]:
+                        dep["thesis_count"] = thesis_counts.get(dep["id"], 0)
+
+        # Optionally include sample theses per department
+        if include_theses and theses_per_department > 0 and department_ids:
+            placeholders = ",".join(["%s"] * len(department_ids))
+            sample_query = f"""
+                SELECT * FROM (
+                    SELECT 
+                        t.id,
+                        t.title_fr,
+                        t.defense_date,
+                        t.status,
+                        t.department_id,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY t.department_id 
+                            ORDER BY t.defense_date DESC NULLS LAST, t.created_at DESC
+                        ) AS rn
+                    FROM theses t
+                    WHERE t.status IN ('approved','published') AND t.department_id IN ({placeholders})
+                ) s
+                WHERE s.rn <= %s
+            """
+            params = department_ids + [theses_per_department]
+            rows = execute_query_with_result(sample_query, params)
+            theses_by_department: Dict[str, List[Dict[str, Any]]] = {}
+            for r in rows:
+                did = str(r["department_id"]) if r["department_id"] else None
+                if not did:
+                    continue
+                theses_by_department.setdefault(did, []).append({
+                    "id": str(r["id"]),
+                    "title_fr": r["title_fr"],
+                    "defense_date": r["defense_date"],
+                    "status": r["status"],
+                })
+            for fac_list in faculties_by_university.values():
+                for fac in fac_list:
+                    for dep in fac["departments"]:
+                        dep["theses"] = theses_by_department.get(dep["id"], [])
+
+        # Build final tree per university
+        tree: List[Dict[str, Any]] = []
+        for u in universities:
+            uid = str(u["id"])
+            uni_node: Dict[str, Any] = {
+                "id": uid,
+                "type": "university",
+                "name_fr": u["name_fr"],
+                "acronym": u.get("acronym"),
+                "faculties": faculties_by_university.get(uid, [])
+            }
+            if include_counts:
+                uni_node["faculty_count"] = len(uni_node["faculties"])
+                uni_node["department_count"] = sum(len(f["departments"]) for f in uni_node["faculties"]) if uni_node["faculties"] else 0
+                if thesis_counts:
+                    # total theses across departments
+                    uni_node["thesis_count"] = sum(
+                        thesis_counts.get(dep["id"], 0)
+                        for f in uni_node["faculties"]
+                        for dep in f["departments"]
+                    )
+            tree.append(uni_node)
+
+        return tree
+
+    except Exception as e:
+        logger.error(f"Error building universities tree: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to build universities tree")
+
 # Faculties (including retreiving tree of faculties/departments)
 # =============================================================================
 
@@ -2873,7 +3015,6 @@ async def get_admin_faculties(
         
         # Get total count
         total = execute_query(count_query, count_params, fetch_one=True)["total"]
-        
         # Get paginated results
         results = execute_query_with_result(base_query, params)
         
@@ -3223,7 +3364,6 @@ async def delete_faculty(
             success=True,
             message=f"Faculty '{faculty['name_fr']}' deleted successfully"
         )
-        
     except HTTPException:
         raise
     except Exception as e:
@@ -3830,6 +3970,9 @@ async def delete_school(
 @app.get("/admin/schools/tree", response_model=List[Dict], tags=["Admin - Schools"])
 async def get_schools_tree(
     request: Request,
+    include_counts: bool = Query(True, description="Include aggregated counts on nodes"),
+    include_theses: bool = Query(False, description="Include sample theses for schools/departments"),
+    theses_per_node: int = Query(3, ge=0, le=10, description="Number of theses to include per node when include_theses=true"),
     admin_user: dict = Depends(get_admin_user)
 ):
     """
@@ -3838,7 +3981,6 @@ async def get_schools_tree(
     Returns schools organized in a tree structure showing parent-child relationships.
     """
     request_id = getattr(request.state, "request_id", None)
-    
     try:
         # Get all schools with parent info
         query = """
@@ -3853,11 +3995,33 @@ async def get_schools_tree(
         """
         
         schools = execute_query_with_result(query)
-        
+
+        # Load departments attached to schools
+        dept_rows = execute_query_with_result(
+            "SELECT id, school_id, name_fr, acronym FROM departments WHERE school_id IS NOT NULL ORDER BY name_fr"
+        )
+        departments_by_school: Dict[str, List[Dict[str, Any]]] = {}
+        for d in dept_rows:
+            sid = str(d["school_id"]) if d["school_id"] else None
+            if not sid:
+                continue
+            node: Dict[str, Any] = {
+                "id": str(d["id"]),
+                "type": "department",
+                "name_fr": d["name_fr"],
+                "acronym": d.get("acronym"),
+            }
+            if include_counts:
+                node["thesis_count"] = 0
+            if include_theses and theses_per_node > 0:
+                node["theses"] = []
+            departments_by_school.setdefault(sid, []).append(node)
+
         # Build tree structure
         def build_school_node(school):
-            return {
+            node: Dict[str, Any] = {
                 "id": str(school["id"]),
+                "type": "school",
                 "name_fr": school["name_fr"],
                 "name_ar": school["name_ar"],
                 "name_en": school["name_en"],
@@ -3866,6 +4030,13 @@ async def get_schools_tree(
                 "parent_id": str(school["parent_university_id"] or school["parent_school_id"]),
                 "children": []
             }
+            # Attach direct departments
+            node["departments"] = departments_by_school.get(node["id"], [])
+            if include_counts:
+                node["department_count"] = len(node["departments"])
+            if include_theses and theses_per_node > 0:
+                node["theses"] = []
+            return node
         
         # Group schools by parent
         university_schools = {}
@@ -3893,6 +4064,82 @@ async def get_schools_tree(
                 for child in node["children"]:
                     add_children(child)
         
+        # Optionally compute thesis counts and samples
+        if include_counts or (include_theses and theses_per_node > 0):
+            # Department counts
+            dept_ids = [dep["id"] for deps in departments_by_school.values() for dep in deps]
+            dept_counts: Dict[str, int] = {}
+            if dept_ids:
+                placeholders = ",".join(["%s"] * len(dept_ids))
+                q = f"""
+                    SELECT department_id, COUNT(*) AS c
+                    FROM theses
+                    WHERE status IN ('approved','published') AND department_id IN ({placeholders})
+                    GROUP BY department_id
+                """
+                rows = execute_query_with_result(q, dept_ids)
+                dept_counts = {str(r["department_id"]): r["c"] for r in rows}
+                for deps in departments_by_school.values():
+                    for dep in deps:
+                        dep["thesis_count"] = dept_counts.get(dep["id"], 0)
+            # School direct thesis counts
+            school_ids = [str(s["id"]) for s in schools]
+            school_counts: Dict[str, int] = {}
+            if include_counts and school_ids:
+                placeholders = ",".join(["%s"] * len(school_ids))
+                q = f"""
+                    SELECT school_id, COUNT(*) AS c
+                    FROM theses
+                    WHERE status IN ('approved','published') AND school_id IN ({placeholders})
+                    GROUP BY school_id
+                """
+                rows = execute_query_with_result(q, school_ids)
+                school_counts = {str(r["school_id"]): r["c"] for r in rows}
+            # Sample theses per department/school
+            dep_samples: Dict[str, List[Dict[str, Any]]] = {}
+            school_samples: Dict[str, List[Dict[str, Any]]] = {}
+            if include_theses and theses_per_node > 0:
+                parts = []
+                params: List[Any] = []
+                if dept_ids:
+                    placeholders = ",".join(["%s"] * len(dept_ids))
+                    parts.append(f"""
+                        SELECT id, title_fr, defense_date, status, department_id, NULL::uuid AS school_id, rn FROM (
+                            SELECT t.id, t.title_fr, t.defense_date, t.status, t.department_id,
+                                   ROW_NUMBER() OVER (PARTITION BY t.department_id ORDER BY t.defense_date DESC NULLS LAST, t.created_at DESC) AS rn
+                            FROM theses t WHERE t.status IN ('approved','published') AND t.department_id IN ({placeholders})
+                        ) x WHERE rn <= %s
+                    """)
+                    params.extend(dept_ids + [theses_per_node])
+                if school_ids:
+                    placeholders = ",".join(["%s"] * len(school_ids))
+                    parts.append(f"""
+                        SELECT id, title_fr, defense_date, status, NULL::uuid AS department_id, school_id, rn FROM (
+                            SELECT t.id, t.title_fr, t.defense_date, t.status, t.school_id,
+                                   ROW_NUMBER() OVER (PARTITION BY t.school_id ORDER BY t.defense_date DESC NULLS LAST, t.created_at DESC) AS rn
+                            FROM theses t WHERE t.status IN ('approved','published') AND t.school_id IN ({placeholders})
+                        ) y WHERE rn <= %s
+                    """)
+                    params.extend(school_ids + [theses_per_node])
+                if parts:
+                    q = " UNION ALL " + (" UNION ALL ".join(parts)) if len(parts) > 1 else parts[0]
+                    rows = execute_query_with_result(q, params)
+                    for r in rows:
+                        if r["department_id"]:
+                            dep_samples.setdefault(str(r["department_id"]), []).append({
+                                "id": str(r["id"]),
+                                "title_fr": r["title_fr"],
+                                "defense_date": r["defense_date"],
+                                "status": r["status"],
+                            })
+                        if r["school_id"]:
+                            school_samples.setdefault(str(r["school_id"]), []).append({
+                                "id": str(r["id"]),
+                                "title_fr": r["title_fr"],
+                                "defense_date": r["defense_date"],
+                                "status": r["status"],
+                            })
+
         # Build final tree
         tree = []
         
@@ -3914,6 +4161,13 @@ async def get_schools_tree(
                 # Add children to each school
                 for school in uni_node["schools"]:
                     add_children(school)
+                    # Attach counts and samples if requested
+                    if include_counts:
+                        direct = school_counts.get(school["id"], 0) if 'school_counts' in locals() else 0
+                        dept_total = sum(dep.get("thesis_count", 0) for dep in school.get("departments", []))
+                        school["thesis_count"] = direct + dept_total
+                    if include_theses and theses_per_node > 0:
+                        school["theses"] = school_samples.get(school["id"], [])
                 
                 tree.append(uni_node)
         
@@ -4394,13 +4648,64 @@ async def delete_category(request: Request, category_id: str, admin_user: dict =
     return BaseResponse(success=True, message="Category deleted")
 
 @app.get("/admin/categories/tree", response_model=List[Dict], tags=["Admin - Categories"])
-async def get_categories_tree(request: Request, admin_user: dict = Depends(get_admin_user)):
+async def get_categories_tree(
+    request: Request,
+    include_counts: bool = Query(True, description="Include thesis counts per category"),
+    include_theses: bool = Query(False, description="Include sample theses per category"),
+    theses_per_category: int = Query(3, ge=0, le=10),
+    admin_user: dict = Depends(get_admin_user)
+):
     rows = execute_query_with_result("SELECT id, parent_id, code, name_fr, level FROM categories ORDER BY level, name_fr")
     by_parent: Dict[Optional[str], List[Dict[str, Any]]] = {}
+    nodes: Dict[str, Dict[str, Any]] = {}
     for r in rows:
         pid = str(r["parent_id"]) if r["parent_id"] else None
-        node = {"id": str(r["id"]), "code": r["code"], "name_fr": r["name_fr"], "level": r["level"], "children": []}
+        node: Dict[str, Any] = {"id": str(r["id"]), "code": r["code"], "name_fr": r["name_fr"], "level": r["level"], "children": []}
+        if include_counts:
+            node["thesis_count"] = 0
+        if include_theses and theses_per_category > 0:
+            node["theses"] = []
         by_parent.setdefault(pid, []).append(node)
+        nodes[node["id"]] = node
+    # counts
+    if include_counts and nodes:
+        cat_ids = list(nodes.keys())
+        placeholders = ",".join(["%s"] * len(cat_ids))
+        q = f"""
+            SELECT category_id, COUNT(*) AS c
+            FROM thesis_categories
+            WHERE category_id IN ({placeholders})
+            GROUP BY category_id
+        """
+        counts = execute_query_with_result(q, cat_ids)
+        for r in counts:
+            cid = str(r["category_id"])
+            if cid in nodes:
+                nodes[cid]["thesis_count"] = r["c"]
+    # samples
+    if include_theses and theses_per_category > 0 and nodes:
+        cat_ids = list(nodes.keys())
+        placeholders = ",".join(["%s"] * len(cat_ids))
+        q = f"""
+            SELECT * FROM (
+                SELECT t.id, t.title_fr, t.defense_date, t.status, tc.category_id,
+                       ROW_NUMBER() OVER (PARTITION BY tc.category_id ORDER BY t.defense_date DESC NULLS LAST, t.created_at DESC) as rn
+                FROM thesis_categories tc
+                JOIN theses t ON t.id = tc.thesis_id
+                WHERE t.status IN ('approved','published') AND tc.category_id IN ({placeholders})
+            ) s WHERE rn <= %s
+        """
+        params = cat_ids + [theses_per_category]
+        rows = execute_query_with_result(q, params)
+        for r in rows:
+            cid = str(r["category_id"]) if r["category_id"] else None
+            if cid and cid in nodes:
+                nodes[cid].setdefault("theses", []).append({
+                    "id": str(r["id"]),
+                    "title_fr": r["title_fr"],
+                    "defense_date": r["defense_date"],
+                    "status": r["status"],
+                })
     def attach(parent_id: Optional[str]) -> List[Dict[str, Any]]:
         children = by_parent.get(parent_id, [])
         for ch in children:
@@ -5380,7 +5685,6 @@ async def delete_degree(request: Request, degree_id: str, admin_user: dict = Dep
     if rows == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Degree not found")
     return BaseResponse(success=True, message="Degree deleted")
-
 # Languages
 # =============================================================================
 
@@ -5607,13 +5911,62 @@ async def delete_geographic_entity(request: Request, entity_id: str, admin_user:
     return BaseResponse(success=True, message="Geographic entity deleted")
 
 @app.get("/admin/geographic-entities/tree", response_model=List[Dict], tags=["Admin - Geographic Entities"])
-async def get_geographic_tree(request: Request, admin_user: dict = Depends(get_admin_user)):
+async def get_geographic_tree(
+    request: Request,
+    include_counts: bool = Query(True, description="Include thesis counts per entity"),
+    include_theses: bool = Query(False, description="Include sample theses per entity"),
+    theses_per_entity: int = Query(3, ge=0, le=10),
+    admin_user: dict = Depends(get_admin_user)
+):
     rows = execute_query_with_result("SELECT id, parent_id, name_fr, level FROM geographic_entities ORDER BY level, name_fr")
     by_parent: Dict[Optional[str], List[Dict[str, Any]]] = {}
+    nodes: Dict[str, Dict[str, Any]] = {}
     for r in rows:
         pid = str(r["parent_id"]) if r["parent_id"] else None
-        node = {"id": str(r["id"]), "name_fr": r["name_fr"], "level": r["level"], "children": []}
+        node: Dict[str, Any] = {"id": str(r["id"]), "name_fr": r["name_fr"], "level": r["level"], "children": []}
+        if include_counts:
+            node["thesis_count"] = 0
+        if include_theses and theses_per_entity > 0:
+            node["theses"] = []
         by_parent.setdefault(pid, []).append(node)
+        nodes[node["id"]] = node
+    # counts
+    if include_counts and nodes:
+        eids = list(nodes.keys())
+        placeholders = ",".join(["%s"] * len(eids))
+        q = f"""
+            SELECT study_location_id, COUNT(*) AS c
+            FROM theses
+            WHERE status IN ('approved','published') AND study_location_id IN ({placeholders})
+            GROUP BY study_location_id
+        """
+        rows = execute_query_with_result(q, eids)
+        for r in rows:
+            eid = str(r["study_location_id"]) if r["study_location_id"] else None
+            if eid and eid in nodes:
+                nodes[eid]["thesis_count"] = r["c"]
+    # samples
+    if include_theses and theses_per_entity > 0 and nodes:
+        eids = list(nodes.keys())
+        placeholders = ",".join(["%s"] * len(eids))
+        q = f"""
+            SELECT * FROM (
+                SELECT t.id, t.title_fr, t.defense_date, t.status, t.study_location_id,
+                       ROW_NUMBER() OVER (PARTITION BY t.study_location_id ORDER BY t.defense_date DESC NULLS LAST, t.created_at DESC) as rn
+                FROM theses t WHERE t.status IN ('approved','published') AND t.study_location_id IN ({placeholders})
+            ) s WHERE rn <= %s
+        """
+        params = eids + [theses_per_entity]
+        rows = execute_query_with_result(q, params)
+        for r in rows:
+            eid = str(r["study_location_id"]) if r["study_location_id"] else None
+            if eid and eid in nodes:
+                nodes[eid].setdefault("theses", []).append({
+                    "id": str(r["id"]),
+                    "title_fr": r["title_fr"],
+                    "defense_date": r["defense_date"],
+                    "status": r["status"],
+                })
     def attach(parent_id: Optional[str]) -> List[Dict[str, Any]]:
         children = by_parent.get(parent_id, [])
         for ch in children:
@@ -5681,7 +6034,6 @@ async def upload_thesis_file(
 # =============================================================================
 # Metadata Form Structure
 # =============================================================================
-
 @app.get("/admin/thesis-content/manual/form", response_model=Dict, tags=["Admin - Thesis Content"])
 async def get_thesis_form_structure(
     request: Request,
@@ -6321,7 +6673,6 @@ async def get_admin_theses(
         
         # Get results
         results = execute_query_with_result(base_query, params)
-        
         theses = []
         for row in results:
             # Get author info
@@ -6721,253 +7072,6 @@ async def delete_thesis(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete thesis: {str(e)}"
         )
-# =============================================================================
-# PUBLIC API - SEARCH & DISCOVERY: enables searching, or navigating through references
-# =============================================================================
-
-# Universities
-# =============================================================================
-@app.get("/universities", response_model=List[UniversityResponse], tags=["Public - Reference Data"])
-async def public_universities():
-    rows = execute_query_with_result("SELECT * FROM universities ORDER BY name_fr")
-    return [UniversityResponse(id=r["id"], name_fr=r["name_fr"], name_en=r["name_en"], name_ar=r["name_ar"], acronym=r["acronym"], geographic_entities_id=r.get("geographic_entities_id"), created_at=r["created_at"], updated_at=r["updated_at"]) for r in rows]
-
-@app.get("/universities/{university_id}", response_model=UniversityResponse, tags=["Public - Reference Data"])
-async def public_university(university_id: str):
-    r = execute_query("SELECT * FROM universities WHERE id = %s", (university_id,), fetch_one=True)
-    if not r:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="University not found")
-    return UniversityResponse(id=r["id"], name_fr=r["name_fr"], name_en=r["name_en"], name_ar=r["name_ar"], acronym=r["acronym"], geographic_entities_id=r.get("geographic_entities_id"), created_at=r["created_at"], updated_at=r["updated_at"])
-
-@app.get("/universities/{university_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
-async def public_university_theses(university_id: str):
-    rows = execute_query_with_result("SELECT * FROM theses WHERE university_id = %s AND status IN ('approved','published') ORDER BY defense_date DESC", (university_id,))
-    return [ThesisResponse(
-        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
-    ) for r in rows]
-
-# Faculties
-# =============================================================================
-@app.get("/faculties", response_model=List[FacultyResponse], tags=["Public - Reference Data"])
-async def public_faculties():
-    rows = execute_query_with_result("SELECT * FROM faculties ORDER BY name_fr")
-    return [FacultyResponse(id=r["id"], university_id=r["university_id"], name_fr=r["name_fr"], name_en=r["name_en"], name_ar=r["name_ar"], acronym=r["acronym"], created_at=r["created_at"], updated_at=r["updated_at"]) for r in rows]
-
-@app.get("/faculties/{faculty_id}", response_model=FacultyResponse, tags=["Public - Reference Data"])
-async def public_faculty(faculty_id: str):
-    r = execute_query("SELECT * FROM faculties WHERE id = %s", (faculty_id,), fetch_one=True)
-    if not r:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Faculty not found")
-    return FacultyResponse(id=r["id"], university_id=r["university_id"], name_fr=r["name_fr"], name_en=r["name_en"], name_ar=r["name_ar"], acronym=r["acronym"], created_at=r["created_at"], updated_at=r["updated_at"])
-
-@app.get("/faculties/{faculty_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
-async def public_faculty_theses(faculty_id: str):
-    rows = execute_query_with_result("SELECT * FROM theses WHERE faculty_id = %s AND status IN ('approved','published') ORDER BY defense_date DESC", (faculty_id,))
-    return [ThesisResponse(
-        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
-    ) for r in rows]
-
-# Schools
-# =============================================================================
-@app.get("/schools", response_model=List[SchoolResponse], tags=["Public - Reference Data"])
-async def public_schools():
-    rows = execute_query_with_result("SELECT * FROM schools ORDER BY name_fr")
-    return [SchoolResponse(id=r["id"], parent_university_id=r["parent_university_id"], parent_school_id=r["parent_school_id"], name_fr=r["name_fr"], name_en=r["name_en"], name_ar=r["name_ar"], acronym=r.get("acronym"), created_at=r["created_at"], updated_at=r["updated_at"]) for r in rows]
-
-@app.get("/schools/{school_id}", response_model=SchoolResponse, tags=["Public - Reference Data"])
-async def public_school(school_id: str):
-    r = execute_query("SELECT * FROM schools WHERE id = %s", (school_id,), fetch_one=True)
-    if not r:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="School not found")
-    return SchoolResponse(id=r["id"], parent_university_id=r["parent_university_id"], parent_school_id=r["parent_school_id"], name_fr=r["name_fr"], name_en=r["name_en"], name_ar=r["name_ar"], acronym=r.get("acronym"), created_at=r["created_at"], updated_at=r["updated_at"])
-
-@app.get("/schools/{school_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
-async def public_school_theses(school_id: str):
-    rows = execute_query_with_result("SELECT * FROM theses WHERE school_id = %s AND status IN ('approved','published') ORDER BY defense_date DESC", (school_id,))
-    return [ThesisResponse(
-        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
-    ) for r in rows]
-
-# Departments
-# =============================================================================
-@app.get("/departments", response_model=List[DepartmentResponse], tags=["Public - Reference Data"])
-async def public_departments():
-    rows = execute_query_with_result("SELECT * FROM departments ORDER BY name_fr")
-    return [DepartmentResponse(id=r["id"], faculty_id=r["faculty_id"], school_id=r["school_id"], name_fr=r["name_fr"], name_en=r["name_en"], name_ar=r["name_ar"], acronym=r["acronym"], created_at=r["created_at"], updated_at=r["updated_at"]) for r in rows]
-
-@app.get("/departments/{department_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
-async def public_department_theses(department_id: str):
-    rows = execute_query_with_result("SELECT * FROM theses WHERE department_id = %s AND status IN ('approved','published') ORDER BY defense_date DESC", (department_id,))
-    return [ThesisResponse(
-        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
-    ) for r in rows]
-
-# Categories
-# =============================================================================
-@app.get("/categories", response_model=List[CategoryResponse], tags=["Public - Reference Data"])
-async def public_categories():
-    rows = execute_query_with_result("SELECT * FROM categories ORDER BY level, name_fr")
-    return [CategoryResponse(id=r["id"], parent_id=r["parent_id"], level=r["level"], code=r["code"], name_fr=r["name_fr"], name_en=r["name_en"], name_ar=r["name_ar"], created_at=r["created_at"], updated_at=r["updated_at"]) for r in rows]
-
-@app.get("/categories/{category_id}", response_model=CategoryResponse, tags=["Public - Reference Data"])
-async def public_category(category_id: str):
-    r = execute_query("SELECT * FROM categories WHERE id = %s", (category_id,), fetch_one=True)
-    if not r:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
-    return CategoryResponse(id=r["id"], parent_id=r["parent_id"], level=r["level"], code=r["code"], name_fr=r["name_fr"], name_en=r["name_en"], name_ar=r["name_ar"], created_at=r["created_at"], updated_at=r["updated_at"])
-
-@app.get("/categories/{category_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
-async def public_category_theses(category_id: str):
-    rows = execute_query_with_result("""
-        SELECT t.* FROM theses t
-        JOIN thesis_categories tc ON tc.thesis_id = t.id
-        WHERE tc.category_id = %s AND t.status IN ('approved','published')
-        ORDER BY t.defense_date DESC
-    """, (category_id,))
-    return [ThesisResponse(
-        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
-    ) for r in rows]
-
-# Academic persons
-# =============================================================================
-@app.get("/academic_persons", response_model=List[AcademicPersonResponse], tags=["Public - Reference Data"])
-async def public_academic_persons():
-    rows = execute_query_with_result("SELECT * FROM academic_persons ORDER BY complete_name_fr NULLS LAST, last_name_fr, first_name_fr")
-    return [AcademicPersonResponse(
-        id=r["id"], complete_name_fr=r["complete_name_fr"], complete_name_ar=r["complete_name_ar"], first_name_fr=r["first_name_fr"], last_name_fr=r["last_name_fr"], first_name_ar=r["first_name_ar"], last_name_ar=r["last_name_ar"], title=r["title"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], external_institution_name=r["external_institution_name"], external_institution_country=r["external_institution_country"], external_institution_type=r["external_institution_type"], user_id=r["user_id"], created_at=r["created_at"], updated_at=r["updated_at"]
-    ) for r in rows]
-
-@app.get("/academic_persons/{academic_person_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
-async def public_person_theses(academic_person_id: str):
-    rows = execute_query_with_result("""
-        SELECT DISTINCT t.* FROM theses t
-        JOIN thesis_academic_persons tap ON tap.thesis_id = t.id
-        WHERE tap.person_id = %s AND t.status IN ('approved','published')
-        ORDER BY t.defense_date DESC
-    """, (academic_person_id,))
-    return [ThesisResponse(
-        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
-    ) for r in rows]
-
-# Degrees
-# =============================================================================
-@app.get("/degrees", response_model=List[DegreeResponse], tags=["Public - Reference Data"])
-async def public_degrees():
-    rows = execute_query_with_result("SELECT * FROM degrees ORDER BY name_fr")
-    return [DegreeResponse(id=r["id"], name_en=r["name_en"], name_fr=r["name_fr"], name_ar=r["name_ar"], abbreviation=r["abbreviation"], type=r["type"], category=r["category"], created_at=r["created_at"], updated_at=r["updated_at"]) for r in rows]
-
-@app.get("/degrees/{degree_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
-async def public_degree_theses(degree_id: str):
-    rows = execute_query_with_result("SELECT * FROM theses WHERE degree_id = %s AND status IN ('approved','published') ORDER BY defense_date DESC", (degree_id,))
-    return [ThesisResponse(
-        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
-    ) for r in rows]
-
-# Languages
-# =============================================================================
-@app.get("/languages", response_model=List[LanguageResponse], tags=["Public - Reference Data"])
-async def public_languages():
-    rows = execute_query_with_result("SELECT * FROM languages WHERE is_active = TRUE ORDER BY display_order, name")
-    return [LanguageResponse(id=r["id"], code=r["code"], name=r["name"], native_name=r["native_name"], rtl=r["rtl"], is_active=r["is_active"], display_order=r["display_order"], created_at=r["created_at"], updated_at=r["updated_at"]) for r in rows]
-
-@app.get("/languages/{language_id}/theses", response_model=List[ThesisResponse], tags=["Public - Reference Data"])
-async def public_language_theses(language_id: str):
-    rows = execute_query_with_result("SELECT * FROM theses WHERE language_id = %s AND status IN ('approved','published') ORDER BY defense_date DESC", (language_id,))
-    return [ThesisResponse(
-        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
-    ) for r in rows]
-
-# Main Search (search variables: term(s); filters (university/faculty/departments, disciplines/subdisciplines/specialities, date from-to or years, degrees, languages, academic persons (limited to author and director); sort options: relevance, popularity (sum of downloads and cites), date, alphabetical university, alphabetical title; sort order: ascending/descending; display options (number of results per page (10, 20, 50, 100)))
-# =============================================================================
-@app.get("/theses", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) 
-async def public_theses(
-    q: Optional[str] = Query(None),
-    university_id: Optional[str] = Query(None),
-    faculty_id: Optional[str] = Query(None),
-    department_id: Optional[str] = Query(None),
-    category_id: Optional[str] = Query(None),
-    degree_id: Optional[str] = Query(None),
-    language_id: Optional[str] = Query(None),
-    year_from: Optional[int] = Query(None),
-    year_to: Optional[int] = Query(None),
-    sort_field: SortField = SortField.DEFENSE_DATE,
-    sort_order: SortOrder = SortOrder.DESC,
-    limit: int = Query(10, ge=1, le=100)
-):
-    base = """
-        SELECT DISTINCT t.* FROM theses t
-        LEFT JOIN thesis_categories tc ON tc.thesis_id = t.id
-        WHERE t.status IN ('approved','published')
-    """
-    params: List[Any] = []
-    if q:
-        base += " AND (LOWER(t.title_fr) LIKE LOWER(%s) OR LOWER(t.abstract_fr) LIKE LOWER(%s))"
-        like = f"%{q}%"
-        params.extend([like, like])
-    if university_id:
-        base += " AND t.university_id = %s"; params.append(university_id)
-    if faculty_id:
-        base += " AND t.faculty_id = %s"; params.append(faculty_id)
-    if department_id:
-        base += " AND t.department_id = %s"; params.append(department_id)
-    if category_id:
-        base += " AND tc.category_id = %s"; params.append(category_id)
-    if degree_id:
-        base += " AND t.degree_id = %s"; params.append(degree_id)
-    if language_id:
-        base += " AND t.language_id = %s"; params.append(language_id)
-    if year_from:
-        base += " AND EXTRACT(YEAR FROM t.defense_date) >= %s"; params.append(year_from)
-    if year_to:
-        base += " AND EXTRACT(YEAR FROM t.defense_date) <= %s"; params.append(year_to)
-    order_map = {
-        SortField.DEFENSE_DATE: "t.defense_date",
-        SortField.CREATED_AT: "t.created_at",
-        SortField.UPDATED_AT: "t.updated_at",
-        SortField.TITLE: "t.title_fr",
-    }
-    order_col = order_map.get(sort_field, "t.defense_date")
-    base += f" ORDER BY {order_col} {sort_order.value.upper()} LIMIT %s"
-    params.append(limit)
-    rows = execute_query_with_result(base, params)
-    return [ThesisResponse(
-        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
-    ) for r in rows]
-
-@app.get("/theses/recent", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) 
-async def public_theses_recent(limit: int = Query(10, ge=1, le=100)):
-    rows = execute_query_with_result("SELECT * FROM theses WHERE status IN ('approved','published') ORDER BY created_at DESC LIMIT %s", (limit,))
-    return [ThesisResponse(
-        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
-    ) for r in rows]
-
-@app.get("/theses/popular", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) 
-async def public_theses_popular(limit: int = Query(10, ge=1, le=100)):
-    rows = execute_query_with_result("""
-        SELECT t.*
-        FROM theses t
-        LEFT JOIN (
-            SELECT thesis_id, COUNT(*) AS downloads
-            FROM thesis_downloads
-            GROUP BY thesis_id
-        ) d ON d.thesis_id = t.id
-        WHERE t.status IN ('approved','published')
-        ORDER BY COALESCE(d.downloads, 0) DESC, t.created_at DESC
-        LIMIT %s
-    """, (limit,))
-    return [ThesisResponse(
-        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
-    ) for r in rows]
-
-@app.get("/theses/{thesis_id}", response_model=ThesisResponse, tags=["Public - Thesis search"]) 
-async def public_thesis_detail(thesis_id: str):
-    r = execute_query("SELECT * FROM theses WHERE id = %s AND status IN ('approved','published')", (thesis_id,), fetch_one=True)
-    if not r:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thesis not found")
-    return ThesisResponse(
-        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
-    )
-
 # Download endpoint (public)
 @app.get("/theses/{thesis_id}/download", tags=["Public - Thesis search"])
 async def public_thesis_download(thesis_id: str, request: Request):
