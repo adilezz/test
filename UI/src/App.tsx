@@ -16,6 +16,7 @@ import AdminCategoriesPage from './components/pages/AdminCategoriesPage';
 import AdminAcademicPersonsPage from './components/pages/AdminAcademicPersonsPage';
 import AdminKeywordsPage from './components/pages/AdminKeywordsPage';
 import AdminThesesListPage from './components/pages/AdminThesesListPage';
+import AdminGeographicEntitiesPage from './components/pages/AdminGeographicEntitiesPage';
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
 import LoadingSpinner from './components/ui/LoadingSpinner';
@@ -152,6 +153,13 @@ function App() {
                     <ProtectedRoute>
                       <AdminRoute>
                         <AdminKeywordsPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/geographic-entities" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminGeographicEntitiesPage />
                       </AdminRoute>
                     </ProtectedRoute>
                   } />
