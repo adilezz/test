@@ -29,7 +29,8 @@ import {
   TreeNodeData,
   PaginatedResponse,
   UniversityCreate,
-  UniversityUpdate
+  UniversityUpdate,
+  GeographicEntityResponse
 } from '../../types/api';
 
 interface TreeNode {
@@ -59,6 +60,7 @@ export default function AdminUniversitiesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
+  const [geoEntities, setGeoEntities] = useState<GeographicEntityResponse[]>([]);
   const [formData, setFormData] = useState<UniversityCreate>({
     name_fr: '',
     name_en: '',
@@ -71,15 +73,42 @@ export default function AdminUniversitiesPage() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    // Load geographic entities for selector
+    (async () => {
+      try {
+        const res = await apiService.adminList<PaginatedResponse>('geographic_entities', { limit: 1000 });
+        setGeoEntities((res.data || []) as unknown as GeographicEntityResponse[]);
+      } catch (error) {
+        console.error('Error loading geographic entities:', error);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    // Reload when switching views
+    loadData();
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (viewMode !== 'list') return;
+    const t = setTimeout(() => loadData(), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm, viewMode]);
+
   const loadData = async () => {
     setLoading(true);
     try {
       if (viewMode === 'tree') {
         const treeResponse = await apiService.getUniversitiesTree(true, 5);
-        setTreeData(transformToTreeNodes(treeResponse));
+        setTreeData(transformToTreeNodes(treeResponse as any));
       } else {
-        const listResponse = await apiService.adminList<PaginatedResponse>('universities');
-        setFlatList(listResponse.data);
+        const params: Record<string, string | number> = {};
+        if (searchTerm && searchTerm.trim().length > 0) {
+          params.search = searchTerm.trim();
+        }
+        const listResponse = await apiService.adminList<PaginatedResponse>('universities', params);
+        setFlatList((listResponse.data || []) as UniversityResponse[]);
       }
     } catch (error) {
       console.error('Error loading universities:', error);
@@ -88,8 +117,8 @@ export default function AdminUniversitiesPage() {
     }
   };
 
-  const transformToTreeNodes = (data: TreeNodeData[]): TreeNode[] => {
-    return data.map(item => ({
+  const transformToTreeNodes = (data: any[]): TreeNode[] => {
+    return (data || []).map((item: any) => ({
       id: item.id,
       name_fr: item.name_fr,
       name_en: item.name_en,
@@ -98,7 +127,7 @@ export default function AdminUniversitiesPage() {
       type: 'university',
       thesis_count: item.thesis_count,
       expanded: false,
-      children: item.children?.map(faculty => ({
+      children: (item.faculties || []).map((faculty: any) => ({
         id: faculty.id,
         name_fr: faculty.name_fr,
         name_en: faculty.name_en,
@@ -108,7 +137,7 @@ export default function AdminUniversitiesPage() {
         parent_id: item.id,
         thesis_count: faculty.thesis_count,
         expanded: false,
-        children: faculty.children?.map(dept => ({
+        children: (faculty.departments || []).map((dept: any) => ({
           id: dept.id,
           name_fr: dept.name_fr,
           name_en: dept.name_en,
@@ -122,30 +151,28 @@ export default function AdminUniversitiesPage() {
     }));
   };
 
-  const toggleNode = (nodeId: string, path: number[] = []) => {
+  const toggleNode = (nodeId: string) => {
     setTreeData(prev => {
-      const newData = [...prev];
-      let current = newData;
-      
-      for (let i = 0; i < path.length; i++) {
-        current = current[path[i]].children!;
-      }
-      
-      const nodeIndex = current.findIndex(node => node.id === nodeId);
-      if (nodeIndex !== -1) {
-        current[nodeIndex] = {
-          ...current[nodeIndex],
-          expanded: !current[nodeIndex].expanded
-        };
-      }
-      
-      return newData;
+      const toggleRecursive = (nodes: TreeNode[]): TreeNode[] =>
+        nodes.map(n => ({
+          ...n,
+          expanded: n.id === nodeId ? !n.expanded : n.expanded,
+          children: n.children ? toggleRecursive(n.children) : undefined
+        }));
+      return toggleRecursive(prev);
     });
   };
 
   const handleCreate = async () => {
     try {
-      await apiService.adminCreate('universities', formData);
+      const payload: UniversityCreate = {
+        name_fr: formData.name_fr.trim(),
+        name_en: formData.name_en?.trim() || undefined,
+        name_ar: formData.name_ar?.trim() || undefined,
+        acronym: formData.acronym?.trim() || undefined,
+        geographic_entities_id: formData.geographic_entities_id ? formData.geographic_entities_id : undefined
+      };
+      await apiService.adminCreate('universities', payload);
       setModal({ isOpen: false, mode: 'create' });
       setFormData({
         name_fr: '',
@@ -164,7 +191,14 @@ export default function AdminUniversitiesPage() {
     if (!modal.item) return;
     
     try {
-      await apiService.adminUpdate('universities', modal.item.id, formData);
+      const payload: UniversityUpdate = {
+        name_fr: formData.name_fr?.trim() || undefined,
+        name_en: formData.name_en?.trim() || undefined,
+        name_ar: formData.name_ar?.trim() || undefined,
+        acronym: formData.acronym?.trim() || undefined,
+        geographic_entities_id: formData.geographic_entities_id ? formData.geographic_entities_id : undefined
+      };
+      await apiService.adminUpdate('universities', modal.item.id, payload);
       setModal({ isOpen: false, mode: 'edit' });
       loadData();
     } catch (error) {
@@ -183,14 +217,39 @@ export default function AdminUniversitiesPage() {
 
   const openModal = (mode: ModalState['mode'], item?: UniversityResponse) => {
     setModal({ isOpen: true, mode, item });
+    const ensureDetails = async (id: string) => {
+      try {
+        const full = await apiService.adminGet<UniversityResponse>('universities', id);
+        setModal({ isOpen: true, mode, item: full });
+        if (mode === 'edit') {
+          setFormData({
+            name_fr: full.name_fr,
+            name_en: full.name_en || '',
+            name_ar: full.name_ar || '',
+            acronym: full.acronym || '',
+            geographic_entities_id: full.geographic_entities_id || ''
+          });
+        }
+      } catch (e) {
+        console.error('Failed to load university details', e);
+      }
+    };
     if (mode === 'edit' && item) {
-      setFormData({
-        name_fr: item.name_fr,
-        name_en: item.name_en || '',
-        name_ar: item.name_ar || '',
-        acronym: item.acronym || '',
-        geographic_entities_id: item.geographic_entities_id || ''
-      });
+      if (!(item as any).created_at) {
+        ensureDetails(item.id);
+      } else {
+        setFormData({
+          name_fr: item.name_fr,
+          name_en: item.name_en || '',
+          name_ar: item.name_ar || '',
+          acronym: item.acronym || '',
+          geographic_entities_id: item.geographic_entities_id || ''
+        });
+      }
+    } else if (mode === 'view' && item) {
+      if (!(item as any).created_at) {
+        ensureDetails(item.id);
+      }
     } else if (mode === 'create') {
       setFormData({
         name_fr: '',
@@ -216,7 +275,7 @@ export default function AdminUniversitiesPage() {
         >
           {hasChildren ? (
             <button
-              onClick={() => toggleNode(node.id, path)}
+              onClick={() => toggleNode(node.id)}
               className="p-1 hover:bg-gray-200 rounded"
             >
               {isExpanded ? (
@@ -294,8 +353,8 @@ export default function AdminUniversitiesPage() {
 
         {hasChildren && isExpanded && (
           <div>
-            {node.children!.map((child, index) =>
-              renderTreeNode(child, [...path, node.children!.findIndex(c => c.id === child.id)], depth + 1)
+            {node.children!.map((child) =>
+              renderTreeNode(child, path, depth + 1)
             )}
           </div>
         )}
@@ -379,6 +438,22 @@ export default function AdminUniversitiesPage() {
                   onChange={(e) => setFormData({ ...formData, acronym: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Entité géographique
+                </label>
+                <select
+                  value={formData.geographic_entities_id}
+                  onChange={(e) => setFormData({ ...formData, geographic_entities_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Aucune</option>
+                  {geoEntities.map((g) => (
+                    <option key={g.id} value={g.id}>{g.name_fr}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex justify-end space-x-3 pt-4">
@@ -474,7 +549,7 @@ export default function AdminUniversitiesPage() {
                 <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Rechercher..."
+                  placeholder="Rechercher... (nom, acronyme)"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -519,7 +594,7 @@ export default function AdminUniversitiesPage() {
                 Structure Hiérarchique
               </h2>
               <div className="space-y-1">
-                {treeData.map((node, index) => renderTreeNode(node, [index]))}
+                {treeData.map((node) => renderTreeNode(node, []))}
               </div>
             </div>
           ) : (
