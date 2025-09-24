@@ -67,7 +67,8 @@ const languageLabels = {
   [LanguageCode.FRENCH]: 'Français',
   [LanguageCode.ARABIC]: 'العربية',
   [LanguageCode.ENGLISH]: 'English',
-  [LanguageCode.BERBER]: 'Tamazight'
+  [LanguageCode.SPANISH]: 'Español',
+  [LanguageCode.TAMAZIGHT]: 'ⵜⴰⵎⴰⵣⵉⵖⵜ'
 };
 
 const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
