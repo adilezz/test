@@ -11,7 +11,8 @@ export enum LanguageCode {
   FRENCH = 'fr',
   ARABIC = 'ar',
   ENGLISH = 'en',
-  BERBER = 'ber'
+  SPANISH = 'es',
+  TAMAZIGHT = 'zgh'
 }
 
 export enum GeographicLevel {
@@ -316,17 +317,21 @@ export interface CategoryResponse extends CategoryBase {
 
 // Keyword Types
 export interface KeywordBase {
-  word_fr: string;
-  word_en?: string;
-  word_ar?: string;
+  parent_keyword_id?: string;
+  keyword_fr: string;
+  keyword_en?: string;
+  keyword_ar?: string;
+  category_id?: string;
 }
 
 export interface KeywordCreate extends KeywordBase {}
 
 export interface KeywordUpdate {
-  word_fr?: string;
-  word_en?: string;
-  word_ar?: string;
+  parent_keyword_id?: string;
+  keyword_fr?: string;
+  keyword_en?: string;
+  keyword_ar?: string;
+  category_id?: string;
 }
 
 export interface KeywordResponse extends KeywordBase {
@@ -337,11 +342,20 @@ export interface KeywordResponse extends KeywordBase {
 
 // Academic Person Types
 export interface AcademicPersonBase {
-  first_name: string;
-  last_name: string;
-  email?: string;
-  title?: string;
-  orcid?: string;
+  complete_name_fr?: string;
+  complete_name_ar?: string;
+  first_name_fr?: string;
+  last_name_fr?: string;
+  first_name_ar?: string;
+  last_name_ar?: string;
+  title?: string; // courtesy title (Dr., Pr.)
+  university_id?: string;
+  faculty_id?: string;
+  school_id?: string;
+  external_institution_name?: string;
+  external_institution_country?: string;
+  external_institution_type?: string;
+  user_id?: string;
 }
 
 export interface AcademicPersonCreate extends AcademicPersonBase {}
@@ -361,12 +375,27 @@ export interface AcademicPersonResponse extends AcademicPersonBase {
 }
 
 // Degree Types
+export enum DegreeType {
+  DOCTORATE = 'doctorate',
+  MEDICAL_DOCTORATE = 'medical doctorate',
+  MASTER = 'master'
+}
+
+export enum DegreeCategory {
+  RESEARCH = 'research',
+  PROFESSIONAL = 'professional',
+  HONORARY = 'honorary',
+  JOINT = 'joint',
+  INTERNATIONAL = 'international'
+}
+
 export interface DegreeBase {
+  name_en: string;
   name_fr: string;
-  name_en?: string;
   name_ar?: string;
-  level: string;
-  description?: string;
+  abbreviation: string;
+  type: DegreeType;
+  category?: DegreeCategory;
 }
 
 export interface DegreeCreate extends DegreeBase {}
@@ -387,19 +416,22 @@ export interface DegreeResponse extends DegreeBase {
 
 // Language Types
 export interface LanguageBase {
+  code: LanguageCode;
   name: string;
-  code: string;
-  native_name?: string;
-  is_rtl: boolean;
+  native_name: string;
+  rtl: boolean;
+  is_active: boolean;
+  display_order: number;
 }
 
 export interface LanguageCreate extends LanguageBase {}
 
 export interface LanguageUpdate {
   name?: string;
-  code?: string;
   native_name?: string;
-  is_rtl?: boolean;
+  rtl?: boolean;
+  is_active?: boolean;
+  display_order?: number;
 }
 
 export interface LanguageResponse extends LanguageBase {

@@ -237,7 +237,7 @@ class ApiService {
       include_theses: includeTheses.toString(),
       theses_per_department: thesesPerDepartment.toString(),
     });
-    
+
     return this.request<TreeNodeData[]>(`/universities/tree?${params}`);
   }
 
@@ -254,8 +254,13 @@ class ApiService {
     return this.request<TreeNodeData[]>(`/schools/tree?${params}`);
   }
 
-  async getCategoriesTree(): Promise<TreeNodeData[]> {
-    return this.request<TreeNodeData[]>('/categories/tree');
+  async getCategoriesTree(includeTheses: boolean = false, thesesPerCategory: number = 3): Promise<TreeNodeData[]> {
+    const params = new URLSearchParams({
+      include_counts: 'true',
+      include_theses: includeTheses.toString(),
+      theses_per_category: thesesPerCategory.toString(),
+    });
+    return this.request<TreeNodeData[]>(`/categories/tree?${params}`);
   }
 
   async getGeographicEntitiesTree(): Promise<TreeNodeData[]> {
@@ -331,7 +336,7 @@ class ApiService {
       page: page.toString(),
       limit: limit.toString(),
     });
-    
+
     return this.request<PaginatedResponse>(`/academic_persons?${params}`);
   }
 
@@ -428,6 +433,38 @@ class ApiService {
     });
   }
 
+  // Thesis relationship endpoints
+  async addThesisAcademicPerson(payload: {
+    thesis_id: string;
+    person_id: string;
+    role: string;
+    faculty_id?: string;
+    is_external?: boolean;
+    external_institution_name?: string;
+  }) {
+    const { thesis_id, ...body } = payload;
+    return this.request(`/admin/theses/${thesis_id}/academic-persons`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async addThesisCategory(payload: { thesis_id: string; category_id: string; is_primary?: boolean }) {
+    const { thesis_id, ...body } = payload;
+    return this.request(`/admin/theses/${thesis_id}/categories`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async addThesisKeyword(payload: { thesis_id: string; keyword_id: string; keyword_position?: number }) {
+    const { thesis_id, ...body } = payload;
+    return this.request(`/admin/theses/${thesis_id}/keywords`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
   async downloadThesis(id: string): Promise<Blob> {
     const response = await fetch(`${this.baseUrl}/theses/${id}/download`, {
       headers: this.token ? { 'Authorization': `Bearer ${this.token}` } : {},
@@ -496,6 +533,45 @@ class ApiService {
   // Health check
   async healthCheck(): Promise<BaseResponse> {
     return this.request<BaseResponse>('/health');
+  }
+
+  // Admin Trees
+  async getAdminUniversitiesTree(includeTheses: boolean = false, thesesPerDepartment: number = 3): Promise<TreeNodeData[]> {
+    const params = new URLSearchParams({
+      include_counts: 'true',
+      include_theses: includeTheses.toString(),
+      theses_per_department: thesesPerDepartment.toString(),
+    });
+    return this.request<TreeNodeData[]>(`/admin/universities/tree?${params}`);
+  }
+
+  async getAdminSchoolsTree(includeTheses: boolean = false, thesesPerDepartment: number = 3): Promise<TreeNodeData[]> {
+    const params = new URLSearchParams({
+      include_counts: 'true',
+      include_theses: includeTheses.toString(),
+      theses_per_department: thesesPerDepartment.toString(),
+    });
+    return this.request<TreeNodeData[]>(`/admin/schools/tree?${params}`);
+  }
+
+  async getAdminCategoriesTree(includeTheses: boolean = false, thesesPerCategory: number = 3): Promise<TreeNodeData[]> {
+    const params = new URLSearchParams({
+      include_counts: 'true',
+      include_theses: includeTheses.toString(),
+      theses_per_category: thesesPerCategory.toString(),
+    });
+    return this.request<TreeNodeData[]>(`/admin/categories/tree?${params}`);
+  }
+
+  // Admin Thesis Manual Form
+  async getThesisManualForm(): Promise<any> {
+    return this.request<any>('/admin/thesis-content/manual/form');
+  }
+
+  // Admin Academic Persons
+  async searchAcademicPersons(q: string): Promise<any[]> {
+    const params = new URLSearchParams({ q });
+    return this.request<any[]>(`/admin/academic-persons/search?${params}`);
   }
 }
 

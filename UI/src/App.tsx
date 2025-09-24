@@ -10,6 +10,7 @@ import ProfilePage from './components/pages/ProfilePage';
 import UploadPage from './components/pages/UploadPage';
 import ThesisDetailPage from './components/pages/ThesisDetailPage';
 import AdminThesisPage from './components/pages/AdminThesisPage';
+import AdminDashboardPage from './components/pages/AdminDashboardPage';
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
 import LoadingSpinner from './components/ui/LoadingSpinner';
@@ -117,7 +118,7 @@ function App() {
                   <Route path="/admin/*" element={
                     <ProtectedRoute>
                       <AdminRoute>
-                        <div>Admin Dashboard - Coming Soon</div>
+                        <AdminDashboardPage />
                       </AdminRoute>
                     </ProtectedRoute>
                   } />

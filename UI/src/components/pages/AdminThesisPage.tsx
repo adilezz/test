@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Upload, 
   FileText, 
@@ -19,6 +19,8 @@ import {
   Square
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import apiService, { ApiError } from '../../services/api';
+import { ThesisStatus } from '../../types/api';
 
 interface JuryMember {
   id: string;
@@ -50,22 +52,37 @@ const initialFormData = {
   abstract: '',
   defendedDate: '',
   pages: '',
-  status: 'pending'
+  status: ThesisStatus.DRAFT as ThesisStatus
 };
 
 export default function AdminThesisPage() {
   const [showPdfViewer, setShowPdfViewer] = useState(true);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string>('');
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploadedFileId, setUploadedFileId] = useState<string | null>(null);
   const [selectedTheses, setSelectedTheses] = useState<string[]>([]);
   const [bulkTheses, setBulkTheses] = useState<ThesisItem[]>([]);
   const [currentThesis, setCurrentThesis] = useState<string | null>(null);
+  const [formOptions, setFormOptions] = useState<any | null>(null);
   
   const [juryMembers, setJuryMembers] = useState<JuryMember[]>([
     { id: '1', name: '', institution: '', role: 'Président' }
   ]);
   
   const [formData, setFormData] = useState(initialFormData);
+
+  useEffect(() => {
+    const loadForm = async () => {
+      try {
+        const data = await apiService.getThesisManualForm();
+        setFormOptions(data.reference_data || data);
+      } catch (e) {
+        console.error('Failed to load thesis form options', e);
+      }
+    };
+    loadForm();
+  }, []);
 
   // 3 Universities with their faculties
   const universitiesData = {
@@ -186,15 +203,15 @@ export default function AdminThesisPage() {
       const url = URL.createObjectURL(file);
       setPdfUrl(url);
       
-      // Auto-extract metadata
-      setTimeout(() => {
-        setFormData(prev => ({
-          ...prev,
-          title: 'Titre extrait du PDF',
-          author: 'Auteur détecté',
-          pages: '287'
-        }));
-      }, 1000);
+      // Upload to backend to obtain file_id
+      (async () => {
+        try {
+          const res = await apiService.uploadFile(file, (p) => setUploadProgress(Math.round(p)));
+          setUploadedFileId(res.file_id);
+        } catch (err) {
+          console.error('Upload failed', err);
+        }
+      })();
     }
   };
 
@@ -330,10 +347,34 @@ export default function AdminThesisPage() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Form data:', formData);
-    console.log('Jury members:', juryMembers);
+    if (!uploadedFileId) {
+      alert('Veuillez d\'abord téléverser le fichier PDF.');
+      return;
+    }
+    try {
+      const langId = formOptions?.languages?.find((l: any) => l.code === formData.language)?.id;
+      if (!langId) {
+        alert('Langue invalide.');
+        return;
+      }
+      const payload: any = {
+        title_fr: formData.title || (uploadedFile?.name ?? 'Thèse'),
+        abstract_fr: formData.abstract || '—',
+        defense_date: formData.defendedDate || new Date().toISOString().slice(0, 10),
+        language_id: langId,
+        page_count: formData.pages ? parseInt(formData.pages, 10) : undefined,
+        status: formData.status,
+        file_id: uploadedFileId,
+      };
+      const resp = await apiService.createThesis(payload);
+      console.log('Thesis created', resp);
+      alert('Thèse créée avec succès');
+    } catch (error) {
+      const msg = error instanceof ApiError ? error.message : 'Erreur lors de la création de la thèse';
+      alert(msg);
+    }
   };
 
   return (
@@ -698,10 +739,9 @@ export default function AdminThesisPage() {
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
-                      <option value="fr">Français</option>
-                      <option value="ar">Arabe</option>
-                      <option value="en">Anglais</option>
-                      <option value="tzm">Tamazight</option>
+                      {formOptions?.languages?.map((l: any) => (
+                        <option key={l.id} value={l.code}>{l.name}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -848,10 +888,12 @@ export default function AdminThesisPage() {
                     onChange={handleInputChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="pending">En attente</option>
-                    <option value="approved">Approuvée</option>
-                    <option value="rejected">Rejetée</option>
-                    <option value="revision">Révision demandée</option>
+                    <option value={ThesisStatus.DRAFT}>Brouillon</option>
+                    <option value={ThesisStatus.SUBMITTED}>Soumise</option>
+                    <option value={ThesisStatus.UNDER_REVIEW}>En révision</option>
+                    <option value={ThesisStatus.APPROVED}>Approuvée</option>
+                    <option value={ThesisStatus.REJECTED}>Rejetée</option>
+                    <option value={ThesisStatus.PUBLISHED}>Publiée</option>
                   </select>
                 </div>
               </div>

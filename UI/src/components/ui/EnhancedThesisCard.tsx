@@ -31,7 +31,7 @@ interface EnhancedThesisCardProps {
     language?: { name: string; code: string };
     authors?: Array<{ first_name: string; last_name: string; role: string }>;
     categories?: Array<{ name_fr: string; is_primary: boolean }>;
-    keywords?: Array<{ word_fr: string }>;
+    keywords?: Array<{ keyword_fr: string }>;
     download_count?: number;
     view_count?: number;
     citation_count?: number;
@@ -67,7 +67,8 @@ const languageLabels = {
   [LanguageCode.FRENCH]: 'Français',
   [LanguageCode.ARABIC]: 'العربية',
   [LanguageCode.ENGLISH]: 'English',
-  [LanguageCode.BERBER]: 'Tamazight'
+  [LanguageCode.SPANISH]: 'Español',
+  [LanguageCode.TAMAZIGHT]: 'Tamazight'
 };
 
 const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
@@ -355,7 +356,7 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
             <div className="flex flex-wrap gap-1">
               {thesis.keywords.slice(0, 3).map((keyword, index) => (
                 <span key={index} className="badge badge-gray text-xs">
-                  {keyword.word_fr}
+                  {keyword.keyword_fr}
                 </span>
               ))}
               {thesis.keywords.length > 3 && (
