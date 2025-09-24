@@ -58,10 +58,15 @@ const SearchResultsPage: React.FC = () => {
     if (sort_order) urlFilters.sort_order = sort_order as SortOrder;
 
     if (Object.keys(urlFilters).length > 0) {
-      setFilters(urlFilters);
-      search(urlFilters);
+      // Only update if different from current filters to avoid loops
+      const keys = Object.keys(urlFilters) as Array<keyof SearchRequest>;
+      const differs = keys.some((k) => (state.filters as any)[k] !== (urlFilters as any)[k]);
+      if (differs) {
+        setFilters(urlFilters);
+        search(urlFilters);
+      }
     }
-  }, [searchParams, setFilters, search]);
+  }, [searchParams, setFilters, search, state.filters]);
 
   // Update URL when filters change
   useEffect(() => {
@@ -73,8 +78,12 @@ const SearchResultsPage: React.FC = () => {
       }
     });
 
-    setSearchParams(newParams);
-  }, [state.filters, setSearchParams]);
+    const current = searchParams.toString();
+    const next = newParams.toString();
+    if (current !== next) {
+      setSearchParams(newParams);
+    }
+  }, [state.filters, setSearchParams, searchParams]);
 
   const handleFiltersChange = useCallback((newFilters: Partial<SearchRequest>) => {
     setFilters({ ...newFilters, page: 1 }); // Reset to first page when filters change

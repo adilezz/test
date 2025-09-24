@@ -119,6 +119,10 @@ export const SearchProvider: React.FC<SearchProviderProps> = ({ children }) => {
   const search = useCallback(async (newFilters?: Partial<SearchRequest>) => {
     const searchFilters = newFilters ? { ...state.filters, ...newFilters } : state.filters;
     
+    // Prevent unnecessary duplicate searches by updating lastSearchQuery eagerly
+    if (searchFilters.q) {
+      dispatch({ type: 'SET_LAST_QUERY', payload: searchFilters.q });
+    }
     dispatch({ type: 'SET_LOADING', payload: true });
     dispatch({ type: 'SET_ERROR', payload: null });
 
@@ -141,10 +145,7 @@ export const SearchProvider: React.FC<SearchProviderProps> = ({ children }) => {
         dispatch({ type: 'SET_FILTERS', payload: newFilters });
       }
 
-      // Store the search query for reference
-      if (searchFilters.q) {
-        dispatch({ type: 'SET_LAST_QUERY', payload: searchFilters.q });
-      }
+      // lastSearchQuery already updated eagerly above
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Search failed';
       dispatch({ type: 'SET_ERROR', payload: errorMessage });

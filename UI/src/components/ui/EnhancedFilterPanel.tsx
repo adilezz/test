@@ -196,6 +196,14 @@ const EnhancedFilterPanel: React.FC<EnhancedFilterPanelProps> = ({
     };
 
     loadDegrees();
+    // Eagerly load initial expanded tree groups so the panel shows promptly
+    const initialGroups = Array.from(expandedGroups);
+    initialGroups.forEach((groupKey) => {
+      const group = filterGroups.find(g => g.key === groupKey);
+      if (group && group.type === 'tree') {
+        loadTreeData(groupKey, group);
+      }
+    });
   }, []);
 
   const toggleGroup = useCallback((groupKey: string) => {
