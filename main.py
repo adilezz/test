@@ -2416,17 +2416,47 @@ async def get_admin_universities(
         # Get paginated results
         results = execute_query_with_result(base_query, params)
         
+        # Precompute roll-up counts for dashboard cards
+        uni_ids = [str(r["id"]) for r in results]
+        faculty_counts: Dict[str, int] = {}
+        department_counts: Dict[str, int] = {}
+        thesis_counts: Dict[str, int] = {}
+        if uni_ids:
+            placeholders = ",".join(["%s"] * len(uni_ids))
+            # Faculties per university
+            fac_q = f"SELECT university_id, COUNT(*) AS c FROM faculties WHERE university_id IN ({placeholders}) GROUP BY university_id"
+            for r in execute_query_with_result(fac_q, uni_ids):
+                faculty_counts[str(r["university_id"])] = r["c"]
+            # Departments via faculties per university
+            dept_q = f"""
+                SELECT f.university_id AS uid, COUNT(d.id) AS c
+                FROM departments d
+                JOIN faculties f ON d.faculty_id = f.id
+                WHERE f.university_id IN ({placeholders})
+                GROUP BY f.university_id
+            """
+            for r in execute_query_with_result(dept_q, uni_ids):
+                department_counts[str(r["uid"])] = r["c"]
+            # Theses per university (approved/published)
+            thesis_q = f"SELECT university_id, COUNT(*) AS c FROM theses WHERE status IN ('approved','published') AND university_id IN ({placeholders}) GROUP BY university_id"
+            for r in execute_query_with_result(thesis_q, uni_ids):
+                thesis_counts[str(r["university_id"])] = r["c"]
+        
         # Format results
         universities = []
         for row in results:
+            uid = str(row["id"])
             universities.append({
-                "id": str(row["id"]),
+                "id": uid,
                 "name_fr": row["name_fr"],
                 "name_ar": row["name_ar"],
                 "name_en": row["name_en"],
                 "acronym": row["acronym"],
                 "geographic_entities_id": str(row["geographic_entities_id"]) if row["geographic_entities_id"] else None,
                 "location_name": row["location_name"],
+                "faculty_count": faculty_counts.get(uid, 0),
+                "department_count": department_counts.get(uid, 0),
+                "thesis_count": thesis_counts.get(uid, 0),
                 "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                 "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None
             })
@@ -3018,11 +3048,25 @@ async def get_admin_faculties(
         # Get paginated results
         results = execute_query_with_result(base_query, params)
         
+        # Roll-up counts for dashboard cards
+        fac_ids = [str(r["id"]) for r in results]
+        department_counts: Dict[str, int] = {}
+        thesis_counts: Dict[str, int] = {}
+        if fac_ids:
+            placeholders = ",".join(["%s"] * len(fac_ids))
+            dept_q = f"SELECT faculty_id, COUNT(*) AS c FROM departments WHERE faculty_id IN ({placeholders}) GROUP BY faculty_id"
+            for r in execute_query_with_result(dept_q, fac_ids):
+                department_counts[str(r["faculty_id"])] = r["c"]
+            thesis_q = f"SELECT faculty_id, COUNT(*) AS c FROM theses WHERE status IN ('approved','published') AND faculty_id IN ({placeholders}) GROUP BY faculty_id"
+            for r in execute_query_with_result(thesis_q, fac_ids):
+                thesis_counts[str(r["faculty_id"])] = r["c"]
+
         # Format results
         faculties = []
         for row in results:
+            fid = str(row["id"])
             faculties.append({
-                "id": str(row["id"]),
+                "id": fid,
                 "university_id": str(row["university_id"]),
                 "university_name": row["university_name"],
                 "university_acronym": row["university_acronym"],
@@ -3030,6 +3074,8 @@ async def get_admin_faculties(
                 "name_ar": row["name_ar"],
                 "name_en": row["name_en"],
                 "acronym": row["acronym"],
+                "department_count": department_counts.get(fid, 0),
+                "thesis_count": thesis_counts.get(fid, 0),
                 "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                 "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None
             })
@@ -7092,47 +7138,29 @@ async def public_thesis_download(thesis_id: str, request: Request):
     return serve_file(r["file_url"], r["file_name"]) 
 
 # =============================================================================
-# APPLICATION STARTUP
+# APPLICATION STARTUP/SHUTDOWN
 # =============================================================================
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize application on startup"""
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    
     try:
-        # Initialize database connection
         init_database()
         logger.info("Database connection initialized successfully")
-        
-        # Create upload directories
         for directory in [TEMP_UPLOAD_DIR, PUBLISHED_DIR, BULK_UPLOAD_DIR]:
             directory.mkdir(parents=True, exist_ok=True)
         logger.info("Upload directories created/verified")
-        
-        # Clean up old temporary files on startup
-        #cleaned_count = cleanup_old_temp_files(days_old=7)
-        #logger.info(f"Cleaned up {cleaned_count} old temporary files")
-        
-        logger.info("Application startup completed successfully")
-        
     except Exception as e:
         logger.error(f"Failed to initialize application: {e}")
         raise
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Clean up resources on shutdown"""
     logger.info("Shutting down application...")
-    
     try:
-        # Close database connections
         if db_pool:
             db_pool.close_all()
             logger.info("Database connections closed")
-            
-        logger.info("Application shutdown completed")
-        
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
 
