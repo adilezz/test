@@ -59,17 +59,83 @@ export default function AdminUniversitiesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
+  const [geographicEntities, setGeographicEntities] = useState<any[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    geographic_entity: '',
+    has_faculties: '',
+    has_theses: ''
+  });
   const [formData, setFormData] = useState<UniversityCreate>({
     name_fr: '',
     name_en: '',
     name_ar: '',
     acronym: '',
-    geographic_entities_id: ''
+    geographic_entities_id: undefined
   });
 
   useEffect(() => {
     loadData();
+    loadGeographicEntities();
   }, []);
+
+  const loadGeographicEntities = async () => {
+    try {
+      const response = await apiService.adminList('geographic_entities');
+      setGeographicEntities(response.data || []);
+    } catch (error) {
+      console.error('Error loading geographic entities:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [viewMode]);
+
+  // Debounced search effect
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (viewMode === 'list') {
+        loadData();
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  // Filter effect
+  useEffect(() => {
+    if (viewMode === 'list') {
+      loadData();
+    }
+  }, [filters]);
+
+  const filterTreeData = (nodes: TreeNode[], searchTerm: string): TreeNode[] => {
+    if (!searchTerm.trim()) return nodes;
+    
+    const lowerSearch = searchTerm.toLowerCase();
+    
+    return nodes.filter(node => {
+      const matchesNode = 
+        node.name_fr.toLowerCase().includes(lowerSearch) ||
+        node.name_en?.toLowerCase().includes(lowerSearch) ||
+        node.name_ar?.toLowerCase().includes(lowerSearch) ||
+        node.acronym?.toLowerCase().includes(lowerSearch);
+      
+      const hasMatchingChildren = node.children && 
+        filterTreeData(node.children, searchTerm).length > 0;
+      
+      if (matchesNode || hasMatchingChildren) {
+        return {
+          ...node,
+          children: node.children ? filterTreeData(node.children, searchTerm) : undefined,
+          expanded: hasMatchingChildren ? true : node.expanded
+        };
+      }
+      
+      return false;
+    }).map(node => typeof node === 'object' ? node : nodes.find(n => n === node)!);
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -78,8 +144,15 @@ export default function AdminUniversitiesPage() {
         const treeResponse = await apiService.getUniversitiesTree(true, 5);
         setTreeData(transformToTreeNodes(treeResponse));
       } else {
-        const listResponse = await apiService.adminList<PaginatedResponse>('universities');
-        setFlatList(listResponse.data);
+        const params: Record<string, string | number> = {};
+        if (searchTerm.trim()) {
+          params.search = searchTerm.trim();
+        }
+        if (filters.geographic_entity) {
+          params.geographic_entity_id = filters.geographic_entity;
+        }
+        const listResponse = await apiService.adminList<PaginatedResponse>('universities', params);
+        setFlatList(listResponse.data || []);
       }
     } catch (error) {
       console.error('Error loading universities:', error);
@@ -88,7 +161,7 @@ export default function AdminUniversitiesPage() {
     }
   };
 
-  const transformToTreeNodes = (data: TreeNodeData[]): TreeNode[] => {
+  const transformToTreeNodes = (data: any[]): TreeNode[] => {
     return data.map(item => ({
       id: item.id,
       name_fr: item.name_fr,
@@ -98,7 +171,7 @@ export default function AdminUniversitiesPage() {
       type: 'university',
       thesis_count: item.thesis_count,
       expanded: false,
-      children: item.children?.map(faculty => ({
+      children: item.faculties && item.faculties.length > 0 ? item.faculties.map((faculty: any) => ({
         id: faculty.id,
         name_fr: faculty.name_fr,
         name_en: faculty.name_en,
@@ -108,7 +181,7 @@ export default function AdminUniversitiesPage() {
         parent_id: item.id,
         thesis_count: faculty.thesis_count,
         expanded: false,
-        children: faculty.children?.map(dept => ({
+        children: faculty.departments && faculty.departments.length > 0 ? faculty.departments.map((dept: any) => ({
           id: dept.id,
           name_fr: dept.name_fr,
           name_en: dept.name_en,
@@ -117,8 +190,8 @@ export default function AdminUniversitiesPage() {
           type: 'department' as const,
           parent_id: faculty.id,
           thesis_count: dept.thesis_count
-        }))
-      }))
+        })) : []
+      })) : []
     }));
   };
 
@@ -145,14 +218,23 @@ export default function AdminUniversitiesPage() {
 
   const handleCreate = async () => {
     try {
-      await apiService.adminCreate('universities', formData);
+      // Clean form data before sending
+      const cleanData = {
+        ...formData,
+        name_en: formData.name_en || undefined,
+        name_ar: formData.name_ar || undefined,
+        acronym: formData.acronym || undefined,
+        geographic_entities_id: formData.geographic_entities_id || undefined
+      };
+      
+      await apiService.adminCreate('universities', cleanData);
       setModal({ isOpen: false, mode: 'create' });
       setFormData({
         name_fr: '',
         name_en: '',
         name_ar: '',
         acronym: '',
-        geographic_entities_id: ''
+        geographic_entities_id: undefined
       });
       loadData();
     } catch (error) {
@@ -164,7 +246,16 @@ export default function AdminUniversitiesPage() {
     if (!modal.item) return;
     
     try {
-      await apiService.adminUpdate('universities', modal.item.id, formData);
+      // Clean form data before sending
+      const cleanData = {
+        ...formData,
+        name_en: formData.name_en || undefined,
+        name_ar: formData.name_ar || undefined,
+        acronym: formData.acronym || undefined,
+        geographic_entities_id: formData.geographic_entities_id || undefined
+      };
+      
+      await apiService.adminUpdate('universities', modal.item.id, cleanData);
       setModal({ isOpen: false, mode: 'edit' });
       loadData();
     } catch (error) {
@@ -189,7 +280,7 @@ export default function AdminUniversitiesPage() {
         name_en: item.name_en || '',
         name_ar: item.name_ar || '',
         acronym: item.acronym || '',
-        geographic_entities_id: item.geographic_entities_id || ''
+        geographic_entities_id: item.geographic_entities_id || undefined
       });
     } else if (mode === 'create') {
       setFormData({
@@ -197,7 +288,7 @@ export default function AdminUniversitiesPage() {
         name_en: '',
         name_ar: '',
         acronym: '',
-        geographic_entities_id: ''
+        geographic_entities_id: undefined
       });
     }
   };
@@ -369,16 +460,39 @@ export default function AdminUniversitiesPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Acronyme
-                </label>
-                <input
-                  type="text"
-                  value={formData.acronym}
-                  onChange={(e) => setFormData({ ...formData, acronym: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Acronyme
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.acronym}
+                    onChange={(e) => setFormData({ ...formData, acronym: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Localisation
+                  </label>
+                  <select
+                    value={formData.geographic_entities_id || ''}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      geographic_entities_id: e.target.value || undefined 
+                    })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Sélectionner une localisation</option>
+                    {geographicEntities.map((entity) => (
+                      <option key={entity.id} value={entity.id}>
+                        {entity.name_fr} {entity.level && `(${entity.level})`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="flex justify-end space-x-3 pt-4">
@@ -421,6 +535,14 @@ export default function AdminUniversitiesPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Acronyme</label>
                   <p className="mt-1 text-gray-900">{modal.item.acronym}</p>
+                </div>
+              )}
+              {modal.item.geographic_entities_id && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Localisation</label>
+                  <p className="mt-1 text-gray-900">
+                    {geographicEntities.find(e => e.id === modal.item?.geographic_entities_id)?.name_fr || 'Non spécifiée'}
+                  </p>
                 </div>
               )}
               <div>
@@ -480,7 +602,14 @@ export default function AdminUniversitiesPage() {
                   className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
-              <button className="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+              <button 
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex items-center space-x-2 px-3 py-2 border rounded-lg ${
+                  showFilters 
+                    ? 'bg-blue-50 border-blue-200 text-blue-700' 
+                    : 'border-gray-300 hover:bg-gray-50'
+                }`}
+              >
                 <Filter className="w-4 h-4" />
                 <span>Filtres</span>
               </button>
@@ -511,6 +640,71 @@ export default function AdminUniversitiesPage() {
           </div>
         </div>
 
+        {/* Filter Panel */}
+        {showFilters && (
+          <div className="bg-white rounded-lg shadow p-4 mb-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Filtres</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Localisation
+                </label>
+                <select
+                  value={filters.geographic_entity}
+                  onChange={(e) => setFilters({ ...filters, geographic_entity: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Toutes les localisations</option>
+                  {geographicEntities.map((entity) => (
+                    <option key={entity.id} value={entity.id}>
+                      {entity.name_fr} {entity.level && `(${entity.level})`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Avec facultés
+                </label>
+                <select
+                  value={filters.has_faculties}
+                  onChange={(e) => setFilters({ ...filters, has_faculties: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Toutes</option>
+                  <option value="yes">Avec facultés</option>
+                  <option value="no">Sans facultés</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Avec thèses
+                </label>
+                <select
+                  value={filters.has_theses}
+                  onChange={(e) => setFilters({ ...filters, has_theses: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Toutes</option>
+                  <option value="yes">Avec thèses</option>
+                  <option value="no">Sans thèses</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={() => setFilters({ geographic_entity: '', has_faculties: '', has_theses: '' })}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Réinitialiser
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Content */}
         <div className="bg-white rounded-lg shadow">
           {viewMode === 'tree' ? (
@@ -519,7 +713,7 @@ export default function AdminUniversitiesPage() {
                 Structure Hiérarchique
               </h2>
               <div className="space-y-1">
-                {treeData.map((node, index) => renderTreeNode(node, [index]))}
+                {filterTreeData(treeData, searchTerm).map((node, index) => renderTreeNode(node, [index]))}
               </div>
             </div>
           ) : (
