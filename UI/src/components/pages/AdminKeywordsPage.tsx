@@ -19,7 +19,8 @@ import {
   KeywordResponse,
   PaginatedResponse,
   KeywordCreate,
-  KeywordUpdate
+  KeywordUpdate,
+  CategoryResponse
 } from '../../types/api';
 
 interface ModalState {
@@ -32,15 +33,19 @@ export default function AdminKeywordsPage() {
   const [data, setData] = useState<KeywordResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [categories, setCategories] = useState<CategoryResponse[]>([]);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
   const [formData, setFormData] = useState<KeywordCreate>({
-    word_fr: '',
-    word_en: '',
-    word_ar: ''
+    parent_keyword_id: '',
+    keyword_fr: '',
+    keyword_en: '',
+    keyword_ar: '',
+    category_id: ''
   });
 
   useEffect(() => {
     loadData();
+    loadCategories();
   }, []);
 
   const loadData = async () => {
@@ -52,6 +57,15 @@ export default function AdminKeywordsPage() {
       console.error('Error loading keywords:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCategories = async () => {
+    try {
+      const response = await apiService.adminList<PaginatedResponse>('categories', { limit: 1000 });
+      setCategories(response.data);
+    } catch (error) {
+      console.error('Error loading categories:', error);
     }
   };
 
@@ -89,9 +103,11 @@ export default function AdminKeywordsPage() {
 
   const resetForm = () => {
     setFormData({
-      word_fr: '',
-      word_en: '',
-      word_ar: ''
+      parent_keyword_id: '',
+      keyword_fr: '',
+      keyword_en: '',
+      keyword_ar: '',
+      category_id: ''
     });
   };
 
@@ -100,9 +116,11 @@ export default function AdminKeywordsPage() {
     
     if (mode === 'edit' && item) {
       setFormData({
-        word_fr: item.word_fr,
-        word_en: item.word_en || '',
-        word_ar: item.word_ar || ''
+        parent_keyword_id: item.parent_keyword_id || '',
+        keyword_fr: item.keyword_fr,
+        keyword_en: item.keyword_en || '',
+        keyword_ar: item.keyword_ar || '',
+        category_id: item.category_id || ''
       });
     } else if (mode === 'create') {
       resetForm();
@@ -110,9 +128,9 @@ export default function AdminKeywordsPage() {
   };
 
   const filteredData = data.filter(keyword => 
-    keyword.word_fr.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (keyword.word_en && keyword.word_en.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (keyword.word_ar && keyword.word_ar.includes(searchTerm))
+    keyword.keyword_fr.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (keyword.keyword_en && keyword.keyword_en.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (keyword.keyword_ar && keyword.keyword_ar.includes(searchTerm))
   );
 
   const renderModal = () => {
@@ -140,46 +158,95 @@ export default function AdminKeywordsPage() {
             <form onSubmit={(e) => {
               e.preventDefault();
               modal.mode === 'create' ? handleCreate() : handleUpdate();
-            }} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Mot-clé (Français) *
-                </label>
-                <input
-                  type="text"
-                  value={formData.word_fr}
-                  onChange={(e) => setFormData({ ...formData, word_fr: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                  placeholder="Mot-clé en français"
-                />
+            }} className="space-y-6">
+              
+              {/* Hierarchy Section */}
+              <div className="border-b border-gray-200 pb-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Hiérarchie</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Mot-clé parent
+                    </label>
+                    <select
+                      value={formData.parent_keyword_id || ''}
+                      onChange={(e) => setFormData({ ...formData, parent_keyword_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Aucun parent (mot-clé racine)</option>
+                      {data.filter(k => k.id !== modal.item?.id).map(keyword => (
+                        <option key={keyword.id} value={keyword.id}>
+                          {keyword.keyword_fr}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Catégorie
+                    </label>
+                    <select
+                      value={formData.category_id || ''}
+                      onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Aucune catégorie</option>
+                      {categories.map(category => (
+                        <option key={category.id} value={category.id}>
+                          {category.name_fr}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
 
+              {/* Keywords Section */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Mot-clé (Anglais)
-                </label>
-                <input
-                  type="text"
-                  value={formData.word_en}
-                  onChange={(e) => setFormData({ ...formData, word_en: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Keyword in English"
-                />
-              </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Traductions</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Mot-clé (Français) *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.keyword_fr}
+                      onChange={(e) => setFormData({ ...formData, keyword_fr: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                      placeholder="Mot-clé en français"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Mot-clé (Arabe)
-                </label>
-                <input
-                  type="text"
-                  value={formData.word_ar}
-                  onChange={(e) => setFormData({ ...formData, word_ar: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="الكلمة المفتاحية بالعربية"
-                  dir="rtl"
-                />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Keyword (English)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.keyword_en || ''}
+                      onChange={(e) => setFormData({ ...formData, keyword_en: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Keyword in English"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      الكلمة المفتاحية (العربية)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.keyword_ar || ''}
+                      onChange={(e) => setFormData({ ...formData, keyword_ar: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="الكلمة المفتاحية بالعربية"
+                      dir="rtl"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="flex justify-end space-x-3 pt-4">
@@ -201,30 +268,85 @@ export default function AdminKeywordsPage() {
           )}
 
           {modal.mode === 'view' && modal.item && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Mot-clé (Français)</label>
-                <p className="mt-1 text-gray-900">{modal.item.word_fr}</p>
+            <div className="space-y-6">
+              {/* Hierarchy Information */}
+              {(modal.item.parent_keyword_id || modal.item.category_id) && (
+                <div className="border-b border-gray-200 pb-4">
+                  <h3 className="text-lg font-medium text-gray-900 mb-3">Hiérarchie</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {modal.item.parent_keyword_id && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Mot-clé parent</label>
+                        <p className="mt-1 text-gray-900">
+                          {data.find(k => k.id === modal.item?.parent_keyword_id)?.keyword_fr || modal.item.parent_keyword_id}
+                        </p>
+                      </div>
+                    )}
+                    {modal.item.category_id && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Catégorie</label>
+                        <p className="mt-1 text-gray-900">
+                          {categories.find(c => c.id === modal.item?.category_id)?.name_fr || modal.item.category_id}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Keywords */}
+              <div className="border-b border-gray-200 pb-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Traductions</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Mot-clé (Français)</label>
+                    <p className="mt-1 text-gray-900">{modal.item.keyword_fr}</p>
+                  </div>
+                  
+                  {modal.item.keyword_en && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Keyword (English)</label>
+                      <p className="mt-1 text-gray-900">{modal.item.keyword_en}</p>
+                    </div>
+                  )}
+                  
+                  {modal.item.keyword_ar && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">الكلمة المفتاحية (العربية)</label>
+                      <p className="mt-1 text-gray-900" dir="rtl">{modal.item.keyword_ar}</p>
+                    </div>
+                  )}
+                </div>
               </div>
-              
-              {modal.item.word_en && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Mot-clé (Anglais)</label>
-                  <p className="mt-1 text-gray-900">{modal.item.word_en}</p>
+
+              {/* Child Keywords */}
+              {data.filter(k => k.parent_keyword_id === modal.item?.id).length > 0 && (
+                <div className="border-b border-gray-200 pb-4">
+                  <h3 className="text-lg font-medium text-gray-900 mb-3">Mots-clés enfants</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {data.filter(k => k.parent_keyword_id === modal.item?.id).map(child => (
+                      <span
+                        key={child.id}
+                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                      >
+                        {child.keyword_fr}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
               
-              {modal.item.word_ar && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Mot-clé (Arabe)</label>
-                  <p className="mt-1 text-gray-900" dir="rtl">{modal.item.word_ar}</p>
-                </div>
-              )}
-              
+              {/* Metadata */}
               <div>
                 <label className="block text-sm font-medium text-gray-700">Créé le</label>
                 <p className="mt-1 text-gray-900">
-                  {new Date(modal.item.created_at).toLocaleDateString('fr-FR')}
+                  {new Date(modal.item.created_at).toLocaleDateString('fr-FR', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
                 </p>
               </div>
             </div>
@@ -288,7 +410,7 @@ export default function AdminKeywordsPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Multilingues</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {data.filter(k => k.word_en || k.word_ar).length.toLocaleString()}
+                  {data.filter(k => k.keyword_en || k.keyword_ar).length.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -300,9 +422,9 @@ export default function AdminKeywordsPage() {
                 <Hash className="w-6 h-6" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Français uniquement</p>
+                <p className="text-sm font-medium text-gray-600">Avec hiérarchie</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {data.filter(k => !k.word_en && !k.word_ar).length.toLocaleString()}
+                  {data.filter(k => k.parent_keyword_id || k.category_id).length.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -351,6 +473,9 @@ export default function AdminKeywordsPage() {
                     Arabe
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Hiérarchie
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Créé le
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -368,19 +493,38 @@ export default function AdminKeywordsPage() {
                         </div>
                         <div className="ml-3">
                           <div className="text-sm font-medium text-gray-900">
-                            {keyword.word_fr}
+                            {keyword.keyword_fr}
                           </div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {keyword.word_en || <span className="text-gray-400">-</span>}
+                        {keyword.keyword_en || <span className="text-gray-400">-</span>}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900" dir="rtl">
-                        {keyword.word_ar || <span className="text-gray-400">-</span>}
+                        {keyword.keyword_ar || <span className="text-gray-400">-</span>}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {keyword.parent_keyword_id && (
+                          <div className="flex items-center space-x-1">
+                            <span className="text-xs text-gray-500">Parent:</span>
+                            <span>{data.find(k => k.id === keyword.parent_keyword_id)?.keyword_fr || 'N/A'}</span>
+                          </div>
+                        )}
+                        {keyword.category_id && (
+                          <div className="flex items-center space-x-1 mt-1">
+                            <span className="text-xs text-gray-500">Cat:</span>
+                            <span>{categories.find(c => c.id === keyword.category_id)?.name_fr || 'N/A'}</span>
+                          </div>
+                        )}
+                        {!keyword.parent_keyword_id && !keyword.category_id && (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

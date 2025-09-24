@@ -14,7 +14,12 @@ import {
   Check,
   AlertCircle,
   UserPlus,
-  ExternalLink
+  ExternalLink,
+  Grid3X3,
+  List,
+  Phone,
+  School,
+  Globe
 } from 'lucide-react';
 import { apiService } from '../../services/api';
 import { 
@@ -23,7 +28,8 @@ import {
   AcademicPersonCreate,
   AcademicPersonUpdate,
   UniversityResponse,
-  FacultyResponse
+  FacultyResponse,
+  SchoolResponse
 } from '../../types/api';
 
 interface ModalState {
@@ -36,19 +42,33 @@ export default function AdminAcademicPersonsPage() {
   const [data, setData] = useState<AcademicPersonResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<'list' | 'card'>('list');
   const [universities, setUniversities] = useState<UniversityResponse[]>([]);
+  const [faculties, setFaculties] = useState<FacultyResponse[]>([]);
+  const [schools, setSchools] = useState<SchoolResponse[]>([]);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
   const [formData, setFormData] = useState<AcademicPersonCreate>({
-    first_name: '',
-    last_name: '',
-    email: '',
+    complete_name_fr: '',
+    complete_name_ar: '',
+    first_name_fr: '',
+    last_name_fr: '',
+    first_name_ar: '',
+    last_name_ar: '',
     title: '',
-    orcid: ''
+    university_id: '',
+    faculty_id: '',
+    school_id: '',
+    external_institution_name: '',
+    external_institution_country: '',
+    external_institution_type: '',
+    user_id: ''
   });
 
   useEffect(() => {
     loadData();
     loadUniversities();
+    loadFaculties();
+    loadSchools();
   }, []);
 
   const loadData = async () => {
@@ -69,6 +89,24 @@ export default function AdminAcademicPersonsPage() {
       setUniversities(response.data);
     } catch (error) {
       console.error('Error loading universities:', error);
+    }
+  };
+
+  const loadFaculties = async () => {
+    try {
+      const response = await apiService.adminList<PaginatedResponse>('faculties', { limit: 1000 });
+      setFaculties(response.data);
+    } catch (error) {
+      console.error('Error loading faculties:', error);
+    }
+  };
+
+  const loadSchools = async () => {
+    try {
+      const response = await apiService.adminList<PaginatedResponse>('schools', { limit: 1000 });
+      setSchools(response.data);
+    } catch (error) {
+      console.error('Error loading schools:', error);
     }
   };
 
@@ -106,11 +144,20 @@ export default function AdminAcademicPersonsPage() {
 
   const resetForm = () => {
     setFormData({
-      first_name: '',
-      last_name: '',
-      email: '',
+      complete_name_fr: '',
+      complete_name_ar: '',
+      first_name_fr: '',
+      last_name_fr: '',
+      first_name_ar: '',
+      last_name_ar: '',
       title: '',
-      orcid: ''
+      university_id: '',
+      faculty_id: '',
+      school_id: '',
+      external_institution_name: '',
+      external_institution_country: '',
+      external_institution_type: '',
+      user_id: ''
     });
   };
 
@@ -119,11 +166,20 @@ export default function AdminAcademicPersonsPage() {
     
     if (mode === 'edit' && item) {
       setFormData({
-        first_name: item.first_name,
-        last_name: item.last_name,
-        email: item.email || '',
+        complete_name_fr: item.complete_name_fr || '',
+        complete_name_ar: item.complete_name_ar || '',
+        first_name_fr: item.first_name_fr,
+        last_name_fr: item.last_name_fr,
+        first_name_ar: item.first_name_ar || '',
+        last_name_ar: item.last_name_ar || '',
         title: item.title || '',
-        orcid: item.orcid || ''
+        university_id: item.university_id || '',
+        faculty_id: item.faculty_id || '',
+        school_id: item.school_id || '',
+        external_institution_name: item.external_institution_name || '',
+        external_institution_country: item.external_institution_country || '',
+        external_institution_type: item.external_institution_type || '',
+        user_id: item.user_id || ''
       });
     } else if (mode === 'create') {
       resetForm();
@@ -131,9 +187,14 @@ export default function AdminAcademicPersonsPage() {
   };
 
   const filteredData = data.filter(person => 
-    person.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    person.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (person.email && person.email.toLowerCase().includes(searchTerm.toLowerCase()))
+    person.first_name_fr.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    person.last_name_fr.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (person.first_name_ar && person.first_name_ar.includes(searchTerm)) ||
+    (person.last_name_ar && person.last_name_ar.includes(searchTerm)) ||
+    (person.complete_name_fr && person.complete_name_fr.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (person.complete_name_ar && person.complete_name_ar.includes(searchTerm)) ||
+    (person.title && person.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (person.external_institution_name && person.external_institution_name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const renderModal = () => {
@@ -161,72 +222,241 @@ export default function AdminAcademicPersonsPage() {
             <form onSubmit={(e) => {
               e.preventDefault();
               modal.mode === 'create' ? handleCreate() : handleUpdate();
-            }} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Prénom *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.first_name}
-                    onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
-                </div>
+            }} className="space-y-6">
+              
+              {/* Complete Names Section */}
+              <div className="border-b border-gray-200 pb-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Noms complets</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Nom complet (Français)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.complete_name_fr || ''}
+                      onChange={(e) => setFormData({ ...formData, complete_name_fr: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Dr. Jean Dupont"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nom *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.last_name}
-                    onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      الاسم الكامل (العربية)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.complete_name_ar || ''}
+                      onChange={(e) => setFormData({ ...formData, complete_name_ar: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="د. محمد أحمد"
+                      dir="rtl"
+                    />
+                  </div>
                 </div>
               </div>
 
+              {/* Individual Names Section */}
+              <div className="border-b border-gray-200 pb-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Noms individuels</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Prénom (Français) *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.first_name_fr}
+                      onChange={(e) => setFormData({ ...formData, first_name_fr: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                      placeholder="Jean"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Nom (Français) *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.last_name_fr}
+                      onChange={(e) => setFormData({ ...formData, last_name_fr: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                      placeholder="Dupont"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      الاسم الأول (العربية)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.first_name_ar || ''}
+                      onChange={(e) => setFormData({ ...formData, first_name_ar: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="محمد"
+                      dir="rtl"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      اللقب (العربية)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.last_name_ar || ''}
+                      onChange={(e) => setFormData({ ...formData, last_name_ar: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="أحمد"
+                      dir="rtl"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Information */}
+              <div className="border-b border-gray-200 pb-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Informations additionnelles</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Titre académique
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.title || ''}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Dr., Prof., etc."
+                      maxLength={10}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Utilisateur lié
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.user_id || ''}
+                      onChange={(e) => setFormData({ ...formData, user_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="ID de l'utilisateur (optionnel)"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* External Institution */}
+              <div className="border-b border-gray-200 pb-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Institution externe (si applicable)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Nom de l'institution externe
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.external_institution_name || ''}
+                      onChange={(e) => setFormData({ ...formData, external_institution_name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Nom de l'institution externe"
+                      maxLength={255}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Pays de l'institution externe
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.external_institution_country || ''}
+                      onChange={(e) => setFormData({ ...formData, external_institution_country: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Pays"
+                      maxLength={100}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Type d'institution externe
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.external_institution_type || ''}
+                      onChange={(e) => setFormData({ ...formData, external_institution_type: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Université, Institut, etc."
+                      maxLength={50}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Institutional Affiliation */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Affiliation institutionnelle</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Université
+                    </label>
+                    <select
+                      value={formData.university_id || ''}
+                      onChange={(e) => setFormData({ ...formData, university_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Sélectionner une université</option>
+                      {universities.map(university => (
+                        <option key={university.id} value={university.id}>
+                          {university.name_fr}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Titre
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Dr., Prof., etc."
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Faculté
+                    </label>
+                    <select
+                      value={formData.faculty_id || ''}
+                      onChange={(e) => setFormData({ ...formData, faculty_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Sélectionner une faculté</option>
+                      {faculties.map(faculty => (
+                        <option key={faculty.id} value={faculty.id}>
+                          {faculty.name_fr}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    ORCID
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.orcid}
-                    onChange={(e) => setFormData({ ...formData, orcid: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="0000-0000-0000-0000"
-                  />
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      École
+                    </label>
+                    <select
+                      value={formData.school_id || ''}
+                      onChange={(e) => setFormData({ ...formData, school_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Sélectionner une école</option>
+                      {schools.map(school => (
+                        <option key={school.id} value={school.id}>
+                          {school.name_fr}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -249,43 +479,147 @@ export default function AdminAcademicPersonsPage() {
           )}
 
           {modal.mode === 'view' && modal.item && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Nom complet</label>
-                <p className="mt-1 text-gray-900">
-                  {modal.item.title && `${modal.item.title} `}
-                  {modal.item.first_name} {modal.item.last_name}
-                </p>
-              </div>
-              
-              {modal.item.email && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Email</label>
-                  <p className="mt-1 text-gray-900">{modal.item.email}</p>
-                </div>
-              )}
-              
-              {modal.item.orcid && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">ORCID</label>
-                  <div className="mt-1 flex items-center space-x-2">
-                    <span className="text-gray-900">{modal.item.orcid}</span>
-                    <a
-                      href={`https://orcid.org/${modal.item.orcid}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
+            <div className="space-y-6">
+              {/* Complete Names */}
+              {(modal.item.complete_name_fr || modal.item.complete_name_ar) && (
+                <div className="border-b border-gray-200 pb-4">
+                  <h3 className="text-lg font-medium text-gray-900 mb-3">Noms complets</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {modal.item.complete_name_fr && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Nom complet (Français)</label>
+                        <p className="mt-1 text-gray-900">{modal.item.complete_name_fr}</p>
+                      </div>
+                    )}
+                    {modal.item.complete_name_ar && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">الاسم الكامل (العربية)</label>
+                        <p className="mt-1 text-gray-900" dir="rtl">{modal.item.complete_name_ar}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
-              
+
+              {/* Individual Names */}
+              <div className="border-b border-gray-200 pb-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Noms individuels</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Prénom (Français)</label>
+                    <p className="mt-1 text-gray-900">{modal.item.first_name_fr}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Nom (Français)</label>
+                    <p className="mt-1 text-gray-900">{modal.item.last_name_fr}</p>
+                  </div>
+                  {modal.item.first_name_ar && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">الاسم الأول (العربية)</label>
+                      <p className="mt-1 text-gray-900" dir="rtl">{modal.item.first_name_ar}</p>
+                    </div>
+                  )}
+                  {modal.item.last_name_ar && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">اللقب (العربية)</label>
+                      <p className="mt-1 text-gray-900" dir="rtl">{modal.item.last_name_ar}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Additional Information */}
+              {(modal.item.title || modal.item.user_id) && (
+                <div className="border-b border-gray-200 pb-4">
+                  <h3 className="text-lg font-medium text-gray-900 mb-3">Informations additionnelles</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {modal.item.title && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Titre académique</label>
+                        <p className="mt-1 text-gray-900">{modal.item.title}</p>
+                      </div>
+                    )}
+                    {modal.item.user_id && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Utilisateur lié</label>
+                        <p className="mt-1 text-gray-900 font-mono text-xs">{modal.item.user_id}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* External Institution */}
+              {(modal.item.external_institution_name || modal.item.external_institution_country || modal.item.external_institution_type) && (
+                <div className="border-b border-gray-200 pb-4">
+                  <h3 className="text-lg font-medium text-gray-900 mb-3">Institution externe</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {modal.item.external_institution_name && (
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700">Nom de l'institution</label>
+                        <p className="mt-1 text-gray-900">{modal.item.external_institution_name}</p>
+                      </div>
+                    )}
+                    {modal.item.external_institution_country && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Pays</label>
+                        <p className="mt-1 text-gray-900">{modal.item.external_institution_country}</p>
+                      </div>
+                    )}
+                    {modal.item.external_institution_type && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Type</label>
+                        <p className="mt-1 text-gray-900">{modal.item.external_institution_type}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Institutional Affiliation */}
+              {(modal.item.university_id || modal.item.faculty_id || modal.item.school_id) && (
+                <div className="border-b border-gray-200 pb-4">
+                  <h3 className="text-lg font-medium text-gray-900 mb-3">Affiliation institutionnelle</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {modal.item.university_id && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Université</label>
+                        <p className="mt-1 text-gray-900">
+                          {universities.find(u => u.id === modal.item?.university_id)?.name_fr || modal.item.university_id}
+                        </p>
+                      </div>
+                    )}
+                    {modal.item.faculty_id && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Faculté</label>
+                        <p className="mt-1 text-gray-900">
+                          {faculties.find(f => f.id === modal.item?.faculty_id)?.name_fr || modal.item.faculty_id}
+                        </p>
+                      </div>
+                    )}
+                    {modal.item.school_id && (
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700">École</label>
+                        <p className="mt-1 text-gray-900">
+                          {schools.find(s => s.id === modal.item?.school_id)?.name_fr || modal.item.school_id}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Metadata */}
               <div>
                 <label className="block text-sm font-medium text-gray-700">Créée le</label>
                 <p className="mt-1 text-gray-900">
-                  {new Date(modal.item.created_at).toLocaleDateString('fr-FR')}
+                  {new Date(modal.item.created_at).toLocaleDateString('fr-FR', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
                 </p>
               </div>
             </div>
@@ -344,12 +678,12 @@ export default function AdminAcademicPersonsPage() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-green-100 text-green-600">
-                <Mail className="w-6 h-6" />
+                <Building2 className="w-6 h-6" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Avec Email</p>
+                <p className="text-sm font-medium text-gray-600">Avec Institution externe</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {data.filter(p => p.email).length.toLocaleString()}
+                  {data.filter(p => p.external_institution_name).length.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -358,12 +692,12 @@ export default function AdminAcademicPersonsPage() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-purple-100 text-purple-600">
-                <ExternalLink className="w-6 h-6" />
+                <Users className="w-6 h-6" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Avec ORCID</p>
+                <p className="text-sm font-medium text-gray-600">Avec Utilisateur lié</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {data.filter(p => p.orcid).length.toLocaleString()}
+                  {data.filter(p => p.user_id).length.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -378,10 +712,10 @@ export default function AdminAcademicPersonsPage() {
                 <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Rechercher par nom ou email..."
+                  placeholder="Rechercher par nom, titre, institution..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-80"
                 />
               </div>
               <button className="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
@@ -390,117 +724,306 @@ export default function AdminAcademicPersonsPage() {
               </button>
             </div>
 
-            <div className="text-sm text-gray-600">
-              {filteredData.length} personne{filteredData.length !== 1 ? 's' : ''}
+            <div className="flex items-center space-x-4">
+              {/* View Mode Toggle */}
+              <div className="flex items-center space-x-2 bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === 'list'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <List className="w-4 h-4" />
+                  <span>Liste</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('card')}
+                  className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === 'card'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <Grid3X3 className="w-4 h-4" />
+                  <span>Cartes</span>
+                </button>
+              </div>
+
+              <div className="text-sm text-gray-600">
+                {filteredData.length} personne{filteredData.length !== 1 ? 's' : ''}
+              </div>
             </div>
           </div>
         </div>
 
         {/* Content */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Personne
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ORCID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Créée le
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredData.map((person) => (
-                  <tr key={person.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
-                          <span className="text-white font-medium text-sm">
-                            {person.first_name.charAt(0)}{person.last_name.charAt(0)}
-                          </span>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">
-                            {person.title && `${person.title} `}
-                            {person.first_name} {person.last_name}
+        {viewMode === 'list' ? (
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Personne
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Titre / Institution externe
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Affiliation
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Utilisateur lié
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Créée le
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredData.map((person) => (
+                    <tr key={person.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                            <span className="text-white font-medium text-sm">
+                              {person.first_name_fr.charAt(0)}{person.last_name_fr.charAt(0)}
+                            </span>
+                          </div>
+                          <div className="ml-4">
+                            <div className="text-sm font-medium text-gray-900">
+                              {person.complete_name_fr || `${person.first_name_fr} ${person.last_name_fr}`}
+                            </div>
+                            {person.complete_name_ar && (
+                              <div className="text-xs text-gray-500" dir="rtl">
+                                {person.complete_name_ar}
+                              </div>
+                            )}
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {person.email ? (
-                          <a href={`mailto:${person.email}`} className="text-blue-600 hover:text-blue-800">
-                            {person.email}
-                          </a>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {person.orcid ? (
-                          <a
-                            href={`https://orcid.org/${person.orcid}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center space-x-1 text-blue-600 hover:text-blue-800"
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {person.title && (
+                            <div className="flex items-center space-x-1 text-blue-600 font-medium">
+                              <span>{person.title}</span>
+                            </div>
+                          )}
+                          {person.external_institution_name && (
+                            <div className="flex items-center space-x-1 text-gray-600 mt-1">
+                              <Building2 className="w-3 h-3" />
+                              <span className="truncate">{person.external_institution_name}</span>
+                            </div>
+                          )}
+                          {!person.title && !person.external_institution_name && (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {person.university_id && (
+                            <div className="flex items-center space-x-1">
+                              <Building2 className="w-3 h-3" />
+                              <span>{universities.find(u => u.id === person.university_id)?.name_fr || 'Université'}</span>
+                            </div>
+                          )}
+                          {person.faculty_id && (
+                            <div className="flex items-center space-x-1 text-gray-600 mt-1">
+                              <GraduationCap className="w-3 h-3" />
+                              <span>{faculties.find(f => f.id === person.faculty_id)?.name_fr || 'Faculté'}</span>
+                            </div>
+                          )}
+                          {person.school_id && (
+                            <div className="flex items-center space-x-1 text-gray-600 mt-1">
+                              <School className="w-3 h-3" />
+                              <span>{schools.find(s => s.id === person.school_id)?.name_fr || 'École'}</span>
+                            </div>
+                          )}
+                          {!person.university_id && !person.faculty_id && !person.school_id && (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {person.user_id ? (
+                            <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
+                              {person.user_id.substring(0, 8)}...
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(person.created_at).toLocaleDateString('fr-FR')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => openModal('view', person)}
+                            className="text-gray-400 hover:text-gray-600"
                           >
-                            <span>{person.orcid}</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        ) : (
-                          <span className="text-gray-400">-</span>
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => openModal('edit', person)}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm('Êtes-vous sûr de vouloir supprimer cette personne ?')) {
+                                handleDelete(person.id);
+                              }
+                            }}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {filteredData.length === 0 && (
+                <div className="text-center py-12">
+                  <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p className="text-gray-500">
+                    {searchTerm ? 'Aucune personne trouvée pour cette recherche' : 'Aucune personne trouvée'}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Card View */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredData.map((person) => (
+              <div key={person.id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-200">
+                <div className="p-6">
+                  {/* Header with Avatar */}
+                  <div className="flex items-center space-x-4 mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                      <span className="text-white font-medium">
+                        {person.first_name_fr.charAt(0)}{person.last_name_fr.charAt(0)}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg font-medium text-gray-900 truncate">
+                        {person.complete_name_fr || `${person.first_name_fr} ${person.last_name_fr}`}
+                      </h3>
+                      {person.complete_name_ar && (
+                        <p className="text-sm text-gray-500 truncate" dir="rtl">
+                          {person.complete_name_ar}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Additional Information */}
+                  <div className="space-y-2 mb-4">
+                    {person.title && (
+                      <div className="flex items-center space-x-2 text-sm text-blue-600 font-medium">
+                        <GraduationCap className="w-4 h-4" />
+                        <span>{person.title}</span>
+                      </div>
+                    )}
+                    {person.external_institution_name && (
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <Building2 className="w-4 h-4" />
+                        <span className="truncate">{person.external_institution_name}</span>
+                      </div>
+                    )}
+                    {person.user_id && (
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <Users className="w-4 h-4" />
+                        <span className="font-mono text-xs">{person.user_id.substring(0, 8)}...</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Institutional Affiliation */}
+                  {(person.university_id || person.faculty_id || person.school_id) && (
+                    <div className="border-t border-gray-200 pt-4 mb-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Affiliation</h4>
+                      <div className="space-y-1">
+                        {person.university_id && (
+                          <div className="flex items-center space-x-2 text-sm text-gray-600">
+                            <Building2 className="w-3 h-3" />
+                            <span className="truncate">
+                              {universities.find(u => u.id === person.university_id)?.name_fr || 'Université'}
+                            </span>
+                          </div>
+                        )}
+                        {person.faculty_id && (
+                          <div className="flex items-center space-x-2 text-sm text-gray-600">
+                            <GraduationCap className="w-3 h-3" />
+                            <span className="truncate">
+                              {faculties.find(f => f.id === person.faculty_id)?.name_fr || 'Faculté'}
+                            </span>
+                          </div>
+                        )}
+                        {person.school_id && (
+                          <div className="flex items-center space-x-2 text-sm text-gray-600">
+                            <School className="w-3 h-3" />
+                            <span className="truncate">
+                              {schools.find(s => s.id === person.school_id)?.name_fr || 'École'}
+                            </span>
+                          </div>
                         )}
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                    <span className="text-xs text-gray-500">
                       {new Date(person.created_at).toLocaleDateString('fr-FR')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => openModal('view', person)}
-                          className="text-gray-400 hover:text-gray-600"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => openModal('edit', person)}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm('Êtes-vous sûr de vouloir supprimer cette personne ?')) {
-                              handleDelete(person.id);
-                            }
-                          }}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </span>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => openModal('view', person)}
+                        className="text-gray-400 hover:text-gray-600 p-1"
+                        title="Voir les détails"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => openModal('edit', person)}
+                        className="text-blue-600 hover:text-blue-900 p-1"
+                        title="Modifier"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm('Êtes-vous sûr de vouloir supprimer cette personne ?')) {
+                            handleDelete(person.id);
+                          }
+                        }}
+                        className="text-red-600 hover:text-red-900 p-1"
+                        title="Supprimer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
 
             {filteredData.length === 0 && (
-              <div className="text-center py-12">
+              <div className="col-span-full text-center py-12">
                 <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                 <p className="text-gray-500">
                   {searchTerm ? 'Aucune personne trouvée pour cette recherche' : 'Aucune personne trouvée'}
@@ -508,7 +1031,7 @@ export default function AdminAcademicPersonsPage() {
               </div>
             )}
           </div>
-        </div>
+        )}
 
         {renderModal()}
       </div>
