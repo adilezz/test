@@ -16,7 +16,7 @@ export enum LanguageCode {
 
 export enum GeographicLevel {
   COUNTRY = 'country',
-  REGION = 'region',
+  REGION = 'region', 
   PROVINCE = 'province',
   CITY = 'city'
 }
