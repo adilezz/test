@@ -52,6 +52,47 @@ class ApiService {
     this.loadToken();
   }
 
+  // Generic Admin CRUD for reference entities
+  private adminPaths: Record<string, string> = {
+    universities: '/admin/universities',
+    faculties: '/admin/faculties',
+    schools: '/admin/schools',
+    departments: '/admin/departments',
+    categories: '/admin/categories',
+    keywords: '/admin/keywords',
+    academic_persons: '/admin/academic-persons',
+    degrees: '/admin/degrees',
+    languages: '/admin/languages',
+    geographic_entities: '/admin/geographic-entities',
+  };
+
+  async adminList<T = PaginatedResponse>(entity: keyof ApiService['adminPaths'], params: Record<string, string | number> = {}): Promise<T> {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => qs.append(k, String(v)));
+    const path = this.adminPaths[entity];
+    return this.request<T>(`${path}?${qs.toString()}`);
+  }
+
+  async adminGet<T = any>(entity: keyof ApiService['adminPaths'], id: string): Promise<T> {
+    const path = this.adminPaths[entity];
+    return this.request<T>(`${path}/${id}`);
+  }
+
+  async adminCreate<T = any>(entity: keyof ApiService['adminPaths'], data: any): Promise<T> {
+    const path = this.adminPaths[entity];
+    return this.request<T>(path, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async adminUpdate<T = any>(entity: keyof ApiService['adminPaths'], id: string, data: any): Promise<T> {
+    const path = this.adminPaths[entity];
+    return this.request<T>(`${path}/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async adminDelete(entity: keyof ApiService['adminPaths'], id: string): Promise<BaseResponse> {
+    const path = this.adminPaths[entity];
+    return this.request<BaseResponse>(`${path}/${id}`, { method: 'DELETE' });
+  }
+
   private loadToken() {
     this.token = localStorage.getItem('access_token');
   }
@@ -72,9 +113,10 @@ class ApiService {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
+    const headers: Record<string, string> = {};
+    if (options.body && !(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     if (options.headers) {
       if (options.headers instanceof Headers) {
@@ -366,7 +408,8 @@ class ApiService {
   }
 
   async createThesis(data: ThesisCreate): Promise<ThesisResponse> {
-    return this.request<ThesisResponse>('/admin/theses', {
+    // Backend expects manual create at /admin/thesis-content/manual/create
+    return this.request<ThesisResponse>('/admin/thesis-content/manual/create', {
       method: 'POST',
       body: JSON.stringify(data),
     });
