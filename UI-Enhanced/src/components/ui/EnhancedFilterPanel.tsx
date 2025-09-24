@@ -10,7 +10,7 @@ import {
   Hash,
   Globe,
   BookOpen,
-  University,
+  GraduationCap,
   Building2,
   Users,
   Tag,
@@ -52,7 +52,7 @@ const filterGroups: FilterGroup[] = [
   {
     key: 'university_id',
     title: 'Établissements',
-    icon: University,
+    icon: GraduationCap,
     type: 'tree',
     treeEndpoint: () => apiService.getUniversitiesTree(false, 0)
   },

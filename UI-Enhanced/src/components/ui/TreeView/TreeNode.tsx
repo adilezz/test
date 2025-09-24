@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronRight,
   ChevronDown,
-  University,
+  GraduationCap,
   Building2,
   School,
   BookOpen,
@@ -33,7 +33,7 @@ interface TreeNodeProps {
 const getNodeIcon = (type: TreeNodeType['type']) => {
   switch (type) {
     case 'university':
-      return University;
+      return GraduationCap;
     case 'faculty':
       return Building2;
     case 'school':
