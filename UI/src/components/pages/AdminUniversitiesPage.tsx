@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../../services/api';
+import TreeView from '../ui/TreeView/TreeView';
+import { TreeNode as UITreeNode } from '../../types/tree';
 import { 
   UniversityResponse, 
   FacultyResponse, 
@@ -75,6 +77,9 @@ export default function AdminUniversitiesPage() {
     acronym: '',
     geographic_entities_id: undefined
   });
+  const [geoModalOpen, setGeoModalOpen] = useState(false);
+  const [geoNodes, setGeoNodes] = useState<UITreeNode[]>([]);
+  const [selectedGeoLabel, setSelectedGeoLabel] = useState<string>('');
 
   useEffect(() => {
     loadData();
@@ -87,6 +92,30 @@ export default function AdminUniversitiesPage() {
       setGeographicEntities(response.data || []);
     } catch (error) {
       console.error('Error loading geographic entities:', error);
+    }
+  };
+
+  const openGeoModal = async () => {
+    try {
+      setGeoModalOpen(true);
+      // Load geographic tree only when opening
+      const tree = await apiService.getAdminReferencesTree({
+        ref_type: 'geographic',
+        start_level: 'country',
+        stop_level: 'city',
+        include_counts: false
+      });
+      const mapNode = (n: any, level: number = 0): UITreeNode => ({
+        id: n.id,
+        label: n.name_fr,
+        type: 'location',
+        level,
+        count: n.thesis_count || 0,
+        children: Array.isArray(n.children) ? n.children.map((c: any) => mapNode(c, level + 1)) : []
+      });
+      setGeoNodes(Array.isArray(tree) ? tree.map((n: any) => mapNode(n, 0)) : []);
+    } catch (e) {
+      console.error('Failed to load geographic tree', e);
     }
   };
 
@@ -494,21 +523,34 @@ export default function AdminUniversitiesPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Localisation
                   </label>
-                  <select
-                    value={formData.geographic_entities_id || ''}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      geographic_entities_id: e.target.value || undefined 
-                    })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Sélectionner une localisation</option>
-                    {geographicEntities.map((entity) => (
-                      <option key={entity.id} value={entity.id}>
-                        {entity.name_fr} {entity.level && `(${entity.level})`}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center space-x-2">
+                    <select
+                      value={formData.geographic_entities_id || ''}
+                      onChange={(e) => setFormData({ 
+                        ...formData, 
+                        geographic_entities_id: e.target.value || undefined 
+                      })}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Sélectionner une localisation</option>
+                      {geographicEntities.map((entity) => (
+                        <option key={entity.id} value={entity.id}>
+                          {entity.name_fr} {entity.level && `(${entity.level})`}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={openGeoModal}
+                      className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                      title="Choisir depuis l'arbre géographique"
+                    >
+                      Parcourir…
+                    </button>
+                  </div>
+                  {selectedGeoLabel && (
+                    <p className="mt-1 text-xs text-gray-500">Sélectionné: {selectedGeoLabel}</p>
+                  )}
                 </div>
               </div>
 
@@ -839,6 +881,38 @@ export default function AdminUniversitiesPage() {
         </div>
 
         {renderModal()}
+        {geoModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-3xl mx-4 max-h-[80vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Sélectionner une localisation</h2>
+                <button
+                  onClick={() => setGeoModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="mb-4 text-sm text-gray-600">
+                Pays → Région → Province/Préfecture → Ville
+              </div>
+              <TreeView
+                nodes={geoNodes}
+                onNodeSelect={(node) => {
+                  // Accept any node as selection; set id & label
+                  setFormData(prev => ({ ...prev, geographic_entities_id: node.id }));
+                  setSelectedGeoLabel(node.label);
+                  setGeoModalOpen(false);
+                }}
+                multiSelect={false}
+                searchable={true}
+                maxHeight="500px"
+                showCounts={false}
+                showIcons={true}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
