@@ -16,6 +16,8 @@ import AdminCategoriesPage from './components/pages/AdminCategoriesPage';
 import AdminAcademicPersonsPage from './components/pages/AdminAcademicPersonsPage';
 import AdminKeywordsPage from './components/pages/AdminKeywordsPage';
 import AdminThesesListPage from './components/pages/AdminThesesListPage';
+import AdminStatisticsPage from './components/pages/AdminStatisticsPage';
+import AdminReportsPage from './components/pages/AdminReportsPage';
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
 import LoadingSpinner from './components/ui/LoadingSpinner';
@@ -88,6 +90,85 @@ function App() {
             {/* Public Routes */}
             <Route path="/login" element={<LoginPage />} />
             
+            {/* Admin Routes - No Layout (they have their own AdminHeader) */}
+            <Route path="/admin" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminDashboardPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/dashboard" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminDashboardPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/statistics" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminStatisticsPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/reports" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminReportsPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/universities" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminUniversitiesPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/categories" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminCategoriesPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/academic-persons" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminAcademicPersonsPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/keywords" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminKeywordsPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/theses" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminThesesListPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/theses/new" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminThesisPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/theses/:id" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminThesisPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            
             {/* Routes with Layout */}
             <Route path="/*" element={
               <AppLayout>
@@ -110,70 +191,6 @@ function App() {
                   <Route path="/upload" element={
                     <ProtectedRoute>
                       <UploadPage />
-                    </ProtectedRoute>
-                  } />
-                  {/* Admin Routes */}
-                  <Route path="/admin" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminDashboardPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/dashboard" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminDashboardPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/universities" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminUniversitiesPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/categories" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminCategoriesPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/academic-persons" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminAcademicPersonsPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/keywords" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminKeywordsPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/theses" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminThesesListPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/theses/new" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminThesisPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/theses/:id" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminThesisPage />
-                      </AdminRoute>
                     </ProtectedRoute>
                   } />
                   

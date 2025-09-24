@@ -572,6 +572,12 @@ export interface StatisticsResponse {
   total_theses: number;
   total_universities: number;
   total_faculties: number;
+  total_schools: number;
+  total_categories: number;
+  total_keywords: number;
+  total_degrees: number;
+  total_languages: number;
+  total_geographic_entities: number;
   total_authors: number;
   recent_theses: any[];
   popular_categories: any[];
