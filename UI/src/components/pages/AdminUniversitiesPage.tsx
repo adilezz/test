@@ -401,15 +401,25 @@ export default function AdminUniversitiesPage() {
                     openModal('view', node as any);
                   }}
                   className="p-1 text-gray-400 hover:text-gray-600"
+                  title="Voir les détails"
                 >
                   <Eye className="w-4 h-4" />
                 </button>
+                <Link
+                  to={`/admin/faculties?university_id=${node.id}`}
+                  className="p-1 text-gray-400 hover:text-green-600"
+                  title="Gérer les facultés"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <GraduationCap className="w-4 h-4" />
+                </Link>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     openModal('edit', node as any);
                   }}
                   className="p-1 text-gray-400 hover:text-blue-600"
+                  title="Modifier"
                 >
                   <Edit className="w-4 h-4" />
                 </button>
@@ -421,6 +431,7 @@ export default function AdminUniversitiesPage() {
                     }
                   }}
                   className="p-1 text-gray-400 hover:text-red-600"
+                  title="Supprimer"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -851,12 +862,21 @@ export default function AdminUniversitiesPage() {
                           <button
                             onClick={() => openModal('view', university)}
                             className="text-gray-400 hover:text-gray-600"
+                            title="Voir les détails"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
+                          <Link
+                            to={`/admin/faculties?university_id=${university.id}`}
+                            className="text-green-600 hover:text-green-900"
+                            title="Gérer les facultés"
+                          >
+                            <GraduationCap className="w-4 h-4" />
+                          </Link>
                           <button
                             onClick={() => openModal('edit', university)}
                             className="text-blue-600 hover:text-blue-900"
+                            title="Modifier"
                           >
                             <Edit className="w-4 h-4" />
                           </button>
@@ -867,6 +887,7 @@ export default function AdminUniversitiesPage() {
                               }
                             }}
                             className="text-red-600 hover:text-red-900"
+                            title="Supprimer"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
