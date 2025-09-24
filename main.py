@@ -957,6 +957,18 @@ class CategoryLevel(str, Enum):
     SPECIALTY = "specialty"    # Level 2: Quantum Physics, Algebra, etc.
     SUBDISCIPLINE = "subdiscipline"  # Level 3: More specific areas
 
+class ReferenceTree(str, Enum):
+    UNIVERSITIES = "universities"
+    SCHOOLS = "schools"
+    CATEGORIES = "categories"
+    GEOGRAPHIC = "geographic"
+
+class InstitutionLevel(str, Enum):
+    UNIVERSITY = "university"
+    FACULTY = "faculty"
+    DEPARTMENT = "department"
+    SCHOOL = "school"
+
 class KeywordType(str, Enum):
     GENERAL = "general"
     TECHNICAL = "technical"
@@ -4797,6 +4809,630 @@ async def get_categories_tree(
             ch["children"] = attach(ch["id"])
         return children
     return attach(None)
+
+# =============================================================================
+# ADMIN - FLEXIBLE REFERENCES TREE (UNIFIED)
+# =============================================================================
+
+def build_references_tree(
+    ref_type: ReferenceTree,
+    start_level: Optional[str],
+    stop_level: Optional[str],
+    root_id: Optional[str],
+    include_counts: bool,
+    include_theses: bool,
+    theses_per_node: int,
+    max_depth: Optional[int],
+) -> List[Dict[str, Any]]:
+    # Helper: normalize values
+    def normalize_id(value: Any) -> Optional[str]:
+        return str(value) if value is not None else None
+
+    if ref_type == ReferenceTree.UNIVERSITIES:
+        # levels: university(0) -> faculty(1) -> department(2)
+        level_order = {"university": 0, "faculty": 1, "department": 2}
+        s_level = (start_level or "university").lower()
+        e_level = (stop_level or "department").lower()
+        if s_level not in level_order or e_level not in level_order:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid start_level/stop_level for universities tree")
+        if level_order[s_level] > level_order[e_level]:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="start_level must be before or equal to stop_level")
+
+        # Load entities
+        universities = []
+        if level_order[s_level] <= 0:
+            if root_id:
+                universities = execute_query_with_result(
+                    "SELECT id, name_fr, acronym FROM universities WHERE id = %s ORDER BY name_fr",
+                    (root_id,),
+                )
+            else:
+                universities = execute_query_with_result(
+                    "SELECT id, name_fr, acronym FROM universities ORDER BY name_fr"
+                )
+
+        faculties = []
+        if level_order[s_level] <= 1 and level_order[e_level] >= 1:
+            if level_order[s_level] == 1 and root_id:
+                faculties = execute_query_with_result(
+                    "SELECT id, university_id, name_fr, acronym FROM faculties WHERE id = %s ORDER BY name_fr",
+                    (root_id,),
+                )
+            elif universities:
+                uni_ids = [str(u["id"]) for u in universities]
+                placeholders = ",".join(["%s"] * len(uni_ids))
+                faculties = execute_query_with_result(
+                    f"SELECT id, university_id, name_fr, acronym FROM faculties WHERE university_id IN ({placeholders}) ORDER BY name_fr",
+                    uni_ids,
+                )
+            else:
+                faculties = execute_query_with_result(
+                    "SELECT id, university_id, name_fr, acronym FROM faculties ORDER BY name_fr"
+                )
+
+        departments = []
+        if level_order[e_level] >= 2:
+            if level_order[s_level] == 2 and root_id:
+                departments = execute_query_with_result(
+                    "SELECT id, faculty_id, name_fr, acronym FROM departments WHERE id = %s ORDER BY name_fr",
+                    (root_id,),
+                )
+            elif faculties:
+                fac_ids = [str(f["id"]) for f in faculties]
+                placeholders = ",".join(["%s"] * len(fac_ids))
+                departments = execute_query_with_result(
+                    f"SELECT id, faculty_id, name_fr, acronym FROM departments WHERE faculty_id IN ({placeholders}) ORDER BY name_fr",
+                    fac_ids,
+                )
+            else:
+                departments = execute_query_with_result(
+                    "SELECT id, faculty_id, name_fr, acronym FROM departments ORDER BY name_fr"
+                )
+
+        # Grouping
+        faculties_by_university: Dict[str, List[Dict[str, Any]]] = {}
+        for f in faculties:
+            uid = normalize_id(f.get("university_id"))
+            if not uid:
+                continue
+            faculties_by_university.setdefault(uid, []).append({
+                "id": normalize_id(f.get("id")),
+                "type": "faculty",
+                "name_fr": f.get("name_fr"),
+                "acronym": f.get("acronym"),
+                "departments": [],
+            })
+
+        departments_by_faculty: Dict[str, List[Dict[str, Any]]] = {}
+        department_ids: List[str] = []
+        for d in departments:
+            fid = normalize_id(d.get("faculty_id"))
+            if not fid:
+                continue
+            node: Dict[str, Any] = {
+                "id": normalize_id(d.get("id")),
+                "type": "department",
+                "name_fr": d.get("name_fr"),
+                "acronym": d.get("acronym"),
+            }
+            if include_counts:
+                node["thesis_count"] = 0
+            if include_theses and theses_per_node > 0:
+                node["theses"] = []
+            departments_by_faculty.setdefault(fid, []).append(node)
+            if node["id"]:
+                department_ids.append(node["id"])  # type: ignore
+
+        # Attach children based on stop level
+        if level_order[e_level] >= 2:
+            for uid, fac_list in faculties_by_university.items():
+                for fac in fac_list:
+                    fid = fac["id"]
+                    fac["departments"] = departments_by_faculty.get(fid, [])
+                    if include_counts:
+                        fac["department_count"] = len(fac["departments"])  # type: ignore
+        elif include_counts and faculties_by_university:
+            for uid, fac_list in faculties_by_university.items():
+                for fac in fac_list:
+                    fac["department_count"] = 0  # type: ignore
+
+        thesis_counts: Dict[str, int] = {}
+        if include_counts and department_ids:
+            placeholders = ",".join(["%s"] * len(department_ids))
+            q = f"""
+                SELECT department_id, COUNT(*) AS c
+                FROM theses
+                WHERE status IN ('approved','published') AND department_id IN ({placeholders})
+                GROUP BY department_id
+            """
+            rows = execute_query_with_result(q, department_ids)
+            thesis_counts = {normalize_id(r.get("department_id")): r["c"] for r in rows}
+            # fill counts
+            for fac_list in faculties_by_university.values():
+                for fac in fac_list:
+                    for dep in fac.get("departments", []):
+                        dep["thesis_count"] = thesis_counts.get(dep["id"], 0)
+
+        if include_theses and theses_per_node > 0 and department_ids:
+            placeholders = ",".join(["%s"] * len(department_ids))
+            q = f"""
+                SELECT * FROM (
+                    SELECT t.id, t.title_fr, t.defense_date, t.status, t.department_id,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY t.department_id
+                               ORDER BY t.defense_date DESC NULLS LAST, t.created_at DESC
+                           ) rn
+                    FROM theses t
+                    WHERE t.status IN ('approved','published') AND t.department_id IN ({placeholders})
+                ) s WHERE rn <= %s
+            """
+            rows = execute_query_with_result(q, department_ids + [theses_per_node])
+            samples: Dict[str, List[Dict[str, Any]]] = {}
+            for r in rows:
+                did = normalize_id(r.get("department_id"))
+                if did:
+                    samples.setdefault(did, []).append({
+                        "id": normalize_id(r.get("id")),
+                        "title_fr": r.get("title_fr"),
+                        "defense_date": r.get("defense_date"),
+                        "status": r.get("status"),
+                    })
+            for fac_list in faculties_by_university.values():
+                for fac in fac_list:
+                    for dep in fac.get("departments", []):
+                        dep["theses"] = samples.get(dep["id"], [])
+
+        # Build output according to start level
+        if level_order[s_level] == 0:
+            tree: List[Dict[str, Any]] = []
+            for u in universities:
+                uid = normalize_id(u.get("id"))
+                node: Dict[str, Any] = {
+                    "id": uid,
+                    "type": "university",
+                    "name_fr": u.get("name_fr"),
+                    "acronym": u.get("acronym"),
+                }
+                if level_order[e_level] >= 1:
+                    node["faculties"] = faculties_by_university.get(uid or "", [])  # type: ignore
+                if include_counts:
+                    if level_order[e_level] >= 1:
+                        node["faculty_count"] = len(node.get("faculties", []))  # type: ignore
+                        if thesis_counts and level_order[e_level] >= 2:
+                            node["department_count"] = sum(len(f.get("departments", [])) for f in node.get("faculties", []))  # type: ignore
+                            node["thesis_count"] = sum(
+                                thesis_counts.get(dep.get("id"), 0)
+                                for f in node.get("faculties", [])  # type: ignore
+                                for dep in f.get("departments", [])
+                            )
+                    else:
+                        node["faculty_count"] = 0
+                tree.append(node)
+            return tree
+
+        if level_order[s_level] == 1:
+            # Return faculties as roots
+            roots: List[Dict[str, Any]] = []
+            fac_lists = list(faculties_by_university.values())
+            for lst in fac_lists:
+                for fac in lst:
+                    roots.append(fac)
+            if root_id:
+                roots = [f for f in roots if f.get("id") == root_id]
+            return roots
+
+        if level_order[s_level] == 2:
+            # Return departments only
+            all_deps = []
+            for deps in departments_by_faculty.values():
+                all_deps.extend(deps)
+            if root_id:
+                all_deps = [d for d in all_deps if d.get("id") == root_id]
+            return all_deps
+
+        return []
+
+    if ref_type == ReferenceTree.SCHOOLS:
+        # Build hierarchical schools tree with optional root and depth limit
+        s_level = (start_level or "university").lower()
+        if s_level not in ("university", "school"):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="start_level must be 'university' or 'school' for schools tree")
+        depth_limit = max_depth if max_depth is not None else 100
+
+        schools = execute_query_with_result(
+            """
+            SELECT s.*, u.name_fr AS university_name, ps.name_fr AS parent_school_name
+            FROM schools s
+            LEFT JOIN universities u ON s.parent_university_id = u.id
+            LEFT JOIN schools ps ON s.parent_school_id = ps.id
+            ORDER BY s.name_fr
+            """
+        )
+
+        # departments attached to schools
+        dept_rows = execute_query_with_result(
+            "SELECT id, school_id, name_fr, acronym FROM departments WHERE school_id IS NOT NULL ORDER BY name_fr"
+        )
+        departments_by_school: Dict[str, List[Dict[str, Any]]] = {}
+        for d in dept_rows:
+            sid = normalize_id(d.get("school_id"))
+            if not sid:
+                continue
+            node: Dict[str, Any] = {
+                "id": normalize_id(d.get("id")),
+                "type": "department",
+                "name_fr": d.get("name_fr"),
+                "acronym": d.get("acronym"),
+            }
+            if include_counts:
+                node["thesis_count"] = 0
+            if include_theses and theses_per_node > 0:
+                node["theses"] = []
+            departments_by_school.setdefault(sid, []).append(node)
+
+        school_children: Dict[str, List[Dict[str, Any]]] = {}
+        schools_by_university: Dict[str, List[Dict[str, Any]]] = {}
+
+        def make_school_node(row: Dict[str, Any]) -> Dict[str, Any]:
+            nid = normalize_id(row.get("id"))
+            node: Dict[str, Any] = {
+                "id": nid,
+                "type": "school",
+                "name_fr": row.get("name_fr"),
+                "name_ar": row.get("name_ar"),
+                "name_en": row.get("name_en"),
+                "acronym": row.get("acronym"),
+                "parent_type": "university" if row.get("parent_university_id") else "school",
+                "parent_id": normalize_id(row.get("parent_university_id") or row.get("parent_school_id")),
+                "children": [],
+                "departments": departments_by_school.get(nid or "", []),
+            }
+            if include_counts:
+                node["department_count"] = len(node["departments"])  # type: ignore
+            if include_theses and theses_per_node > 0:
+                node["theses"] = []
+            return node
+
+        nodes_by_id: Dict[str, Dict[str, Any]] = {}
+        for s in schools:
+            node = make_school_node(s)
+            sid = node["id"] or ""
+            nodes_by_id[sid] = node
+            if s.get("parent_school_id"):
+                pid = normalize_id(s.get("parent_school_id")) or ""
+                school_children.setdefault(pid, []).append(node)
+            elif s.get("parent_university_id"):
+                uid = normalize_id(s.get("parent_university_id")) or ""
+                schools_by_university.setdefault(uid, []).append(node)
+
+        # counts and samples
+        if include_counts:
+            # department thesis counts
+            dep_ids = [d["id"] for deps in departments_by_school.values() for d in deps if d.get("id")]
+            if dep_ids:
+                placeholders = ",".join(["%s"] * len(dep_ids))
+                q = f"SELECT department_id, COUNT(*) AS c FROM theses WHERE status IN ('approved','published') AND department_id IN ({placeholders}) GROUP BY department_id"
+                rows = execute_query_with_result(q, dep_ids)
+                by_dep = {normalize_id(r.get("department_id")): r["c"] for r in rows}
+                for deps in departments_by_school.values():
+                    for d in deps:
+                        d["thesis_count"] = by_dep.get(d.get("id"), 0)
+            # direct school thesis counts
+            sid_list = [normalize_id(s.get("id")) for s in schools if s.get("id")]
+            if sid_list:
+                placeholders = ",".join(["%s"] * len(sid_list))
+                q = f"SELECT school_id, COUNT(*) AS c FROM theses WHERE status IN ('approved','published') AND school_id IN ({placeholders}) GROUP BY school_id"
+                rows = execute_query_with_result(q, sid_list)
+                school_counts = {normalize_id(r.get("school_id")): r["c"] for r in rows}
+                for node in nodes_by_id.values():
+                    node["thesis_count"] = school_counts.get(node.get("id"), 0) + sum(dep.get("thesis_count", 0) for dep in node.get("departments", []))
+
+        if include_theses and theses_per_node > 0:
+            # samples for schools only (departments can be extended similarly)
+            sid_list = [normalize_id(s.get("id")) for s in schools if s.get("id")]
+            if sid_list:
+                placeholders = ",".join(["%s"] * len(sid_list))
+                q = f"""
+                    SELECT * FROM (
+                        SELECT t.id, t.title_fr, t.defense_date, t.status, t.school_id,
+                               ROW_NUMBER() OVER (PARTITION BY t.school_id ORDER BY t.defense_date DESC NULLS LAST, t.created_at DESC) rn
+                        FROM theses t WHERE t.status IN ('approved','published') AND t.school_id IN ({placeholders})
+                    ) s WHERE rn <= %s
+                """
+                rows = execute_query_with_result(q, sid_list + [theses_per_node])
+                samples: Dict[str, List[Dict[str, Any]]] = {}
+                for r in rows:
+                    sid = normalize_id(r.get("school_id"))
+                    if sid:
+                        samples.setdefault(sid, []).append({
+                            "id": normalize_id(r.get("id")),
+                            "title_fr": r.get("title_fr"),
+                            "defense_date": r.get("defense_date"),
+                            "status": r.get("status"),
+                        })
+                for sid, lst in samples.items():
+                    if sid in nodes_by_id:
+                        nodes_by_id[sid]["theses"] = lst
+
+        def add_children(node: Dict[str, Any], depth: int) -> None:
+            if depth >= depth_limit:
+                node["children"] = []
+                return
+            sid = node.get("id") or ""
+            node["children"] = school_children.get(sid, [])
+            for ch in node["children"]:
+                add_children(ch, depth + 1)
+
+        # Compose tree
+        if s_level == "university":
+            uni_rows = []
+            if root_id:
+                uni_rows = execute_query_with_result("SELECT id, name_fr, acronym FROM universities WHERE id = %s ORDER BY name_fr", (root_id,))
+            else:
+                uni_rows = execute_query_with_result("SELECT id, name_fr, acronym FROM universities ORDER BY name_fr")
+            tree: List[Dict[str, Any]] = []
+            for u in uni_rows:
+                uid = normalize_id(u.get("id")) or ""
+                node = {
+                    "id": uid,
+                    "type": "university",
+                    "name_fr": u.get("name_fr"),
+                    "acronym": u.get("acronym"),
+                    "schools": schools_by_university.get(uid, []),
+                }
+                for sch in node["schools"]:
+                    add_children(sch, 0)
+                tree.append(node)  # counts already inside school nodes
+            return tree
+        else:
+            # start from school
+            roots: List[Dict[str, Any]] = []
+            if root_id:
+                n = nodes_by_id.get(root_id)
+                if n:
+                    roots = [n]
+            else:
+                # top schools without parent_school_id
+                roots = [n for n in nodes_by_id.values() if n.get("parent_type") == "university"]
+            for r in roots:
+                add_children(r, 0)
+            return roots
+
+    if ref_type == ReferenceTree.CATEGORIES:
+        # Support numeric level (preferred) and named mapping as fallback
+        mapping = {"domain": 0, "discipline": 1, "specialty": 2, "subdiscipline": 3}
+        def parse_level(val: Optional[str], default: int) -> int:
+            if val is None:
+                return default
+            v = val.lower()
+            if v.isdigit():
+                return int(v)
+            return mapping.get(v, default)
+
+        s_int = parse_level(start_level, 0)
+        e_int = parse_level(stop_level, 10)
+        if s_int > e_int:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="start_level must be <= stop_level")
+
+        rows = execute_query_with_result("SELECT id, parent_id, code, name_fr, level FROM categories ORDER BY level, name_fr")
+        by_parent: Dict[Optional[str], List[Dict[str, Any]]] = {}
+        nodes: Dict[str, Dict[str, Any]] = {}
+        for r in rows:
+            level = int(r.get("level") or 0)
+            if level < s_int or level > e_int:
+                continue
+            pid = normalize_id(r.get("parent_id"))
+            node: Dict[str, Any] = {
+                "id": normalize_id(r.get("id")),
+                "type": "category",
+                "code": r.get("code"),
+                "name_fr": r.get("name_fr"),
+                "level": level,
+                "children": [],
+            }
+            if include_counts:
+                node["thesis_count"] = 0
+            if include_theses and theses_per_node > 0:
+                node["theses"] = []
+            by_parent.setdefault(pid, []).append(node)
+            nodes[node["id"] or ""] = node
+
+        # counts
+        if include_counts and nodes:
+            ids = [k for k in nodes.keys() if k]
+            if ids:
+                placeholders = ",".join(["%s"] * len(ids))
+                q = f"SELECT category_id, COUNT(*) AS c FROM thesis_categories WHERE category_id IN ({placeholders}) GROUP BY category_id"
+                for r in execute_query_with_result(q, ids):
+                    cid = normalize_id(r.get("category_id"))
+                    if cid and cid in nodes:
+                        nodes[cid]["thesis_count"] = r["c"]
+
+        # samples
+        if include_theses and theses_per_node > 0 and nodes:
+            ids = [k for k in nodes.keys() if k]
+            if ids:
+                placeholders = ",".join(["%s"] * len(ids))
+                q = f"""
+                    SELECT * FROM (
+                        SELECT t.id, t.title_fr, t.defense_date, t.status, tc.category_id,
+                               ROW_NUMBER() OVER (PARTITION BY tc.category_id ORDER BY t.defense_date DESC NULLS LAST, t.created_at DESC) rn
+                        FROM thesis_categories tc JOIN theses t ON t.id = tc.thesis_id
+                        WHERE t.status IN ('approved','published') AND tc.category_id IN ({placeholders})
+                    ) s WHERE rn <= %s
+                """
+                for r in execute_query_with_result(q, ids + [theses_per_node]):
+                    cid = normalize_id(r.get("category_id"))
+                    if cid and cid in nodes:
+                        nodes[cid].setdefault("theses", []).append({
+                            "id": normalize_id(r.get("id")),
+                            "title_fr": r.get("title_fr"),
+                            "defense_date": r.get("defense_date"),
+                            "status": r.get("status"),
+                        })
+
+        def attach_limited(parent_id: Optional[str]) -> List[Dict[str, Any]]:
+            children = by_parent.get(parent_id, [])
+            for ch in children:
+                # include only children whose level <= e_int
+                ch_level = int(ch.get("level") or 0)
+                if ch_level < e_int:
+                    ch["children"] = attach_limited(ch.get("id"))
+                else:
+                    ch["children"] = []
+            return children
+
+        # roots selection
+        if root_id:
+            root_node = nodes.get(root_id)
+            if root_node:
+                # return the root with its children (within range)
+                root_node["children"] = attach_limited(root_id)
+                return [root_node]
+            return []
+        else:
+            if s_int == 0:
+                return attach_limited(None)
+            # return nodes at the specified start level as roots
+            return [n for n in nodes.values() if n.get("level") == s_int and (n.get("id") is not None)]
+
+    if ref_type == ReferenceTree.GEOGRAPHIC:
+        # levels: country(0) -> region(1) -> province/prefecture(2) -> city(3)
+        map_to_idx = {"country": 0, "region": 1, "province": 2, "prefecture": 2, "city": 3}
+        def to_idx(val: Optional[str], default: int) -> int:
+            if val is None:
+                return default
+            return map_to_idx.get(val.lower(), default)
+
+        s_idx = to_idx(start_level, 0)
+        e_idx = to_idx(stop_level, 3)
+        if s_idx > e_idx:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="start_level must be <= stop_level")
+
+        rows = execute_query_with_result("SELECT id, parent_id, name_fr, level FROM geographic_entities ORDER BY level, name_fr")
+        by_parent: Dict[Optional[str], List[Dict[str, Any]]] = {}
+        nodes: Dict[str, Dict[str, Any]] = {}
+        for r in rows:
+            lvl = map_to_idx.get(str(r.get("level") or "").lower(), 99)
+            if lvl < s_idx or lvl > e_idx:
+                continue
+            pid = normalize_id(r.get("parent_id"))
+            node: Dict[str, Any] = {
+                "id": normalize_id(r.get("id")),
+                "type": "geographic",
+                "name_fr": r.get("name_fr"),
+                "level": r.get("level"),
+                "children": [],
+            }
+            if include_counts:
+                node["thesis_count"] = 0
+            if include_theses and theses_per_node > 0:
+                node["theses"] = []
+            by_parent.setdefault(pid, []).append(node)
+            nodes[node["id"] or ""] = node
+
+        if include_counts and nodes:
+            ids = [k for k in nodes.keys() if k]
+            if ids:
+                placeholders = ",".join(["%s"] * len(ids))
+                q = f"SELECT study_location_id, COUNT(*) AS c FROM theses WHERE status IN ('approved','published') AND study_location_id IN ({placeholders}) GROUP BY study_location_id"
+                for r in execute_query_with_result(q, ids):
+                    eid = normalize_id(r.get("study_location_id"))
+                    if eid and eid in nodes:
+                        nodes[eid]["thesis_count"] = r["c"]
+
+        if include_theses and theses_per_node > 0 and nodes:
+            ids = [k for k in nodes.keys() if k]
+            if ids:
+                placeholders = ",".join(["%s"] * len(ids))
+                q = f"""
+                    SELECT * FROM (
+                        SELECT t.id, t.title_fr, t.defense_date, t.status, t.study_location_id,
+                               ROW_NUMBER() OVER (PARTITION BY t.study_location_id ORDER BY t.defense_date DESC NULLS LAST, t.created_at DESC) rn
+                        FROM theses t WHERE t.status IN ('approved','published') AND t.study_location_id IN ({placeholders})
+                    ) s WHERE rn <= %s
+                """
+                for r in execute_query_with_result(q, ids + [theses_per_node]):
+                    eid = normalize_id(r.get("study_location_id"))
+                    if eid and eid in nodes:
+                        nodes[eid].setdefault("theses", []).append({
+                            "id": normalize_id(r.get("id")),
+                            "title_fr": r.get("title_fr"),
+                            "defense_date": r.get("defense_date"),
+                            "status": r.get("status"),
+                        })
+
+        def attach_geo(parent_id: Optional[str]) -> List[Dict[str, Any]]:
+            children = by_parent.get(parent_id, [])
+            for ch in children:
+                # limit by stop level index
+                lvl = map_to_idx.get(str(ch.get("level") or "").lower(), 99)
+                if lvl < e_idx:
+                    ch["children"] = attach_geo(ch.get("id"))
+                else:
+                    ch["children"] = []
+            return children
+
+        if root_id:
+            root = nodes.get(root_id)
+            if root:
+                root["children"] = attach_geo(root_id)
+                return [root]
+            return []
+        else:
+            if s_idx == 0:
+                return attach_geo(None)
+            # return nodes at the specified starting level as roots
+            return [n for n in nodes.values() if map_to_idx.get(str(n.get("level") or "").lower(), 99) == s_idx]
+
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported ref_type")
+
+
+@app.get("/admin/references/tree", response_model=List[Dict], tags=["Admin - Trees"])
+async def get_admin_references_tree(
+    request: Request,
+    ref_type: ReferenceTree = Query(..., description="Tree type: universities|schools|categories|geographic"),
+    start_level: Optional[str] = Query(None, description="Start level label (depends on ref_type)"),
+    stop_level: Optional[str] = Query(None, description="Stop level label (depends on ref_type)"),
+    root_id: Optional[str] = Query(None, description="Optional root node id"),
+    max_depth: Optional[int] = Query(None, ge=1, le=20, description="Depth limit for recursive types (schools)"),
+    include_counts: bool = Query(True),
+    include_theses: bool = Query(False),
+    theses_per_node: int = Query(3, ge=0, le=10),
+    admin_user: dict = Depends(get_admin_user),
+):
+    return build_references_tree(
+        ref_type=ref_type,
+        start_level=start_level,
+        stop_level=stop_level,
+        root_id=root_id,
+        include_counts=include_counts,
+        include_theses=include_theses,
+        theses_per_node=theses_per_node,
+        max_depth=max_depth,
+    )
+
+@app.get("/references/tree", response_model=List[Dict], tags=["Public - Trees"])
+async def get_public_references_tree(
+    ref_type: ReferenceTree = Query(..., description="Tree type: universities|schools|categories|geographic"),
+    start_level: Optional[str] = Query(None, description="Start level label (depends on ref_type)"),
+    stop_level: Optional[str] = Query(None, description="Stop level label (depends on ref_type)"),
+    root_id: Optional[str] = Query(None, description="Optional root node id"),
+    max_depth: Optional[int] = Query(None, ge=1, le=20, description="Depth limit for recursive types (schools)"),
+    include_counts: bool = Query(True),
+    include_theses: bool = Query(False),
+    theses_per_node: int = Query(3, ge=0, le=10),
+):
+    return build_references_tree(
+        ref_type=ref_type,
+        start_level=start_level,
+        stop_level=stop_level,
+        root_id=root_id,
+        include_counts=include_counts,
+        include_theses=include_theses,
+        theses_per_node=theses_per_node,
+        max_depth=max_depth,
+    )
 
 @app.get("/admin/categories/{category_id}/subcategories", response_model=List[CategoryResponse], tags=["Admin - Categories"])
 async def get_subcategories(request: Request, category_id: str, admin_user: dict = Depends(get_admin_user)):
