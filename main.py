@@ -2364,10 +2364,11 @@ async def change_password(
 async def get_admin_universities(
     request: Request,
     page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(20, ge=1, le=100, description="Items per page"),
+    limit: int = Query(20, ge=1, le=10000, description="Items per page"),
     search: Optional[str] = Query(None, description="Search in name fields"),
     order_by: str = Query("name_fr", description="Field to order by"),
     order_dir: str = Query("asc", regex="^(asc|desc)$", description="Order direction"),
+    load_all: bool = Query(False, description="Load all entities without pagination"),
     admin_user: dict = Depends(get_admin_user)
 ):
     """
@@ -2418,16 +2419,22 @@ async def get_admin_universities(
         # Add ordering
         base_query += f" ORDER BY u.{order_by} {order_dir.upper()}"
         
-        # Add pagination
-        offset = (page - 1) * limit
-        base_query += f" LIMIT %s OFFSET %s"
-        params.extend([limit, offset])
-        
         # Get total count
         total = execute_query(count_query, count_params, fetch_one=True)["total"]
         
-        # Get paginated results
-        results = execute_query_with_result(base_query, params)
+        if load_all:
+            # Load all entities without pagination
+            results = execute_query_with_result(base_query, params)
+            # Set pagination meta to reflect all data
+            page = 1
+            limit = total
+        else:
+            # Add pagination
+            offset = (page - 1) * limit
+            base_query += f" LIMIT %s OFFSET %s"
+            params.extend([limit, offset])
+            # Get paginated results
+            results = execute_query_with_result(base_query, params)
         
         # Precompute roll-up counts for dashboard cards
         uni_ids = [str(r["id"]) for r in results]
@@ -2990,11 +2997,12 @@ async def get_universities_tree(
 async def get_admin_faculties(
     request: Request,
     page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(20, ge=1, le=100, description="Items per page"),
+    limit: int = Query(20, ge=1, le=10000, description="Items per page"),
     search: Optional[str] = Query(None, description="Search in name fields"),
     university_id: Optional[str] = Query(None, description="Filter by university"),
     order_by: str = Query("name_fr", description="Field to order by"),
     order_dir: str = Query("asc", regex="^(asc|desc)$", description="Order direction"),
+    load_all: bool = Query(False, description="Load all entities without pagination"),
     admin_user: dict = Depends(get_admin_user)
 ):
     """
@@ -3051,15 +3059,22 @@ async def get_admin_faculties(
         # Add ordering
         base_query += f" ORDER BY f.{order_by} {order_dir.upper()}"
         
-        # Add pagination
-        offset = (page - 1) * limit
-        base_query += " LIMIT %s OFFSET %s"
-        params.extend([limit, offset])
-        
         # Get total count
         total = execute_query(count_query, count_params, fetch_one=True)["total"]
-        # Get paginated results
-        results = execute_query_with_result(base_query, params)
+        
+        if load_all:
+            # Load all entities without pagination
+            results = execute_query_with_result(base_query, params)
+            # Set pagination meta to reflect all data
+            page = 1
+            limit = total
+        else:
+            # Add pagination
+            offset = (page - 1) * limit
+            base_query += " LIMIT %s OFFSET %s"
+            params.extend([limit, offset])
+            # Get paginated results
+            results = execute_query_with_result(base_query, params)
         
         # Roll-up counts for dashboard cards
         fac_ids = [str(r["id"]) for r in results]
@@ -4566,9 +4581,10 @@ async def delete_department(
 async def get_admin_categories(
     request: Request,
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=10000),
     search: Optional[str] = Query(None),
     parent_id: Optional[str] = Query(None),
+    load_all: bool = Query(False, description="Load all entities without pagination"),
     admin_user: dict = Depends(get_admin_user)
 ):
     try:
@@ -4590,10 +4606,20 @@ async def get_admin_categories(
             params.append(parent_id)
             count_params.append(parent_id)
         total = execute_query(count, count_params, fetch_one=True)["total"]
-        offset = (page - 1) * limit
-        base += " ORDER BY level, name_fr LIMIT %s OFFSET %s"
-        params.extend([limit, offset])
-        rows = execute_query_with_result(base, params)
+        
+        if load_all:
+            # Load all entities without pagination
+            base += " ORDER BY level, name_fr"
+            rows = execute_query_with_result(base, params)
+            # Set pagination meta to reflect all data
+            page = 1
+            limit = total
+        else:
+            # Apply pagination
+            offset = (page - 1) * limit
+            base += " ORDER BY level, name_fr LIMIT %s OFFSET %s"
+            params.extend([limit, offset])
+            rows = execute_query_with_result(base, params)
         data = [
             {
                 "id": str(r["id"]),
@@ -4786,9 +4812,10 @@ async def get_subcategories(request: Request, category_id: str, admin_user: dict
 async def get_admin_keywords(
     request: Request,
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=10000),
     search: Optional[str] = Query(None),
     category_id: Optional[str] = Query(None),
+    load_all: bool = Query(False, description="Load all entities without pagination"),
     admin_user: dict = Depends(get_admin_user)
 ):
     base = "SELECT * FROM keywords WHERE 1=1"
@@ -4809,10 +4836,20 @@ async def get_admin_keywords(
         params.append(category_id)
         count_params.append(category_id)
     total = execute_query(count, count_params, fetch_one=True)["total"]
-    offset = (page - 1) * limit
-    base += " ORDER BY keyword_fr LIMIT %s OFFSET %s"
-    params.extend([limit, offset])
-    rows = execute_query_with_result(base, params)
+    
+    if load_all:
+        # Load all entities without pagination
+        base += " ORDER BY keyword_fr"
+        rows = execute_query_with_result(base, params)
+        # Set pagination meta to reflect all data
+        page = 1
+        limit = total
+    else:
+        # Apply pagination
+        offset = (page - 1) * limit
+        base += " ORDER BY keyword_fr LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+        rows = execute_query_with_result(base, params)
     data = [
         {
             "id": str(r["id"]),
@@ -4902,12 +4939,13 @@ async def delete_keyword(request: Request, keyword_id: str, admin_user: dict = D
 async def get_admin_academic_persons(
     request: Request,
     page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(20, ge=1, le=100, description="Items per page"),
+    limit: int = Query(20, ge=1, le=10000, description="Items per page"),
     search: Optional[str] = Query(None, description="Search in name fields"),
     university_id: Optional[str] = Query(None, description="Filter by university"),
     faculty_id: Optional[str] = Query(None, description="Filter by faculty"),
     school_id: Optional[str] = Query(None, description="Filter by school"),
     is_external: Optional[bool] = Query(None, description="Filter by external status"),
+    load_all: bool = Query(False, description="Load all entities without pagination"),
     order_by: str = Query("complete_name_fr", description="Field to order by"),
     order_dir: str = Query("asc", regex="^(asc|desc)$", description="Order direction"),
     admin_user: dict = Depends(get_admin_user)
@@ -4989,11 +5027,19 @@ async def get_admin_academic_persons(
         if order_by not in valid_order_fields:
             order_by = "complete_name_fr"
         
-        offset = (page - 1) * limit
-        data_query = f"{base_query} ORDER BY {order_by} {order_dir} LIMIT %s OFFSET %s"
-        params.extend([limit, offset])
-        
-        results = execute_query_with_result(data_query, params)
+        if load_all:
+            # Load all entities without pagination
+            data_query = f"{base_query} ORDER BY {order_by} {order_dir}"
+            results = execute_query_with_result(data_query, params)
+            # Set pagination meta to reflect all data
+            page = 1
+            limit = total
+        else:
+            # Apply pagination
+            offset = (page - 1) * limit
+            data_query = f"{base_query} ORDER BY {order_by} {order_dir} LIMIT %s OFFSET %s"
+            params.extend([limit, offset])
+            results = execute_query_with_result(data_query, params)
         
         # Format response data
         persons = []
@@ -5647,8 +5693,9 @@ async def merge_academic_persons(
 async def get_admin_degrees(
     request: Request,
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=10000),
     search: Optional[str] = Query(None),
+    load_all: bool = Query(False, description="Load all entities without pagination"),
     admin_user: dict = Depends(get_admin_user)
 ):
     base = "SELECT * FROM degrees WHERE 1=1"
@@ -5663,10 +5710,20 @@ async def get_admin_degrees(
         params.extend([like, like, like])
         count_params.extend([like, like, like])
     total = execute_query(count, count_params, fetch_one=True)["total"]
-    offset = (page - 1) * limit
-    base += " ORDER BY name_fr LIMIT %s OFFSET %s"
-    params.extend([limit, offset])
-    rows = execute_query_with_result(base, params)
+    
+    if load_all:
+        # Load all entities without pagination
+        base += " ORDER BY name_fr"
+        rows = execute_query_with_result(base, params)
+        # Set pagination meta to reflect all data
+        page = 1
+        limit = total
+    else:
+        # Apply pagination
+        offset = (page - 1) * limit
+        base += " ORDER BY name_fr LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+        rows = execute_query_with_result(base, params)
     data = [
         {
             "id": str(r["id"]),
@@ -5751,8 +5808,9 @@ async def delete_degree(request: Request, degree_id: str, admin_user: dict = Dep
 async def get_admin_languages(
     request: Request,
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=10000),
     search: Optional[str] = Query(None),
+    load_all: bool = Query(False, description="Load all entities without pagination"),
     admin_user: dict = Depends(get_admin_user)
 ):
     base = "SELECT * FROM languages WHERE 1=1"
@@ -5767,10 +5825,20 @@ async def get_admin_languages(
         params.extend([like, like, like])
         count_params.extend([like, like, like])
     total = execute_query(count, count_params, fetch_one=True)["total"]
-    offset = (page - 1) * limit
-    base += " ORDER BY display_order, name LIMIT %s OFFSET %s"
-    params.extend([limit, offset])
-    rows = execute_query_with_result(base, params)
+    
+    if load_all:
+        # Load all entities without pagination
+        base += " ORDER BY display_order, name"
+        rows = execute_query_with_result(base, params)
+        # Set pagination meta to reflect all data
+        page = 1
+        limit = total
+    else:
+        # Apply pagination
+        offset = (page - 1) * limit
+        base += " ORDER BY display_order, name LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+        rows = execute_query_with_result(base, params)
     data = [
         {
             "id": str(r["id"]),
@@ -5856,10 +5924,11 @@ async def delete_language(request: Request, language_id: str, admin_user: dict =
 async def get_admin_geographic_entities(
     request: Request,
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=10000),  # Increased limit to allow loading all data
     search: Optional[str] = Query(None),
     parent_id: Optional[str] = Query(None),
     level: Optional[str] = Query(None),
+    load_all: bool = Query(False, description="Load all entities without pagination"),
     admin_user: dict = Depends(get_admin_user)
 ):
     base = "SELECT * FROM geographic_entities WHERE 1=1"
@@ -5886,10 +5955,20 @@ async def get_admin_geographic_entities(
         params.append(level)
         count_params.append(level)
     total = execute_query(count, count_params, fetch_one=True)["total"]
-    offset = (page - 1) * limit
-    base += " ORDER BY name_fr LIMIT %s OFFSET %s"
-    params.extend([limit, offset])
-    rows = execute_query_with_result(base, params)
+    
+    if load_all:
+        # Load all entities without pagination
+        base += " ORDER BY name_fr"
+        rows = execute_query_with_result(base, params)
+        # Set pagination meta to reflect all data
+        page = 1
+        limit = total
+    else:
+        # Apply pagination
+        offset = (page - 1) * limit
+        base += " ORDER BY name_fr LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+        rows = execute_query_with_result(base, params)
     data = [
         {
             "id": str(r["id"]),

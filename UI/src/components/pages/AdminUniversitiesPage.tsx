@@ -81,7 +81,7 @@ export default function AdminUniversitiesPage() {
 
   const loadGeographicEntities = async () => {
     try {
-      const response = await apiService.adminList('geographic_entities');
+      const response = await apiService.adminList('geographic_entities', { load_all: 'true' });
       setGeographicEntities(response.data || []);
     } catch (error) {
       console.error('Error loading geographic entities:', error);
@@ -386,7 +386,7 @@ export default function AdminUniversitiesPage() {
         {hasChildren && isExpanded && (
           <div>
             {node.children!.map((child, index) =>
-              renderTreeNode(child, [...path, node.children!.findIndex(c => c.id === child.id)], depth + 1)
+              renderTreeNode(child, [...path, index], depth + 1)
             )}
           </div>
         )}
