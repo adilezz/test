@@ -382,23 +382,39 @@ export interface AcademicPersonResponse extends AcademicPersonBase {
   updated_at: string;
 }
 
-// Degree Types
+// Degree Types (matching backend API)
+export enum DegreeType {
+  DOCTORATE = 'doctorate',
+  MEDICAL_DOCTORATE = 'medical doctorate',
+  MASTER = 'master'
+}
+
+export enum DegreeCategory {
+  RESEARCH = 'research',
+  PROFESSIONAL = 'professional',
+  HONORARY = 'honorary',
+  JOINT = 'joint',
+  INTERNATIONAL = 'international'
+}
+
 export interface DegreeBase {
+  name_en: string;
   name_fr: string;
-  name_en?: string;
-  name_ar?: string;
-  level: string;
-  description?: string;
+  name_ar: string;
+  abbreviation: string;
+  type: DegreeType | string;
+  category?: DegreeCategory | string | null;
 }
 
 export interface DegreeCreate extends DegreeBase {}
 
 export interface DegreeUpdate {
-  name_fr?: string;
   name_en?: string;
+  name_fr?: string;
   name_ar?: string;
-  level?: string;
-  description?: string;
+  abbreviation?: string;
+  type?: DegreeType | string;
+  category?: DegreeCategory | string | null;
 }
 
 export interface DegreeResponse extends DegreeBase {
