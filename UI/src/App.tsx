@@ -13,10 +13,12 @@ import AdminThesisPage from './components/pages/AdminThesisPage';
 import AdminDashboardPage from './components/pages/AdminDashboardPage';
 import AdminUniversitiesPage from './components/pages/AdminUniversitiesPage';
 import AdminSchoolsPage from './components/pages/AdminSchoolsPage';
+import AdminFacultiesPage from './components/pages/AdminFacultiesPage';
 import AdminCategoriesPage from './components/pages/AdminCategoriesPage';
 import AdminAcademicPersonsPage from './components/pages/AdminAcademicPersonsPage';
 import AdminKeywordsPage from './components/pages/AdminKeywordsPage';
 import AdminThesesListPage from './components/pages/AdminThesesListPage';
+import AdminGeographicEntitiesPage from './components/pages/AdminGeographicEntitiesPage';
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
 import LoadingSpinner from './components/ui/LoadingSpinner';
@@ -142,6 +144,13 @@ function App() {
                       </AdminRoute>
                     </ProtectedRoute>
                   } />
+                  <Route path="/admin/faculties" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminFacultiesPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
                   <Route path="/admin/categories" element={
                     <ProtectedRoute>
                       <AdminRoute>
@@ -160,6 +169,13 @@ function App() {
                     <ProtectedRoute>
                       <AdminRoute>
                         <AdminKeywordsPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/geographic-entities" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminGeographicEntitiesPage />
                       </AdminRoute>
                     </ProtectedRoute>
                   } />
