@@ -2353,6 +2353,138 @@ async def change_password(
 # Universities (including retreiving tree of universities/faculties)
 # =============================================================================
 
+@app.get("/admin/universities/tree", response_model=List[Dict], tags=["Admin - Universities"])
+async def get_universities_tree(
+    request: Request,
+    include_faculties: bool = Query(True, description="Include faculties in tree"),
+    include_departments: bool = Query(False, description="Include departments in tree"),
+    include_theses_count: bool = Query(False, description="Include thesis count for each node"),
+    admin_user: dict = Depends(get_admin_user)
+):
+    """
+    Get universities hierarchy tree with faculties and optionally departments
+    
+    Returns universities organized in a tree structure with their faculties
+    and optionally departments. Can include thesis counts for each level.
+    """
+    request_id = getattr(request.state, "request_id", None)
+    
+    try:
+        # Get universities
+        uni_query = """
+            SELECT 
+                u.id, u.name_fr, u.name_ar, u.name_en, u.acronym,
+                g.name_fr as location_name
+            FROM universities u
+            LEFT JOIN geographic_entities g ON u.geographic_entities_id = g.id
+            ORDER BY u.name_fr
+        """
+        universities = execute_query_with_result(uni_query)
+        
+        # Build tree structure
+        tree = []
+        
+        for uni in universities:
+            uni_node = {
+                "id": str(uni["id"]),
+                "name_fr": uni["name_fr"],
+                "name_ar": uni["name_ar"],
+                "name_en": uni["name_en"],
+                "acronym": uni["acronym"],
+                "location": uni["location_name"],
+                "type": "university",
+                "children": []
+            }
+            
+            # Add thesis count if requested
+            if include_theses_count:
+                count_query = """
+                    SELECT COUNT(*) as count 
+                    FROM theses 
+                    WHERE university_id = %s AND status IN ('approved', 'published')
+                """
+                result = execute_query(count_query, (uni["id"],), fetch_one=True)
+                uni_node["thesis_count"] = result["count"]
+            
+            # Get faculties if requested
+            if include_faculties:
+                fac_query = """
+                    SELECT id, name_fr, name_ar, name_en, acronym
+                    FROM faculties
+                    WHERE university_id = %s
+                    ORDER BY name_fr
+                """
+                faculties = execute_query_with_result(fac_query, (uni["id"],))
+                
+                for fac in faculties:
+                    fac_node = {
+                        "id": str(fac["id"]),
+                        "name_fr": fac["name_fr"],
+                        "name_ar": fac["name_ar"],
+                        "name_en": fac["name_en"],
+                        "acronym": fac["acronym"],
+                        "type": "faculty",
+                        "parent_id": str(uni["id"]),
+                        "children": []
+                    }
+                    
+                    # Add thesis count if requested
+                    if include_theses_count:
+                        count_query = """
+                            SELECT COUNT(*) as count 
+                            FROM theses 
+                            WHERE faculty_id = %s AND status IN ('approved', 'published')
+                        """
+                        result = execute_query(count_query, (fac["id"],), fetch_one=True)
+                        fac_node["thesis_count"] = result["count"]
+                    
+                    # Get departments if requested
+                    if include_departments:
+                        dept_query = """
+                            SELECT id, name_fr, name_ar, name_en, acronym
+                            FROM departments
+                            WHERE faculty_id = %s
+                            ORDER BY name_fr
+                        """
+                        departments = execute_query_with_result(dept_query, (fac["id"],))
+                        
+                        for dept in departments:
+                            dept_node = {
+                                "id": str(dept["id"]),
+                                "name_fr": dept["name_fr"],
+                                "name_ar": dept["name_ar"],
+                                "name_en": dept["name_en"],
+                                "acronym": dept["acronym"],
+                                "type": "department",
+                                "parent_id": str(fac["id"]),
+                                "children": []
+                            }
+                            
+                            # Add thesis count if requested
+                            if include_theses_count:
+                                count_query = """
+                                    SELECT COUNT(*) as count 
+                                    FROM theses 
+                                    WHERE department_id = %s AND status IN ('approved', 'published')
+                                """
+                                result = execute_query(count_query, (dept["id"],), fetch_one=True)
+                                dept_node["thesis_count"] = result["count"]
+                            
+                            fac_node["children"].append(dept_node)
+                    
+                    uni_node["children"].append(fac_node)
+            
+            tree.append(uni_node)
+        
+        return tree
+        
+    except Exception as e:
+        logger.error(f"Error building universities tree: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to build universities tree: {str(e)}"
+        )
+
 @app.get("/admin/universities", response_model=PaginatedResponse, tags=["Admin - Universities"])
 async def get_admin_universities(
     request: Request,
@@ -3830,12 +3962,15 @@ async def delete_school(
 @app.get("/admin/schools/tree", response_model=List[Dict], tags=["Admin - Schools"])
 async def get_schools_tree(
     request: Request,
+    include_departments: bool = Query(True, description="Include departments in tree"),
+    include_theses_count: bool = Query(False, description="Include thesis count for each node"),
     admin_user: dict = Depends(get_admin_user)
 ):
     """
-    Get schools hierarchy tree
+    Get schools hierarchy tree with departments
     
     Returns schools organized in a tree structure showing parent-child relationships.
+    Includes departments and optionally thesis counts.
     """
     request_id = getattr(request.state, "request_id", None)
     
@@ -3856,20 +3991,68 @@ async def get_schools_tree(
         
         # Build tree structure
         def build_school_node(school):
-            return {
+            node = {
                 "id": str(school["id"]),
                 "name_fr": school["name_fr"],
                 "name_ar": school["name_ar"],
                 "name_en": school["name_en"],
                 "acronym": school["acronym"],
+                "type": "school",
                 "parent_type": "university" if school["parent_university_id"] else "school",
-                "parent_id": str(school["parent_university_id"] or school["parent_school_id"]),
+                "parent_id": str(school["parent_university_id"] or school["parent_school_id"]) if school["parent_university_id"] or school["parent_school_id"] else None,
                 "children": []
             }
+            
+            # Add thesis count if requested
+            if include_theses_count:
+                count_query = """
+                    SELECT COUNT(*) as count 
+                    FROM theses 
+                    WHERE school_id = %s AND status IN ('approved', 'published')
+                """
+                result = execute_query(count_query, (school["id"],), fetch_one=True)
+                node["thesis_count"] = result["count"]
+            
+            # Get departments if requested
+            if include_departments:
+                dept_query = """
+                    SELECT id, name_fr, name_ar, name_en, acronym
+                    FROM departments
+                    WHERE school_id = %s
+                    ORDER BY name_fr
+                """
+                departments = execute_query_with_result(dept_query, (school["id"],))
+                
+                for dept in departments:
+                    dept_node = {
+                        "id": str(dept["id"]),
+                        "name_fr": dept["name_fr"],
+                        "name_ar": dept["name_ar"],
+                        "name_en": dept["name_en"],
+                        "acronym": dept["acronym"],
+                        "type": "department",
+                        "parent_id": str(school["id"]),
+                        "children": []
+                    }
+                    
+                    # Add thesis count if requested
+                    if include_theses_count:
+                        count_query = """
+                            SELECT COUNT(*) as count 
+                            FROM theses 
+                            WHERE department_id = %s AND status IN ('approved', 'published')
+                        """
+                        result = execute_query(count_query, (dept["id"],), fetch_one=True)
+                        dept_node["thesis_count"] = result["count"]
+                    
+                    node["children"].append(dept_node)
+            
+            return node
         
         # Group schools by parent
         university_schools = {}
         school_children = {}
+        standalone_schools = []
         
         for school in schools:
             node = build_school_node(school)
@@ -3884,20 +4067,27 @@ async def get_schools_tree(
                 if parent_id not in school_children:
                     school_children[parent_id] = []
                 school_children[parent_id].append(node)
+            else:
+                # Standalone schools without parent
+                standalone_schools.append(node)
         
         # Build hierarchical structure
         def add_children(node):
             school_id = node["id"]
             if school_id in school_children:
-                node["children"] = school_children[school_id]
-                for child in node["children"]:
+                for child in school_children[school_id]:
+                    node["children"].append(child)
                     add_children(child)
         
         # Build final tree
         tree = []
         
         # Get universities that have schools
-        uni_query = "SELECT id, name_fr, acronym FROM universities ORDER BY name_fr"
+        uni_query = """
+            SELECT u.id, u.name_fr, u.name_ar, u.name_en, u.acronym 
+            FROM universities u
+            ORDER BY u.name_fr
+        """
         universities = execute_query_with_result(uni_query)
         
         for uni in universities:
@@ -3906,16 +4096,33 @@ async def get_schools_tree(
                 uni_node = {
                     "id": uni_id,
                     "name_fr": uni["name_fr"],
+                    "name_ar": uni["name_ar"],
+                    "name_en": uni["name_en"],
                     "acronym": uni["acronym"],
                     "type": "university",
-                    "schools": university_schools[uni_id]
+                    "children": university_schools[uni_id]
                 }
                 
+                # Add thesis count if requested
+                if include_theses_count:
+                    count_query = """
+                        SELECT COUNT(*) as count 
+                        FROM theses 
+                        WHERE university_id = %s AND status IN ('approved', 'published')
+                    """
+                    result = execute_query(count_query, (uni["id"],), fetch_one=True)
+                    uni_node["thesis_count"] = result["count"]
+                
                 # Add children to each school
-                for school in uni_node["schools"]:
+                for school in uni_node["children"]:
                     add_children(school)
                 
                 tree.append(uni_node)
+        
+        # Add standalone schools
+        for school in standalone_schools:
+            add_children(school)
+            tree.append(school)
         
         return tree
         
@@ -3923,7 +4130,7 @@ async def get_schools_tree(
         logger.error(f"Error building schools tree: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to build schools tree"
+            detail=f"Failed to build schools tree: {str(e)}"
         )
 
 @app.get("/admin/schools/{school_id}/children", response_model=List[SchoolResponse], tags=["Admin - Schools"])
@@ -4394,18 +4601,55 @@ async def delete_category(request: Request, category_id: str, admin_user: dict =
     return BaseResponse(success=True, message="Category deleted")
 
 @app.get("/admin/categories/tree", response_model=List[Dict], tags=["Admin - Categories"])
-async def get_categories_tree(request: Request, admin_user: dict = Depends(get_admin_user)):
-    rows = execute_query_with_result("SELECT id, parent_id, code, name_fr, level FROM categories ORDER BY level, name_fr")
+async def get_categories_tree(
+    request: Request,
+    include_theses_count: bool = Query(False, description="Include thesis count for each category"),
+    admin_user: dict = Depends(get_admin_user)
+):
+    """
+    Get categories hierarchy tree
+    
+    Returns categories organized in a tree structure with parent-child relationships.
+    Can optionally include thesis counts for each category.
+    """
+    rows = execute_query_with_result(
+        "SELECT id, parent_id, code, name_fr, name_ar, name_en, level FROM categories ORDER BY level, name_fr"
+    )
+    
     by_parent: Dict[Optional[str], List[Dict[str, Any]]] = {}
+    
     for r in rows:
         pid = str(r["parent_id"]) if r["parent_id"] else None
-        node = {"id": str(r["id"]), "code": r["code"], "name_fr": r["name_fr"], "level": r["level"], "children": []}
+        node = {
+            "id": str(r["id"]),
+            "code": r["code"],
+            "name_fr": r["name_fr"],
+            "name_ar": r["name_ar"],
+            "name_en": r["name_en"],
+            "level": r["level"],
+            "type": "category",
+            "children": []
+        }
+        
+        # Add thesis count if requested
+        if include_theses_count:
+            count_query = """
+                SELECT COUNT(DISTINCT t.id) as count 
+                FROM theses t
+                JOIN thesis_categories tc ON tc.thesis_id = t.id
+                WHERE tc.category_id = %s AND t.status IN ('approved', 'published')
+            """
+            result = execute_query(count_query, (r["id"],), fetch_one=True)
+            node["thesis_count"] = result["count"]
+        
         by_parent.setdefault(pid, []).append(node)
+    
     def attach(parent_id: Optional[str]) -> List[Dict[str, Any]]:
         children = by_parent.get(parent_id, [])
         for ch in children:
             ch["children"] = attach(ch["id"])
         return children
+    
     return attach(None)
 
 @app.get("/admin/categories/{category_id}/subcategories", response_model=List[CategoryResponse], tags=["Admin - Categories"])
@@ -5607,18 +5851,56 @@ async def delete_geographic_entity(request: Request, entity_id: str, admin_user:
     return BaseResponse(success=True, message="Geographic entity deleted")
 
 @app.get("/admin/geographic-entities/tree", response_model=List[Dict], tags=["Admin - Geographic Entities"])
-async def get_geographic_tree(request: Request, admin_user: dict = Depends(get_admin_user)):
-    rows = execute_query_with_result("SELECT id, parent_id, name_fr, level FROM geographic_entities ORDER BY level, name_fr")
+async def get_geographic_tree(
+    request: Request,
+    include_theses_count: bool = Query(False, description="Include thesis count for each location"),
+    admin_user: dict = Depends(get_admin_user)
+):
+    """
+    Get geographic entities hierarchy tree
+    
+    Returns geographic entities organized in a tree structure with parent-child relationships.
+    Can optionally include thesis counts for each location.
+    """
+    rows = execute_query_with_result(
+        "SELECT id, parent_id, name_fr, name_ar, name_en, level, code, latitude, longitude FROM geographic_entities ORDER BY level, name_fr"
+    )
+    
     by_parent: Dict[Optional[str], List[Dict[str, Any]]] = {}
+    
     for r in rows:
         pid = str(r["parent_id"]) if r["parent_id"] else None
-        node = {"id": str(r["id"]), "name_fr": r["name_fr"], "level": r["level"], "children": []}
+        node = {
+            "id": str(r["id"]),
+            "name_fr": r["name_fr"],
+            "name_ar": r["name_ar"],
+            "name_en": r["name_en"],
+            "level": r["level"],
+            "code": r["code"],
+            "type": "geographic",
+            "latitude": float(r["latitude"]) if r["latitude"] else None,
+            "longitude": float(r["longitude"]) if r["longitude"] else None,
+            "children": []
+        }
+        
+        # Add thesis count if requested
+        if include_theses_count:
+            count_query = """
+                SELECT COUNT(*) as count 
+                FROM theses 
+                WHERE study_location_id = %s AND status IN ('approved', 'published')
+            """
+            result = execute_query(count_query, (r["id"],), fetch_one=True)
+            node["thesis_count"] = result["count"]
+        
         by_parent.setdefault(pid, []).append(node)
+    
     def attach(parent_id: Optional[str]) -> List[Dict[str, Any]]:
         children = by_parent.get(parent_id, [])
         for ch in children:
             ch["children"] = attach(ch["id"])
         return children
+    
     return attach(None)
 
 # =============================================================================
@@ -6879,60 +7161,202 @@ async def public_language_theses(language_id: str):
 
 # Main Search (search variables: term(s); filters (university/faculty/departments, disciplines/subdisciplines/specialities, date from-to or years, degrees, languages, academic persons (limited to author and director); sort options: relevance, popularity (sum of downloads and cites), date, alphabetical university, alphabetical title; sort order: ascending/descending; display options (number of results per page (10, 20, 50, 100)))
 # =============================================================================
-@app.get("/theses", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) 
+@app.get("/theses", response_model=PaginatedResponse, tags=["Public - Thesis search"]) 
 async def public_theses(
-    q: Optional[str] = Query(None),
-    university_id: Optional[str] = Query(None),
-    faculty_id: Optional[str] = Query(None),
-    department_id: Optional[str] = Query(None),
-    category_id: Optional[str] = Query(None),
-    degree_id: Optional[str] = Query(None),
-    language_id: Optional[str] = Query(None),
-    year_from: Optional[int] = Query(None),
-    year_to: Optional[int] = Query(None),
+    q: Optional[str] = Query(None, description="Search query"),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(20, ge=1, le=100, description="Items per page"),
+    university_id: Optional[str] = Query(None, description="Filter by university ID"),
+    faculty_id: Optional[str] = Query(None, description="Filter by faculty ID"),
+    department_id: Optional[str] = Query(None, description="Filter by department ID"),
+    school_id: Optional[str] = Query(None, description="Filter by school ID"),
+    category_id: Optional[str] = Query(None, description="Filter by category ID"),
+    degree_id: Optional[str] = Query(None, description="Filter by degree ID"),
+    language_id: Optional[str] = Query(None, description="Filter by language ID"),
+    author_id: Optional[str] = Query(None, description="Filter by author ID"),
+    director_id: Optional[str] = Query(None, description="Filter by director ID"),
+    year_from: Optional[int] = Query(None, description="Filter by year from"),
+    year_to: Optional[int] = Query(None, description="Filter by year to"),
     sort_field: SortField = SortField.DEFENSE_DATE,
-    sort_order: SortOrder = SortOrder.DESC,
-    limit: int = Query(10, ge=1, le=100)
+    sort_order: SortOrder = SortOrder.DESC
 ):
-    base = """
-        SELECT DISTINCT t.* FROM theses t
-        LEFT JOIN thesis_categories tc ON tc.thesis_id = t.id
-        WHERE t.status IN ('approved','published')
     """
-    params: List[Any] = []
-    if q:
-        base += " AND (LOWER(t.title_fr) LIKE LOWER(%s) OR LOWER(t.abstract_fr) LIKE LOWER(%s))"
-        like = f"%{q}%"
-        params.extend([like, like])
-    if university_id:
-        base += " AND t.university_id = %s"; params.append(university_id)
-    if faculty_id:
-        base += " AND t.faculty_id = %s"; params.append(faculty_id)
-    if department_id:
-        base += " AND t.department_id = %s"; params.append(department_id)
-    if category_id:
-        base += " AND tc.category_id = %s"; params.append(category_id)
-    if degree_id:
-        base += " AND t.degree_id = %s"; params.append(degree_id)
-    if language_id:
-        base += " AND t.language_id = %s"; params.append(language_id)
-    if year_from:
-        base += " AND EXTRACT(YEAR FROM t.defense_date) >= %s"; params.append(year_from)
-    if year_to:
-        base += " AND EXTRACT(YEAR FROM t.defense_date) <= %s"; params.append(year_to)
-    order_map = {
-        SortField.DEFENSE_DATE: "t.defense_date",
-        SortField.CREATED_AT: "t.created_at",
-        SortField.UPDATED_AT: "t.updated_at",
-        SortField.TITLE: "t.title_fr",
-    }
-    order_col = order_map.get(sort_field, "t.defense_date")
-    base += f" ORDER BY {order_col} {sort_order.value.upper()} LIMIT %s"
-    params.append(limit)
-    rows = execute_query_with_result(base, params)
-    return [ThesisResponse(
-        id=r["id"], title_fr=r["title_fr"], title_ar=r["title_ar"], title_en=r["title_en"], abstract_fr=r["abstract_fr"], abstract_ar=r["abstract_ar"], abstract_en=r["abstract_en"], university_id=r["university_id"], faculty_id=r["faculty_id"], school_id=r["school_id"], department_id=r["department_id"], degree_id=r["degree_id"], thesis_number=r["thesis_number"], study_location_id=r["study_location_id"], defense_date=r["defense_date"], language_id=r["language_id"], secondary_language_ids=r["secondary_language_ids"] or [], page_count=r["page_count"], file_url=r["file_url"], file_name=r["file_name"], status=r["status"], submitted_by=r["submitted_by"], extraction_job_id=r["extraction_job_id"], created_at=r["created_at"], updated_at=r["updated_at"]
-    ) for r in rows]
+    Search and list theses with advanced filtering and pagination
+    
+    Provides comprehensive search capabilities with filters for university,
+    faculty, department, category, degree, language, and date range.
+    """
+    try:
+        # Build base query
+        base_query = """
+            SELECT DISTINCT t.* FROM theses t
+            LEFT JOIN thesis_categories tc ON tc.thesis_id = t.id
+            LEFT JOIN thesis_academic_persons tap ON tap.thesis_id = t.id
+            WHERE t.status IN ('approved','published')
+        """
+        count_query = """
+            SELECT COUNT(DISTINCT t.id) as total FROM theses t
+            LEFT JOIN thesis_categories tc ON tc.thesis_id = t.id
+            LEFT JOIN thesis_academic_persons tap ON tap.thesis_id = t.id
+            WHERE t.status IN ('approved','published')
+        """
+        
+        params: List[Any] = []
+        count_params: List[Any] = []
+        
+        # Add search filter
+        if q:
+            search_condition = """ AND (
+                LOWER(t.title_fr) LIKE LOWER(%s) OR 
+                LOWER(t.title_ar) LIKE LOWER(%s) OR 
+                LOWER(t.title_en) LIKE LOWER(%s) OR
+                LOWER(t.abstract_fr) LIKE LOWER(%s) OR
+                LOWER(t.abstract_ar) LIKE LOWER(%s) OR
+                LOWER(t.abstract_en) LIKE LOWER(%s)
+            )"""
+            base_query += search_condition
+            count_query += search_condition
+            like = f"%{q}%"
+            params.extend([like] * 6)
+            count_params.extend([like] * 6)
+        
+        # Add filters
+        if university_id:
+            base_query += " AND t.university_id = %s"
+            count_query += " AND t.university_id = %s"
+            params.append(university_id)
+            count_params.append(university_id)
+        
+        if faculty_id:
+            base_query += " AND t.faculty_id = %s"
+            count_query += " AND t.faculty_id = %s"
+            params.append(faculty_id)
+            count_params.append(faculty_id)
+        
+        if department_id:
+            base_query += " AND t.department_id = %s"
+            count_query += " AND t.department_id = %s"
+            params.append(department_id)
+            count_params.append(department_id)
+        
+        if school_id:
+            base_query += " AND t.school_id = %s"
+            count_query += " AND t.school_id = %s"
+            params.append(school_id)
+            count_params.append(school_id)
+        
+        if category_id:
+            base_query += " AND tc.category_id = %s"
+            count_query += " AND tc.category_id = %s"
+            params.append(category_id)
+            count_params.append(category_id)
+        
+        if degree_id:
+            base_query += " AND t.degree_id = %s"
+            count_query += " AND t.degree_id = %s"
+            params.append(degree_id)
+            count_params.append(degree_id)
+        
+        if language_id:
+            base_query += " AND t.language_id = %s"
+            count_query += " AND t.language_id = %s"
+            params.append(language_id)
+            count_params.append(language_id)
+        
+        if author_id:
+            base_query += " AND tap.person_id = %s AND tap.role = 'author'"
+            count_query += " AND tap.person_id = %s AND tap.role = 'author'"
+            params.append(author_id)
+            count_params.append(author_id)
+        
+        if director_id:
+            base_query += " AND tap.person_id = %s AND tap.role = 'director'"
+            count_query += " AND tap.person_id = %s AND tap.role = 'director'"
+            params.append(director_id)
+            count_params.append(director_id)
+        
+        if year_from:
+            base_query += " AND EXTRACT(YEAR FROM t.defense_date) >= %s"
+            count_query += " AND EXTRACT(YEAR FROM t.defense_date) >= %s"
+            params.append(year_from)
+            count_params.append(year_from)
+        
+        if year_to:
+            base_query += " AND EXTRACT(YEAR FROM t.defense_date) <= %s"
+            count_query += " AND EXTRACT(YEAR FROM t.defense_date) <= %s"
+            params.append(year_to)
+            count_params.append(year_to)
+        
+        # Get total count
+        total = execute_query(count_query, count_params, fetch_one=True)["total"]
+        
+        # Add sorting
+        order_map = {
+            SortField.DEFENSE_DATE: "t.defense_date",
+            SortField.CREATED_AT: "t.created_at",
+            SortField.UPDATED_AT: "t.updated_at",
+            SortField.TITLE: "t.title_fr",
+        }
+        order_col = order_map.get(sort_field, "t.defense_date")
+        base_query += f" ORDER BY {order_col} {sort_order.value.upper()}"
+        
+        # Add pagination
+        offset = (page - 1) * limit
+        base_query += " LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+        
+        # Execute query
+        rows = execute_query_with_result(base_query, params)
+        
+        # Format results
+        theses = []
+        for r in rows:
+            theses.append({
+                "id": str(r["id"]),
+                "title_fr": r["title_fr"],
+                "title_ar": r["title_ar"],
+                "title_en": r["title_en"],
+                "abstract_fr": r["abstract_fr"][:500] + "..." if r["abstract_fr"] and len(r["abstract_fr"]) > 500 else r["abstract_fr"],
+                "abstract_ar": r["abstract_ar"][:500] + "..." if r["abstract_ar"] and len(r["abstract_ar"]) > 500 else r["abstract_ar"],
+                "abstract_en": r["abstract_en"][:500] + "..." if r["abstract_en"] and len(r["abstract_en"]) > 500 else r["abstract_en"],
+                "university_id": str(r["university_id"]) if r["university_id"] else None,
+                "faculty_id": str(r["faculty_id"]) if r["faculty_id"] else None,
+                "school_id": str(r["school_id"]) if r["school_id"] else None,
+                "department_id": str(r["department_id"]) if r["department_id"] else None,
+                "degree_id": str(r["degree_id"]) if r["degree_id"] else None,
+                "thesis_number": r["thesis_number"],
+                "study_location_id": str(r["study_location_id"]) if r["study_location_id"] else None,
+                "defense_date": r["defense_date"].isoformat() if r["defense_date"] else None,
+                "language_id": str(r["language_id"]) if r["language_id"] else None,
+                "secondary_language_ids": [str(id) for id in r["secondary_language_ids"]] if r["secondary_language_ids"] else [],
+                "page_count": r["page_count"],
+                "file_url": r["file_url"],
+                "file_name": r["file_name"],
+                "status": r["status"],
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                "updated_at": r["updated_at"].isoformat() if r["updated_at"] else None
+            })
+        
+        # Calculate pagination meta
+        pages = (total + limit - 1) // limit if limit > 0 else 1
+        
+        return PaginatedResponse(
+            success=True,
+            data=theses,
+            meta=PaginationMeta(
+                total=total,
+                page=page,
+                limit=limit,
+                pages=pages
+            )
+        )
+        
+    except Exception as e:
+        logger.error(f"Error searching theses: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to search theses: {str(e)}"
+        )
 
 @app.get("/theses/recent", response_model=List[ThesisResponse], tags=["Public - Thesis search"]) 
 async def public_theses_recent(limit: int = Query(10, ge=1, le=100)):
