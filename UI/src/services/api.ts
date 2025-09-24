@@ -363,6 +363,11 @@ class ApiService {
     return this.request<PaginatedResponse>(`/categories?${params}`);
   }
 
+  async getAllCategories(): Promise<CategoryResponse[]> {
+    const response = await this.adminList<PaginatedResponse>('categories', { load_all: 'true' });
+    return response.data;
+  }
+
   async getAcademicPersons(
     page: number = 1,
     limit: number = 20
