@@ -13,6 +13,7 @@ import AdminThesisPage from './components/pages/AdminThesisPage';
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
 import LoadingSpinner from './components/ui/LoadingSpinner';
+import { UserRole } from './types/api';
 
 // Protected Route Component
 interface ProtectedRouteProps {
@@ -28,6 +29,25 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+// Add AdminRoute wrapper
+interface AdminRouteProps {
+  children: React.ReactNode;
+}
+
+const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (!user || (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN)) {
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
@@ -88,13 +108,17 @@ function App() {
                   } />
                   <Route path="/admin/thesis/:id?" element={
                     <ProtectedRoute>
-                      <AdminThesisPage />
+                      <AdminRoute>
+                        <AdminThesisPage />
+                      </AdminRoute>
                     </ProtectedRoute>
                   } />
                   
                   <Route path="/admin/*" element={
                     <ProtectedRoute>
-                      <div>Admin Dashboard - Coming Soon</div>
+                      <AdminRoute>
+                        <div>Admin Dashboard - Coming Soon</div>
+                      </AdminRoute>
                     </ProtectedRoute>
                   } />
                   
