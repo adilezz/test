@@ -7138,6 +7138,795 @@ async def public_thesis_download(thesis_id: str, request: Request):
     return serve_file(r["file_url"], r["file_name"]) 
 
 # =============================================================================
+# PUBLIC API - TREES AND LISTS
+# =============================================================================
+
+@app.get("/universities/tree", tags=["Public - Trees"])
+async def public_universities_tree(
+    include_counts: bool = Query(True),
+    include_theses: bool = Query(False),
+    theses_per_department: int = Query(3, ge=0, le=10)
+):
+    try:
+        # Reuse admin logic without auth
+        universities = execute_query_with_result(
+            "SELECT id, name_fr, acronym FROM universities ORDER BY name_fr"
+        )
+        faculties = execute_query_with_result(
+            "SELECT id, university_id, name_fr, acronym FROM faculties ORDER BY name_fr"
+        )
+        departments = execute_query_with_result(
+            "SELECT id, faculty_id, name_fr, acronym FROM departments ORDER BY name_fr"
+        )
+        faculties_by_university: Dict[str, List[Dict[str, Any]]] = {}
+        for f in faculties:
+            uid = str(f["university_id"]) if f["university_id"] else None
+            if not uid:
+                continue
+            faculties_by_university.setdefault(uid, []).append({
+                "id": str(f["id"]),
+                "name_fr": f["name_fr"],
+                "acronym": f.get("acronym"),
+                "departments": []
+            })
+        departments_by_faculty: Dict[str, List[Dict[str, Any]]] = {}
+        department_ids: List[str] = []
+        for d in departments:
+            fid = str(d["faculty_id"]) if d["faculty_id"] else None
+            if not fid:
+                continue
+            node: Dict[str, Any] = {
+                "id": str(d["id"]),
+                "name_fr": d["name_fr"],
+                "acronym": d.get("acronym"),
+            }
+            if include_counts:
+                node["thesis_count"] = 0
+            if include_theses and theses_per_department > 0:
+                node["theses"] = []
+            departments_by_faculty.setdefault(fid, []).append(node)
+            department_ids.append(str(d["id"]))
+        for uid, fac_list in faculties_by_university.items():
+            for fac in fac_list:
+                fid = fac["id"]
+                fac["departments"] = departments_by_faculty.get(fid, [])
+                if include_counts:
+                    fac["department_count"] = len(fac["departments"])
+        thesis_counts: Dict[str, int] = {}
+        if include_counts and department_ids:
+            placeholders = ",".join(["%s"] * len(department_ids))
+            count_q = f"SELECT department_id, COUNT(*) AS c FROM theses WHERE status IN ('approved','published') AND department_id IN ({placeholders}) GROUP BY department_id"
+            for r in execute_query_with_result(count_q, department_ids):
+                thesis_counts[str(r["department_id"])] = r["c"]
+            for fac_list in faculties_by_university.values():
+                for fac in fac_list:
+                    for dep in fac["departments"]:
+                        dep["thesis_count"] = thesis_counts.get(dep["id"], 0)
+        if include_theses and theses_per_department > 0 and department_ids:
+            placeholders = ",".join(["%s"] * len(department_ids))
+            q = f"""
+                SELECT * FROM (
+                    SELECT t.id, t.title_fr, t.defense_date, t.status, t.department_id,
+                           ROW_NUMBER() OVER (PARTITION BY t.department_id ORDER BY t.defense_date DESC NULLS LAST, t.created_at DESC) rn
+                    FROM theses t
+                    WHERE t.status IN ('approved','published') AND t.department_id IN ({placeholders})
+                ) s WHERE rn <= %s
+            """
+            rows = execute_query_with_result(q, department_ids + [theses_per_department])
+            samples: Dict[str, List[Dict[str, Any]]] = {}
+            for r in rows:
+                did = str(r["department_id"]) if r["department_id"] else None
+                if did:
+                    samples.setdefault(did, []).append({
+                        "id": str(r["id"]),
+                        "title_fr": r["title_fr"],
+                        "defense_date": r["defense_date"],
+                        "status": r["status"],
+                    })
+            for fac_list in faculties_by_university.values():
+                for fac in fac_list:
+                    for dep in fac["departments"]:
+                        dep["theses"] = samples.get(dep["id"], [])
+        tree: List[Dict[str, Any]] = []
+        for u in universities:
+            uid = str(u["id"])
+            node: Dict[str, Any] = {
+                "id": uid,
+                "type": "university",
+                "name_fr": u["name_fr"],
+                "acronym": u.get("acronym"),
+                "faculties": faculties_by_university.get(uid, [])
+            }
+            if include_counts:
+                node["faculty_count"] = len(node["faculties"])
+                node["department_count"] = sum(len(f["departments"]) for f in node["faculties"]) if node["faculties"] else 0
+                if thesis_counts:
+                    node["thesis_count"] = sum(thesis_counts.get(dep["id"], 0) for f in node["faculties"] for dep in f["departments"])
+            tree.append(node)
+        return tree
+    except Exception as e:
+        logger.error(f"Public universities tree error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to build universities tree")
+
+
+@app.get("/schools/tree", tags=["Public - Trees"])
+async def public_schools_tree(
+    include_counts: bool = Query(True),
+    include_theses: bool = Query(False),
+    theses_per_node: int = Query(3, ge=0, le=10)
+):
+    try:
+        schools = execute_query_with_result(
+            """
+            SELECT s.*, u.name_fr AS university_name, ps.name_fr AS parent_school_name
+            FROM schools s
+            LEFT JOIN universities u ON s.parent_university_id = u.id
+            LEFT JOIN schools ps ON s.parent_school_id = ps.id
+            ORDER BY s.name_fr
+            """
+        )
+        dept_rows = execute_query_with_result(
+            "SELECT id, school_id, name_fr, acronym FROM departments WHERE school_id IS NOT NULL ORDER BY name_fr"
+        )
+        departments_by_school: Dict[str, List[Dict[str, Any]]] = {}
+        for d in dept_rows:
+            sid = str(d["school_id"]) if d["school_id"] else None
+            if sid:
+                node: Dict[str, Any] = {"id": str(d["id"]), "type": "department", "name_fr": d["name_fr"], "acronym": d.get("acronym")}
+                if include_counts:
+                    node["thesis_count"] = 0
+                if include_theses and theses_per_node > 0:
+                    node["theses"] = []
+                departments_by_school.setdefault(sid, []).append(node)
+        def build_school_node(school):
+            node: Dict[str, Any] = {
+                "id": str(school["id"]),
+                "type": "school",
+                "name_fr": school["name_fr"],
+                "name_ar": school["name_ar"],
+                "name_en": school["name_en"],
+                "acronym": school["acronym"],
+                "parent_type": "university" if school["parent_university_id"] else "school",
+                "parent_id": str(school["parent_university_id"] or school["parent_school_id"]),
+                "children": [],
+                "departments": departments_by_school.get(str(school["id"]), [])
+            }
+            if include_counts:
+                node["department_count"] = len(node["departments"])
+            if include_theses and theses_per_node > 0:
+                node["theses"] = []
+            return node
+        university_schools: Dict[str, List[Dict[str, Any]]] = {}
+        school_children: Dict[str, List[Dict[str, Any]]] = {}
+        for s in schools:
+            node = build_school_node(s)
+            if s["parent_university_id"]:
+                university_schools.setdefault(str(s["parent_university_id"]), []).append(node)
+            elif s["parent_school_id"]:
+                school_children.setdefault(str(s["parent_school_id"]), []).append(node)
+        def add_children(node):
+            sid = node["id"]
+            if sid in school_children:
+                node["children"] = school_children[sid]
+                for ch in node["children"]:
+                    add_children(ch)
+        # counts and samples
+        dept_ids = [d["id"] for deps in departments_by_school.values() for d in deps]
+        school_ids = [str(s["id"]) for s in schools]
+        school_counts: Dict[str, int] = {}
+        if include_counts and dept_ids:
+            placeholders = ",".join(["%s"] * len(dept_ids))
+            q = f"SELECT department_id, COUNT(*) AS c FROM theses WHERE status IN ('approved','published') AND department_id IN ({placeholders}) GROUP BY department_id"
+            rows = execute_query_with_result(q, dept_ids)
+            counts = {str(r["department_id"]): r["c"] for r in rows}
+            for deps in departments_by_school.values():
+                for d in deps:
+                    d["thesis_count"] = counts.get(d["id"], 0)
+        if include_counts and school_ids:
+            placeholders = ",".join(["%s"] * len(school_ids))
+            q = f"SELECT school_id, COUNT(*) AS c FROM theses WHERE status IN ('approved','published') AND school_id IN ({placeholders}) GROUP BY school_id"
+            for r in execute_query_with_result(q, school_ids):
+                school_counts[str(r["school_id"])] = r["c"]
+        school_samples: Dict[str, List[Dict[str, Any]]] = {}
+        if include_theses and theses_per_node > 0 and school_ids:
+            placeholders = ",".join(["%s"] * len(school_ids))
+            q = f"""
+                SELECT * FROM (
+                    SELECT t.id, t.title_fr, t.defense_date, t.status, t.school_id,
+                           ROW_NUMBER() OVER (PARTITION BY t.school_id ORDER BY t.defense_date DESC NULLS LAST, t.created_at DESC) rn
+                    FROM theses t WHERE t.status IN ('approved','published') AND t.school_id IN ({placeholders})
+                ) s WHERE rn <= %s
+            """
+            rows = execute_query_with_result(q, school_ids + [theses_per_node])
+            for r in rows:
+                sid = str(r["school_id"]) if r["school_id"] else None
+                if sid:
+                    school_samples.setdefault(sid, []).append({
+                        "id": str(r["id"]),
+                        "title_fr": r["title_fr"],
+                        "defense_date": r["defense_date"],
+                        "status": r["status"],
+                    })
+        tree: List[Dict[str, Any]] = []
+        universities = execute_query_with_result("SELECT id, name_fr FROM universities ORDER BY name_fr")
+        for uni in universities:
+            uid = str(uni["id"])
+            if uid in university_schools:
+                node = {"id": uid, "name_fr": uni["name_fr"], "type": "university", "schools": university_schools[uid]}
+                for sch in node["schools"]:
+                    add_children(sch)
+                    if include_counts:
+                        direct = school_counts.get(sch["id"], 0)
+                        dept_total = sum(dep.get("thesis_count", 0) for dep in sch.get("departments", []))
+                        sch["thesis_count"] = direct + dept_total
+                    if include_theses and theses_per_node > 0:
+                        sch["theses"] = school_samples.get(sch["id"], [])
+                tree.append(node)
+        return tree
+    except Exception as e:
+        logger.error(f"Public schools tree error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to build schools tree")
+
+
+@app.get("/categories/tree", tags=["Public - Trees"])
+async def public_categories_tree(
+    include_counts: bool = Query(True),
+    include_theses: bool = Query(False),
+    theses_per_category: int = Query(3, ge=0, le=10)
+):
+    rows = execute_query_with_result("SELECT id, parent_id, code, name_fr, level FROM categories ORDER BY level, name_fr")
+    by_parent: Dict[Optional[str], List[Dict[str, Any]]] = {}
+    nodes: Dict[str, Dict[str, Any]] = {}
+    for r in rows:
+        pid = str(r["parent_id"]) if r["parent_id"] else None
+        node: Dict[str, Any] = {"id": str(r["id"]), "code": r["code"], "name_fr": r["name_fr"], "level": r["level"], "children": []}
+        if include_counts:
+            node["thesis_count"] = 0
+        if include_theses and theses_per_category > 0:
+            node["theses"] = []
+        by_parent.setdefault(pid, []).append(node)
+        nodes[node["id"]] = node
+    if include_counts and nodes:
+        ids = list(nodes.keys())
+        placeholders = ",".join(["%s"] * len(ids))
+        q = f"SELECT category_id, COUNT(*) AS c FROM thesis_categories WHERE category_id IN ({placeholders}) GROUP BY category_id"
+        for r in execute_query_with_result(q, ids):
+            cid = str(r["category_id"])
+            if cid in nodes:
+                nodes[cid]["thesis_count"] = r["c"]
+    if include_theses and theses_per_category > 0 and nodes:
+        ids = list(nodes.keys())
+        placeholders = ",".join(["%s"] * len(ids))
+        q = f"""
+            SELECT * FROM (
+                SELECT t.id, t.title_fr, t.defense_date, t.status, tc.category_id,
+                       ROW_NUMBER() OVER (PARTITION BY tc.category_id ORDER BY t.defense_date DESC NULLS LAST, t.created_at DESC) rn
+                FROM thesis_categories tc JOIN theses t ON t.id = tc.thesis_id
+                WHERE t.status IN ('approved','published') AND tc.category_id IN ({placeholders})
+            ) s WHERE rn <= %s
+        """
+        for r in execute_query_with_result(q, ids + [theses_per_category]):
+            cid = str(r["category_id"]) if r["category_id"] else None
+            if cid and cid in nodes:
+                nodes[cid].setdefault("theses", []).append({
+                    "id": str(r["id"]),
+                    "title_fr": r["title_fr"],
+                    "defense_date": r["defense_date"],
+                    "status": r["status"]
+                })
+    def attach(parent_id: Optional[str]) -> List[Dict[str, Any]]:
+        children = by_parent.get(parent_id, [])
+        for ch in children:
+            ch["children"] = attach(ch["id"])
+        return children
+    return attach(None)
+
+
+@app.get("/geographic-entities/tree", tags=["Public - Trees"])
+async def public_geographic_tree(
+    include_counts: bool = Query(True),
+    include_theses: bool = Query(False),
+    theses_per_entity: int = Query(3, ge=0, le=10)
+):
+    rows = execute_query_with_result("SELECT id, parent_id, name_fr, level FROM geographic_entities ORDER BY level, name_fr")
+    by_parent: Dict[Optional[str], List[Dict[str, Any]]] = {}
+    nodes: Dict[str, Dict[str, Any]] = {}
+    for r in rows:
+        pid = str(r["parent_id"]) if r["parent_id"] else None
+        node: Dict[str, Any] = {"id": str(r["id"]), "name_fr": r["name_fr"], "level": r["level"], "children": []}
+        if include_counts:
+            node["thesis_count"] = 0
+        if include_theses and theses_per_entity > 0:
+            node["theses"] = []
+        by_parent.setdefault(pid, []).append(node)
+        nodes[node["id"]] = node
+    if include_counts and nodes:
+        ids = list(nodes.keys())
+        placeholders = ",".join(["%s"] * len(ids))
+        q = f"SELECT study_location_id, COUNT(*) AS c FROM theses WHERE status IN ('approved','published') AND study_location_id IN ({placeholders}) GROUP BY study_location_id"
+        for r in execute_query_with_result(q, ids):
+            eid = str(r["study_location_id"]) if r["study_location_id"] else None
+            if eid and eid in nodes:
+                nodes[eid]["thesis_count"] = r["c"]
+    if include_theses and theses_per_entity > 0 and nodes:
+        ids = list(nodes.keys())
+        placeholders = ",".join(["%s"] * len(ids))
+        q = f"""
+            SELECT * FROM (
+                SELECT t.id, t.title_fr, t.defense_date, t.status, t.study_location_id,
+                       ROW_NUMBER() OVER (PARTITION BY t.study_location_id ORDER BY t.defense_date DESC NULLS LAST, t.created_at DESC) rn
+                FROM theses t WHERE t.status IN ('approved','published') AND t.study_location_id IN ({placeholders})
+            ) s WHERE rn <= %s
+        """
+        for r in execute_query_with_result(q, ids + [theses_per_entity]):
+            eid = str(r["study_location_id"]) if r["study_location_id"] else None
+            if eid and eid in nodes:
+                nodes[eid].setdefault("theses", []).append({
+                    "id": str(r["id"]),
+                    "title_fr": r["title_fr"],
+                    "defense_date": r["defense_date"],
+                    "status": r["status"]
+                })
+    def attach(parent_id: Optional[str]) -> List[Dict[str, Any]]:
+        children = by_parent.get(parent_id, [])
+        for ch in children:
+            ch["children"] = attach(ch["id"])
+        return children
+    return attach(None)
+
+
+def resolve_limit(limit: int, page_size: Optional[int]) -> int:
+    presets = {10, 20, 50, 100}
+    if page_size in presets:
+        return int(page_size)  # type: ignore[arg-type]
+    return limit
+
+
+@app.get("/universities", response_model=PaginatedResponse, tags=["Public - Lists"])
+async def public_universities_list(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    page_size: Optional[int] = Query(None),
+    search: Optional[str] = Query(None),
+    order_by: str = Query("name_fr"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$"),
+):
+    try:
+        limit = resolve_limit(limit, page_size)
+        base = """
+            SELECT u.*, g.name_fr AS location_name
+            FROM universities u
+            LEFT JOIN geographic_entities g ON u.geographic_entities_id = g.id
+            WHERE 1=1
+        """
+        count = "SELECT COUNT(*) AS total FROM universities u WHERE 1=1"
+        params: List[Any] = []
+        count_params: List[Any] = []
+        if search:
+            cond = " AND (LOWER(u.name_fr) LIKE LOWER(%s) OR LOWER(u.name_en) LIKE LOWER(%s) OR LOWER(u.name_ar) LIKE LOWER(%s) OR LOWER(u.acronym) LIKE LOWER(%s))"
+            base += cond
+            count += cond
+            like = f"%{search}%"
+            params.extend([like, like, like, like])
+            count_params.extend([like, like, like, like])
+        allowed = {"name_fr", "name_en", "name_ar", "acronym", "created_at", "updated_at"}
+        if order_by not in allowed:
+            order_by = "name_fr"
+        base += f" ORDER BY u.{order_by} {order_dir.upper()}"
+        offset = (page - 1) * limit
+        base += " LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+        total = execute_query(count, count_params, fetch_one=True)["total"]
+        rows = execute_query_with_result(base, params)
+        data = [{
+            "id": str(r["id"]),
+            "name_fr": r["name_fr"],
+            "name_en": r["name_en"],
+            "name_ar": r["name_ar"],
+            "acronym": r["acronym"],
+            "geographic_entities_id": str(r["geographic_entities_id"]) if r["geographic_entities_id"] else None,
+            "location_name": r["location_name"],
+            "created_at": r["created_at"],
+            "updated_at": r["updated_at"],
+        } for r in rows]
+        pages = (total + limit - 1) // limit
+        return PaginatedResponse(success=True, data=data, meta=PaginationMeta(total=total, page=page, limit=limit, pages=pages))
+    except Exception as e:
+        logger.error(f"Public universities list error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch universities")
+
+
+@app.get("/faculties", response_model=PaginatedResponse, tags=["Public - Lists"])
+async def public_faculties_list(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    page_size: Optional[int] = Query(None),
+    search: Optional[str] = Query(None),
+    university_id: Optional[str] = Query(None),
+    order_by: str = Query("name_fr"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$"),
+):
+    try:
+        limit = resolve_limit(limit, page_size)
+        base = """
+            SELECT f.*, u.name_fr AS university_name
+            FROM faculties f
+            JOIN universities u ON f.university_id = u.id
+            WHERE 1=1
+        """
+        count = "SELECT COUNT(*) AS total FROM faculties f WHERE 1=1"
+        params: List[Any] = []
+        count_params: List[Any] = []
+        if university_id:
+            cond = " AND f.university_id = %s"
+            base += cond
+            count += cond
+            params.append(university_id)
+            count_params.append(university_id)
+        if search:
+            cond = " AND (LOWER(f.name_fr) LIKE LOWER(%s) OR LOWER(f.name_en) LIKE LOWER(%s) OR LOWER(f.name_ar) LIKE LOWER(%s) OR LOWER(f.acronym) LIKE LOWER(%s))"
+            base += cond
+            count += cond
+            like = f"%{search}%"
+            params.extend([like, like, like, like])
+            count_params.extend([like, like, like, like])
+        allowed = {"name_fr", "name_en", "name_ar", "acronym", "created_at", "updated_at"}
+        if order_by not in allowed:
+            order_by = "name_fr"
+        base += f" ORDER BY f.{order_by} {order_dir.upper()}"
+        offset = (page - 1) * limit
+        base += " LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+        total = execute_query(count, count_params, fetch_one=True)["total"]
+        rows = execute_query_with_result(base, params)
+        data = [{
+            "id": str(r["id"]),
+            "university_id": str(r["university_id"]),
+            "university_name": r["university_name"],
+            "name_fr": r["name_fr"],
+            "name_en": r["name_en"],
+            "name_ar": r["name_ar"],
+            "acronym": r["acronym"],
+            "created_at": r["created_at"],
+            "updated_at": r["updated_at"],
+        } for r in rows]
+        pages = (total + limit - 1) // limit
+        return PaginatedResponse(success=True, data=data, meta=PaginationMeta(total=total, page=page, limit=limit, pages=pages))
+    except Exception as e:
+        logger.error(f"Public faculties list error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch faculties")
+
+
+@app.get("/schools", response_model=PaginatedResponse, tags=["Public - Lists"])
+async def public_schools_list(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    page_size: Optional[int] = Query(None),
+    search: Optional[str] = Query(None),
+    parent_university_id: Optional[str] = Query(None),
+    parent_school_id: Optional[str] = Query(None),
+    order_by: str = Query("name_fr"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$"),
+):
+    try:
+        limit = resolve_limit(limit, page_size)
+        base = "SELECT * FROM schools WHERE 1=1"
+        count = "SELECT COUNT(*) AS total FROM schools WHERE 1=1"
+        params: List[Any] = []
+        count_params: List[Any] = []
+        if parent_university_id:
+            cond = " AND parent_university_id = %s"
+            base += cond
+            count += cond
+            params.append(parent_university_id)
+            count_params.append(parent_university_id)
+        if parent_school_id:
+            cond = " AND parent_school_id = %s"
+            base += cond
+            count += cond
+            params.append(parent_school_id)
+            count_params.append(parent_school_id)
+        if search:
+            cond = " AND (LOWER(name_fr) LIKE LOWER(%s) OR LOWER(name_en) LIKE LOWER(%s) OR LOWER(name_ar) LIKE LOWER(%s) OR LOWER(acronym) LIKE LOWER(%s))"
+            base += cond
+            count += cond
+            like = f"%{search}%"
+            params.extend([like, like, like, like])
+            count_params.extend([like, like, like, like])
+        allowed = {"name_fr", "name_en", "name_ar", "acronym", "created_at", "updated_at"}
+        if order_by not in allowed:
+            order_by = "name_fr"
+        base += f" ORDER BY {order_by} {order_dir.upper()}"
+        offset = (page - 1) * limit
+        base += " LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+        total = execute_query(count, count_params, fetch_one=True)["total"]
+        rows = execute_query_with_result(base, params)
+        data = [{
+            "id": str(r["id"]),
+            "parent_university_id": str(r["parent_university_id"]) if r["parent_university_id"] else None,
+            "parent_school_id": str(r["parent_school_id"]) if r["parent_school_id"] else None,
+            "name_fr": r["name_fr"],
+            "name_en": r["name_en"],
+            "name_ar": r["name_ar"],
+            "acronym": r.get("acronym"),
+            "created_at": r["created_at"],
+            "updated_at": r["updated_at"],
+        } for r in rows]
+        pages = (total + limit - 1) // limit
+        return PaginatedResponse(success=True, data=data, meta=PaginationMeta(total=total, page=page, limit=limit, pages=pages))
+    except Exception as e:
+        logger.error(f"Public schools list error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch schools")
+
+
+@app.get("/departments", response_model=PaginatedResponse, tags=["Public - Lists"])
+async def public_departments_list(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    page_size: Optional[int] = Query(None),
+    search: Optional[str] = Query(None),
+    faculty_id: Optional[str] = Query(None),
+    school_id: Optional[str] = Query(None),
+    order_by: str = Query("name_fr"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$"),
+):
+    try:
+        limit = resolve_limit(limit, page_size)
+        base = "SELECT * FROM departments WHERE 1=1"
+        count = "SELECT COUNT(*) AS total FROM departments WHERE 1=1"
+        params: List[Any] = []
+        count_params: List[Any] = []
+        if faculty_id:
+            cond = " AND faculty_id = %s"
+            base += cond
+            count += cond
+            params.append(faculty_id)
+            count_params.append(faculty_id)
+        if school_id:
+            cond = " AND school_id = %s"
+            base += cond
+            count += cond
+            params.append(school_id)
+            count_params.append(school_id)
+        if search:
+            cond = " AND (LOWER(name_fr) LIKE LOWER(%s) OR LOWER(name_en) LIKE LOWER(%s) OR LOWER(name_ar) LIKE LOWER(%s) OR LOWER(acronym) LIKE LOWER(%s))"
+            base += cond
+            count += cond
+            like = f"%{search}%"
+            params.extend([like, like, like, like])
+            count_params.extend([like, like, like, like])
+        allowed = {"name_fr", "name_en", "name_ar", "acronym", "created_at", "updated_at"}
+        if order_by not in allowed:
+            order_by = "name_fr"
+        base += f" ORDER BY {order_by} {order_dir.upper()}"
+        offset = (page - 1) * limit
+        base += " LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+        total = execute_query(count, count_params, fetch_one=True)["total"]
+        rows = execute_query_with_result(base, params)
+        data = [{
+            "id": str(r["id"]),
+            "faculty_id": str(r["faculty_id"]) if r["faculty_id"] else None,
+            "school_id": str(r["school_id"]) if r["school_id"] else None,
+            "name_fr": r["name_fr"],
+            "name_en": r["name_en"],
+            "name_ar": r["name_ar"],
+            "acronym": r["acronym"],
+            "created_at": r["created_at"],
+            "updated_at": r["updated_at"],
+        } for r in rows]
+        pages = (total + limit - 1) // limit
+        return PaginatedResponse(success=True, data=data, meta=PaginationMeta(total=total, page=page, limit=limit, pages=pages))
+    except Exception as e:
+        logger.error(f"Public departments list error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch departments")
+
+
+@app.get("/categories", response_model=PaginatedResponse, tags=["Public - Lists"])
+async def public_categories_list(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    page_size: Optional[int] = Query(None),
+    search: Optional[str] = Query(None),
+    parent_id: Optional[str] = Query(None),
+    order_by: str = Query("level"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$"),
+):
+    try:
+        limit = resolve_limit(limit, page_size)
+        base = "SELECT * FROM categories WHERE 1=1"
+        count = "SELECT COUNT(*) AS total FROM categories WHERE 1=1"
+        params: List[Any] = []
+        count_params: List[Any] = []
+        if parent_id:
+            cond = " AND parent_id = %s"
+            base += cond
+            count += cond
+            params.append(parent_id)
+            count_params.append(parent_id)
+        if search:
+            cond = " AND (LOWER(name_fr) LIKE LOWER(%s) OR LOWER(name_en) LIKE LOWER(%s))"
+            base += cond
+            count += cond
+            like = f"%{search}%"
+            params.extend([like, like])
+            count_params.extend([like, like])
+        allowed = {"level", "name_fr", "name_en", "created_at", "updated_at"}
+        if order_by not in allowed:
+            order_by = "level"
+        base += f" ORDER BY {order_by} {order_dir.upper()}, name_fr ASC"
+        offset = (page - 1) * limit
+        base += " LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+        total = execute_query(count, count_params, fetch_one=True)["total"]
+        rows = execute_query_with_result(base, params)
+        data = [{
+            "id": str(r["id"]),
+            "parent_id": str(r["parent_id"]) if r["parent_id"] else None,
+            "level": r["level"],
+            "code": r["code"],
+            "name_fr": r["name_fr"],
+            "name_en": r["name_en"],
+            "name_ar": r["name_ar"],
+            "created_at": r["created_at"],
+            "updated_at": r["updated_at"],
+        } for r in rows]
+        pages = (total + limit - 1) // limit
+        return PaginatedResponse(success=True, data=data, meta=PaginationMeta(total=total, page=page, limit=limit, pages=pages))
+    except Exception as e:
+        logger.error(f"Public categories list error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch categories")
+
+
+@app.get("/academic_persons", response_model=PaginatedResponse, tags=["Public - Lists"])
+async def public_academic_persons_list(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    page_size: Optional[int] = Query(None),
+    search: Optional[str] = Query(None),
+    order_by: str = Query("complete_name_fr"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$"),
+):
+    try:
+        limit = resolve_limit(limit, page_size)
+        base = "SELECT * FROM academic_persons WHERE 1=1"
+        count = "SELECT COUNT(*) AS total FROM academic_persons WHERE 1=1"
+        params: List[Any] = []
+        count_params: List[Any] = []
+        if search:
+            cond = " AND (LOWER(complete_name_fr) LIKE LOWER(%s) OR LOWER(complete_name_ar) LIKE LOWER(%s))"
+            base += cond
+            count += cond
+            like = f"%{search}%"
+            params.extend([like, like])
+            count_params.extend([like, like])
+        allowed = {"complete_name_fr", "complete_name_ar", "created_at", "updated_at"}
+        if order_by not in allowed:
+            order_by = "complete_name_fr"
+        base += f" ORDER BY {order_by} {order_dir.upper()}"
+        offset = (page - 1) * limit
+        base += " LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+        total = execute_query(count, count_params, fetch_one=True)["total"]
+        rows = execute_query_with_result(base, params)
+        data = [{
+            "id": str(r["id"]),
+            "complete_name_fr": r["complete_name_fr"],
+            "complete_name_ar": r["complete_name_ar"],
+            "title": r["title"],
+            "university_id": str(r["university_id"]) if r["university_id"] else None,
+            "faculty_id": str(r["faculty_id"]) if r["faculty_id"] else None,
+            "school_id": str(r["school_id"]) if r["school_id"] else None,
+            "created_at": r["created_at"],
+            "updated_at": r["updated_at"],
+        } for r in rows]
+        pages = (total + limit - 1) // limit
+        return PaginatedResponse(success=True, data=data, meta=PaginationMeta(total=total, page=page, limit=limit, pages=pages))
+    except Exception as e:
+        logger.error(f"Public academic persons list error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch academic persons")
+
+
+@app.get("/degrees", response_model=PaginatedResponse, tags=["Public - Lists"])
+async def public_degrees_list(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    page_size: Optional[int] = Query(None),
+    search: Optional[str] = Query(None),
+    order_by: str = Query("name_fr"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$"),
+):
+    try:
+        limit = resolve_limit(limit, page_size)
+        base = "SELECT * FROM degrees WHERE 1=1"
+        count = "SELECT COUNT(*) AS total FROM degrees WHERE 1=1"
+        params: List[Any] = []
+        count_params: List[Any] = []
+        if search:
+            cond = " AND (LOWER(name_fr) LIKE LOWER(%s) OR LOWER(name_en) LIKE LOWER(%s) OR LOWER(name_ar) LIKE LOWER(%s))"
+            base += cond
+            count += cond
+            like = f"%{search}%"
+            params.extend([like, like, like])
+            count_params.extend([like, like, like])
+        allowed = {"name_fr", "name_en", "name_ar", "abbreviation", "created_at", "updated_at"}
+        if order_by not in allowed:
+            order_by = "name_fr"
+        base += f" ORDER BY {order_by} {order_dir.upper()}"
+        offset = (page - 1) * limit
+        base += " LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+        total = execute_query(count, count_params, fetch_one=True)["total"]
+        rows = execute_query_with_result(base, params)
+        data = [{
+            "id": str(r["id"]),
+            "name_fr": r["name_fr"],
+            "name_en": r["name_en"],
+            "name_ar": r["name_ar"],
+            "abbreviation": r["abbreviation"],
+            "type": r["type"],
+            "category": r["category"],
+            "created_at": r["created_at"],
+            "updated_at": r["updated_at"],
+        } for r in rows]
+        pages = (total + limit - 1) // limit
+        return PaginatedResponse(success=True, data=data, meta=PaginationMeta(total=total, page=page, limit=limit, pages=pages))
+    except Exception as e:
+        logger.error(f"Public degrees list error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch degrees")
+
+
+@app.get("/languages", response_model=PaginatedResponse, tags=["Public - Lists"])
+async def public_languages_list(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    page_size: Optional[int] = Query(None),
+    search: Optional[str] = Query(None),
+    order_by: str = Query("display_order"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$"),
+):
+    try:
+        limit = resolve_limit(limit, page_size)
+        base = "SELECT * FROM languages WHERE is_active = TRUE"
+        count = "SELECT COUNT(*) AS total FROM languages WHERE is_active = TRUE"
+        params: List[Any] = []
+        count_params: List[Any] = []
+        if search:
+            cond = " AND (LOWER(name) LIKE LOWER(%s) OR LOWER(native_name) LIKE LOWER(%s))"
+            base += cond
+            count += cond
+            like = f"%{search}%"
+            params.extend([like, like])
+            count_params.extend([like, like])
+        allowed = {"display_order", "name", "created_at", "updated_at"}
+        if order_by not in allowed:
+            order_by = "display_order"
+        base += f" ORDER BY {order_by} {order_dir.upper()}"
+        offset = (page - 1) * limit
+        base += " LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+        total = execute_query(count, count_params, fetch_one=True)["total"]
+        rows = execute_query_with_result(base, params)
+        data = [{
+            "id": str(r["id"]),
+            "code": r["code"],
+            "name": r["name"],
+            "native_name": r["native_name"],
+            "rtl": r["rtl"],
+            "is_active": r["is_active"],
+            "display_order": r["display_order"],
+            "created_at": r["created_at"],
+            "updated_at": r["updated_at"],
+        } for r in rows]
+        pages = (total + limit - 1) // limit
+        return PaginatedResponse(success=True, data=data, meta=PaginationMeta(total=total, page=page, limit=limit, pages=pages))
+    except Exception as e:
+        logger.error(f"Public languages list error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch languages")
+
+
+# =============================================================================
 # APPLICATION STARTUP/SHUTDOWN
 # =============================================================================
 
