@@ -316,17 +316,21 @@ export interface CategoryResponse extends CategoryBase {
 
 // Keyword Types
 export interface KeywordBase {
-  word_fr: string;
-  word_en?: string;
-  word_ar?: string;
+  parent_keyword_id?: string;
+  keyword_fr: string;
+  keyword_en?: string;
+  keyword_ar?: string;
+  category_id?: string;
 }
 
 export interface KeywordCreate extends KeywordBase {}
 
 export interface KeywordUpdate {
-  word_fr?: string;
-  word_en?: string;
-  word_ar?: string;
+  parent_keyword_id?: string;
+  keyword_fr?: string;
+  keyword_en?: string;
+  keyword_ar?: string;
+  category_id?: string;
 }
 
 export interface KeywordResponse extends KeywordBase {
@@ -337,21 +341,39 @@ export interface KeywordResponse extends KeywordBase {
 
 // Academic Person Types
 export interface AcademicPersonBase {
-  first_name: string;
-  last_name: string;
-  email?: string;
+  complete_name_fr?: string;
+  complete_name_ar?: string;
+  first_name_fr: string;
+  last_name_fr: string;
+  first_name_ar?: string;
+  last_name_ar?: string;
   title?: string;
-  orcid?: string;
+  university_id?: string;
+  faculty_id?: string;
+  school_id?: string;
+  external_institution_name?: string;
+  external_institution_country?: string;
+  external_institution_type?: string;
+  user_id?: string;
 }
 
 export interface AcademicPersonCreate extends AcademicPersonBase {}
 
 export interface AcademicPersonUpdate {
-  first_name?: string;
-  last_name?: string;
-  email?: string;
+  complete_name_fr?: string;
+  complete_name_ar?: string;
+  first_name_fr?: string;
+  last_name_fr?: string;
+  first_name_ar?: string;
+  last_name_ar?: string;
   title?: string;
-  orcid?: string;
+  university_id?: string;
+  faculty_id?: string;
+  school_id?: string;
+  external_institution_name?: string;
+  external_institution_country?: string;
+  external_institution_type?: string;
+  user_id?: string;
 }
 
 export interface AcademicPersonResponse extends AcademicPersonBase {
