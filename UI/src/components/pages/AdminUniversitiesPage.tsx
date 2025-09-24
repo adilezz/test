@@ -98,13 +98,21 @@ export default function AdminUniversitiesPage() {
   const openGeoModal = async () => {
     try {
       setGeoModalOpen(true);
-      // Load geographic tree only when opening
-      const tree = await apiService.getAdminReferencesTree({
-        ref_type: 'geographic',
-        start_level: 'country',
-        stop_level: 'city',
-        include_counts: false
-      });
+      // Try the unified admin references tree endpoint first
+      let tree;
+      try {
+        tree = await apiService.getAdminReferencesTree({
+          ref_type: 'geographic',
+          start_level: 'country',
+          stop_level: 'city',
+          include_counts: false
+        });
+      } catch (err) {
+        console.warn('Unified tree endpoint failed, trying dedicated endpoint:', err);
+        // Fallback to dedicated geographic tree endpoint
+        tree = await apiService.getGeographicEntitiesTree();
+      }
+      
       const mapNode = (n: any, level: number = 0): UITreeNode => ({
         id: n.id,
         label: n.name_fr,
@@ -115,7 +123,9 @@ export default function AdminUniversitiesPage() {
       });
       setGeoNodes(Array.isArray(tree) ? tree.map((n: any) => mapNode(n, 0)) : []);
     } catch (e) {
-      console.error('Failed to load geographic tree', e);
+      console.error('Failed to load geographic tree from all endpoints', e);
+      // If both fail, keep nodes empty to show loading state
+      setGeoNodes([]);
     }
   };
 
@@ -172,15 +182,22 @@ export default function AdminUniversitiesPage() {
     setLoading(true);
     try {
       if (viewMode === 'tree') {
-        const treeResponse = await apiService.getAdminReferencesTree({
-          ref_type: 'universities',
-          start_level: startLevel,
-          stop_level: stopLevel,
-          include_counts: true,
-          include_theses: true,
-          theses_per_node: 5
-        });
-        setTreeData(transformToTreeNodes(treeResponse));
+        try {
+          const treeResponse = await apiService.getAdminReferencesTree({
+            ref_type: 'universities',
+            start_level: startLevel,
+            stop_level: stopLevel,
+            include_counts: true,
+            include_theses: true,
+            theses_per_node: 5
+          });
+          setTreeData(transformToTreeNodes(treeResponse));
+        } catch (treeError) {
+          console.warn('Unified tree endpoint failed, trying dedicated universities tree:', treeError);
+          // Fallback to dedicated universities tree endpoint
+          const fallbackResponse = await apiService.getUniversitiesTree(true, 5);
+          setTreeData(transformToTreeNodes(fallbackResponse));
+        }
       } else {
         const params: Record<string, string | number> = {};
         if (searchTerm.trim()) {
@@ -194,6 +211,12 @@ export default function AdminUniversitiesPage() {
       }
     } catch (error) {
       console.error('Error loading universities:', error);
+      // Set empty data on error
+      if (viewMode === 'tree') {
+        setTreeData([]);
+      } else {
+        setFlatList([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -523,34 +546,34 @@ export default function AdminUniversitiesPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Localisation
                   </label>
-                  <div className="flex items-center space-x-2">
-                    <select
-                      value={formData.geographic_entities_id || ''}
-                      onChange={(e) => setFormData({ 
-                        ...formData, 
-                        geographic_entities_id: e.target.value || undefined 
-                      })}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Sélectionner une localisation</option>
-                      {geographicEntities.map((entity) => (
-                        <option key={entity.id} value={entity.id}>
-                          {entity.name_fr} {entity.level && `(${entity.level})`}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="space-y-2">
                     <button
                       type="button"
                       onClick={openGeoModal}
-                      className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                      title="Choisir depuis l'arbre géographique"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-left flex items-center justify-between focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
-                      Parcourir…
+                      <span className={selectedGeoLabel ? "text-gray-900" : "text-gray-500"}>
+                        {selectedGeoLabel || "Sélectionner une localisation"}
+                      </span>
+                      <MapPin className="w-4 h-4 text-gray-400" />
                     </button>
+                    {selectedGeoLabel && (
+                      <div className="flex items-center justify-between text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                        <span>Sélectionné: {selectedGeoLabel}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData({ ...formData, geographic_entities_id: undefined });
+                            setSelectedGeoLabel('');
+                          }}
+                          className="text-gray-400 hover:text-red-500"
+                          title="Supprimer la sélection"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  {selectedGeoLabel && (
-                    <p className="mt-1 text-xs text-gray-500">Sélectionné: {selectedGeoLabel}</p>
-                  )}
                 </div>
               </div>
 
@@ -801,7 +824,19 @@ export default function AdminUniversitiesPage() {
                 Structure Hiérarchique
               </h2>
               <div className="space-y-1">
-                {filterTreeData(treeData, searchTerm).map((node, index) => renderTreeNode(node, [index]))}
+                {filterTreeData(treeData, searchTerm).length > 0 ? (
+                  filterTreeData(treeData, searchTerm).map((node, index) => renderTreeNode(node, [index]))
+                ) : (
+                  <div className="flex items-center justify-center h-64 text-gray-500">
+                    <div className="text-center">
+                      <Building2 className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <p className="text-lg font-medium">Aucune université trouvée</p>
+                      <p className="text-sm">
+                        {searchTerm ? 'Aucun résultat pour votre recherche' : 'Aucune donnée disponible'}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -824,56 +859,70 @@ export default function AdminUniversitiesPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {flatList.map((university) => (
-                    <tr key={university.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {university.name_fr}
-                          </div>
-                          {(university.name_en || university.name_ar) && (
-                            <div className="text-sm text-gray-500">
-                              {university.name_en && <span>{university.name_en}</span>}
-                              {university.name_en && university.name_ar && <span> • </span>}
-                              {university.name_ar && <span>{university.name_ar}</span>}
+                  {flatList.length > 0 ? (
+                    flatList.map((university) => (
+                      <tr key={university.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {university.name_fr}
                             </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {university.acronym || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(university.created_at).toLocaleDateString('fr-FR')}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => openModal('view', university)}
-                            className="text-gray-400 hover:text-gray-600"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => openModal('edit', university)}
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm('Êtes-vous sûr de vouloir supprimer cette université ?')) {
-                                handleDelete(university.id);
-                              }
-                            }}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                            {(university.name_en || university.name_ar) && (
+                              <div className="text-sm text-gray-500">
+                                {university.name_en && <span>{university.name_en}</span>}
+                                {university.name_en && university.name_ar && <span> • </span>}
+                                {university.name_ar && <span>{university.name_ar}</span>}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {university.acronym || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(university.created_at).toLocaleDateString('fr-FR')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => openModal('view', university)}
+                              className="text-gray-400 hover:text-gray-600"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => openModal('edit', university)}
+                              className="text-blue-600 hover:text-blue-900"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm('Êtes-vous sûr de vouloir supprimer cette université ?')) {
+                                  handleDelete(university.id);
+                                }
+                              }}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-16 text-center text-gray-500">
+                        <div className="flex flex-col items-center">
+                          <Building2 className="w-12 h-12 mb-4 text-gray-300" />
+                          <p className="text-lg font-medium">Aucune université trouvée</p>
+                          <p className="text-sm">
+                            {searchTerm || filters.geographic_entity ? 'Aucun résultat pour vos critères de recherche' : 'Aucune donnée disponible'}
+                          </p>
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
@@ -882,34 +931,71 @@ export default function AdminUniversitiesPage() {
 
         {renderModal()}
         {geoModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-3xl mx-4 max-h-[80vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900">Sélectionner une localisation</h2>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col">
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Sélectionner une localisation</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Choisissez la localisation géographique de l'université
+                  </p>
+                </div>
                 <button
                   onClick={() => setGeoModalOpen(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <div className="mb-4 text-sm text-gray-600">
-                Pays → Région → Province/Préfecture → Ville
+              
+              {/* Hierarchy Info */}
+              <div className="px-6 py-3 bg-blue-50 border-b border-blue-100">
+                <div className="flex items-center space-x-2 text-sm text-blue-700">
+                  <MapPin className="w-4 h-4" />
+                  <span>Maroc → Région → Province/Préfecture → Ville</span>
+                </div>
               </div>
-              <TreeView
-                nodes={geoNodes}
-                onNodeSelect={(node) => {
-                  // Accept any node as selection; set id & label
-                  setFormData(prev => ({ ...prev, geographic_entities_id: node.id }));
-                  setSelectedGeoLabel(node.label);
-                  setGeoModalOpen(false);
-                }}
-                multiSelect={false}
-                searchable={true}
-                maxHeight="500px"
-                showCounts={false}
-                showIcons={true}
-              />
+
+              {/* Tree Content */}
+              <div className="flex-1 p-6 overflow-hidden">
+                {geoNodes.length > 0 ? (
+                  <TreeView
+                    nodes={geoNodes}
+                    onNodeSelect={(node) => {
+                      setFormData(prev => ({ ...prev, geographic_entities_id: node.id }));
+                      setSelectedGeoLabel(node.label);
+                      setGeoModalOpen(false);
+                    }}
+                    multiSelect={false}
+                    searchable={true}
+                    maxHeight="450px"
+                    showCounts={false}
+                    showIcons={true}
+                    className="border-0"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-64 text-gray-500">
+                    <div className="text-center">
+                      <MapPin className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <p>Chargement de la hiérarchie géographique...</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
+                <p className="text-sm text-gray-600">
+                  Cliquez sur un élément pour le sélectionner
+                </p>
+                <button
+                  onClick={() => setGeoModalOpen(false)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
+                >
+                  Annuler
+                </button>
+              </div>
             </div>
           </div>
         )}
