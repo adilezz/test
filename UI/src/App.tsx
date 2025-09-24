@@ -10,6 +10,12 @@ import ProfilePage from './components/pages/ProfilePage';
 import UploadPage from './components/pages/UploadPage';
 import ThesisDetailPage from './components/pages/ThesisDetailPage';
 import AdminThesisPage from './components/pages/AdminThesisPage';
+import AdminDashboardPage from './components/pages/AdminDashboardPage';
+import AdminUniversitiesPage from './components/pages/AdminUniversitiesPage';
+import AdminCategoriesPage from './components/pages/AdminCategoriesPage';
+import AdminAcademicPersonsPage from './components/pages/AdminAcademicPersonsPage';
+import AdminKeywordsPage from './components/pages/AdminKeywordsPage';
+import AdminThesesListPage from './components/pages/AdminThesesListPage';
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
 import LoadingSpinner from './components/ui/LoadingSpinner';
@@ -106,18 +112,67 @@ function App() {
                       <UploadPage />
                     </ProtectedRoute>
                   } />
-                  <Route path="/admin/thesis/:id?" element={
+                  {/* Admin Routes */}
+                  <Route path="/admin" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminDashboardPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/dashboard" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminDashboardPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/universities" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminUniversitiesPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/categories" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminCategoriesPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/academic-persons" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminAcademicPersonsPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/keywords" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminKeywordsPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/theses" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminThesesListPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/theses/new" element={
                     <ProtectedRoute>
                       <AdminRoute>
                         <AdminThesisPage />
                       </AdminRoute>
                     </ProtectedRoute>
                   } />
-                  
-                  <Route path="/admin/*" element={
+                  <Route path="/admin/theses/:id" element={
                     <ProtectedRoute>
                       <AdminRoute>
-                        <div>Admin Dashboard - Coming Soon</div>
+                        <AdminThesisPage />
                       </AdminRoute>
                     </ProtectedRoute>
                   } />
