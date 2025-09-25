@@ -64,7 +64,10 @@ export default function AdminDepartmentsPage() {
   const [universities, setUniversities] = useState<UniversityResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('list');
+  const [startLevel, setStartLevel] = useState<'department' | 'faculty' | 'school'>('department');
+  const [stopLevel, setStopLevel] = useState<'department' | 'faculty' | 'school'>('department');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAllDepartments, setShowAllDepartments] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
   const [showFilters, setShowFilters] = useState(false);
@@ -113,6 +116,20 @@ export default function AdminDepartmentsPage() {
     }, 300);
     return () => clearTimeout(timeoutId);
   }, [searchTerm, filters, page, viewMode]);
+
+  // Level changes effect
+  useEffect(() => {
+    if (viewMode === 'tree') {
+      loadData();
+    }
+  }, [startLevel, stopLevel]);
+
+  // Show all departments effect
+  useEffect(() => {
+    if (viewMode === 'list') {
+      loadData();
+    }
+  }, [showAllDepartments]);
 
   const loadFaculties = async () => {
     try {
@@ -185,16 +202,89 @@ export default function AdminDepartmentsPage() {
           params.has_theses = filters.has_theses;
         }
 
-        const response = await apiService.adminList<PaginatedResponse>('departments', params);
-        setDepartments(response.data || []);
+        // Since there's no direct departments endpoint, collect from faculties and schools
+        const allDepartments: DepartmentResponse[] = [];
         
-        if (response.meta) {
-          setTotalPages(response.meta.pages);
-          setStatistics(prev => ({
-            ...prev,
-            total: response.meta.total
-          }));
+        // Load departments from both faculties and schools
+        const [facultiesResponse, schoolsResponse] = await Promise.all([
+          apiService.adminList<PaginatedResponse>('faculties', { load_all: 'true' }).catch(() => ({ data: [] })),
+          apiService.adminList<PaginatedResponse>('schools', { load_all: 'true' }).catch(() => ({ data: [] }))
+        ]);
+        
+        // Collect departments from faculties
+        if (!filters.school_id) {
+          facultiesResponse.data?.forEach((faculty: any) => {
+            if (faculty.departments) {
+              faculty.departments.forEach((dept: DepartmentResponse) => {
+                if (!filters.faculty_id || faculty.id === filters.faculty_id) {
+                  allDepartments.push({
+                    ...dept,
+                    faculty_id: faculty.id,
+                    parent_name: faculty.name_fr,
+                    parent_type: 'faculty'
+                  } as any);
+                }
+              });
+            }
+          });
         }
+        
+        // Collect departments from schools
+        if (!filters.faculty_id) {
+          schoolsResponse.data?.forEach((school: any) => {
+            if (school.departments) {
+              school.departments.forEach((dept: DepartmentResponse) => {
+                if (!filters.school_id || school.id === filters.school_id) {
+                  allDepartments.push({
+                    ...dept,
+                    school_id: school.id,
+                    parent_name: school.name_fr,
+                    parent_type: 'school'
+                  } as any);
+                }
+              });
+            }
+          });
+        }
+        
+        // Filter departments based on search term
+        let filteredDepartments = allDepartments;
+        if (searchTerm.trim()) {
+          const searchLower = searchTerm.toLowerCase();
+          filteredDepartments = allDepartments.filter(dept => 
+            dept.name_fr.toLowerCase().includes(searchLower) ||
+            (dept.name_en && dept.name_en.toLowerCase().includes(searchLower)) ||
+            (dept.acronym && dept.acronym.toLowerCase().includes(searchLower)) ||
+            ((dept as any).parent_name && (dept as any).parent_name.toLowerCase().includes(searchLower))
+          );
+        }
+        
+        // Apply limit if not showing all
+        let displayDepartments = filteredDepartments;
+        if (!showAllDepartments && filteredDepartments.length > 20) {
+          displayDepartments = filteredDepartments.slice(0, 20);
+        }
+        
+        setDepartments(displayDepartments);
+        setTotalPages(Math.ceil(filteredDepartments.length / 20));
+        
+        // Update statistics
+        setStatistics({
+          total: allDepartments.length,
+          withTheses: allDepartments.filter(d => (d as any).thesis_count > 0).length,
+          byFaculty: allDepartments.reduce((acc, dept) => {
+            if (dept.faculty_id) {
+              acc[dept.faculty_id] = (acc[dept.faculty_id] || 0) + 1;
+            }
+            return acc;
+          }, {} as Record<string, number>),
+          bySchool: allDepartments.reduce((acc, dept) => {
+            if (dept.school_id) {
+              acc[dept.school_id] = (acc[dept.school_id] || 0) + 1;
+            }
+            return acc;
+          }, {} as Record<string, number>)
+        });
       }
     } catch (error: any) {
       console.error('Error loading departments:', error);
@@ -742,6 +832,35 @@ export default function AdminDepartmentsPage() {
                 <Filter className="w-4 h-4" />
                 <span>Filtres</span>
               </button>
+
+              {viewMode === 'tree' && (
+                <div className="flex items-center space-x-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Niveau départ</label>
+                    <select
+                      value={startLevel}
+                      onChange={(e) => setStartLevel(e.target.value as any)}
+                      className="px-2 py-1 border border-gray-300 rounded"
+                    >
+                      <option value="department">Département</option>
+                      <option value="faculty">Faculté</option>
+                      <option value="school">École</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Niveau fin</label>
+                    <select
+                      value={stopLevel}
+                      onChange={(e) => setStopLevel(e.target.value as any)}
+                      className="px-2 py-1 border border-gray-300 rounded"
+                    >
+                      <option value="department">Département</option>
+                      <option value="faculty">Faculté</option>
+                      <option value="school">École</option>
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
             
             <div className="flex items-center space-x-3">
@@ -962,6 +1081,35 @@ export default function AdminDepartmentsPage() {
                   ))}
                 </tbody>
               </table>
+
+              {/* Show All Button for List View */}
+              {viewMode === 'list' && !showAllDepartments && departments.length >= 20 && (
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                  <div className="text-center">
+                    <button
+                      onClick={() => setShowAllDepartments(true)}
+                      className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors mx-auto"
+                    >
+                      <span>Afficher tous les départements</span>
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {viewMode === 'list' && showAllDepartments && (
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                  <div className="text-center">
+                    <button
+                      onClick={() => setShowAllDepartments(false)}
+                      className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors mx-auto"
+                    >
+                      <span>Afficher moins</span>
+                      <ChevronRight className="w-4 h-4 rotate-90" />
+                    </button>
+                  </div>
+                </div>
+              )}
               
               {departments.length === 0 && !loading && (
                 <div className="px-6 py-12 text-center">

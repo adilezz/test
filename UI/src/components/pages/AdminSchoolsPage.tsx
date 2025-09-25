@@ -67,7 +67,9 @@ export default function AdminSchoolsPage() {
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
   const [schools, setSchools] = useState<SchoolResponse[]>([]);
+  const [universities, setUniversities] = useState<UniversityResponse[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [showAllSchools, setShowAllSchools] = useState(false);
   const [filters, setFilters] = useState({
     parent_school_id: '',
     has_departments: ''
@@ -77,13 +79,22 @@ export default function AdminSchoolsPage() {
     name_en: '',
     name_ar: '',
     acronym: '',
+    parent_university_id: undefined,
     parent_school_id: undefined
   });
 
   useEffect(() => {
     loadData();
     loadSchoolsList();
+    loadUniversitiesList();
   }, []);
+
+  // Show all schools effect
+  useEffect(() => {
+    if (viewMode === 'list') {
+      loadData();
+    }
+  }, [showAllSchools]);
 
 
   const loadSchoolsList = async () => {
@@ -92,6 +103,15 @@ export default function AdminSchoolsPage() {
       setSchools(response.data || []);
     } catch (error) {
       console.error('Error loading schools list:', error);
+    }
+  };
+
+  const loadUniversitiesList = async () => {
+    try {
+      const response = await apiService.adminList<PaginatedResponse>('universities', { load_all: 'true' });
+      setUniversities(response.data || []);
+    } catch (error) {
+      console.error('Error loading universities list:', error);
     }
   };
 
@@ -173,6 +193,9 @@ export default function AdminSchoolsPage() {
         if (filters.parent_school_id) {
           params.parent_school_id = filters.parent_school_id;
         }
+        if (!showAllSchools) {
+          params.limit = 20; // Show limited results initially
+        }
         const listResponse = await apiService.adminList<PaginatedResponse>('schools', params);
         setFlatList(listResponse.data || []);
       }
@@ -253,12 +276,27 @@ export default function AdminSchoolsPage() {
 
   const handleCreate = async () => {
     try {
+      // Validate that exactly one parent is selected
+      const hasUniversityParent = formData.parent_university_id;
+      const hasSchoolParent = formData.parent_school_id;
+      
+      if (!hasUniversityParent && !hasSchoolParent) {
+        alert('Veuillez sélectionner une université ou une école parente');
+        return;
+      }
+      
+      if (hasUniversityParent && hasSchoolParent) {
+        alert('Une école ne peut pas avoir à la fois une université et une école parente');
+        return;
+      }
+
       // Clean form data before sending
       const cleanData = {
         ...formData,
         name_en: formData.name_en || undefined,
         name_ar: formData.name_ar || undefined,
         acronym: formData.acronym || undefined,
+        parent_university_id: formData.parent_university_id || undefined,
         parent_school_id: formData.parent_school_id || undefined
       };
       
@@ -269,12 +307,15 @@ export default function AdminSchoolsPage() {
         name_en: '',
         name_ar: '',
         acronym: '',
+        parent_university_id: undefined,
         parent_school_id: undefined
       });
       loadData();
       loadSchoolsList();
+      loadUniversitiesList();
     } catch (error) {
       console.error('Error creating school:', error);
+      alert('Erreur lors de la création de l\'école');
     }
   };
 
@@ -512,14 +553,42 @@ export default function AdminSchoolsPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  École parente (optionnel)
+                  Université parente *
+                </label>
+                <select
+                  value={formData.parent_university_id || ''}
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    parent_university_id: e.target.value || undefined,
+                    parent_school_id: e.target.value ? undefined : formData.parent_school_id
+                  })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required={!formData.parent_school_id}
+                >
+                  <option value="">Sélectionnez une université</option>
+                  {universities.map((university) => (
+                    <option key={university.id} value={university.id}>
+                      {university.name_fr} {university.acronym && `(${university.acronym})`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  École parente (alternative à l'université)
                 </label>
                 <select
                   value={formData.parent_school_id || ''}
-                  onChange={(e) => setFormData({ ...formData, parent_school_id: e.target.value || undefined })}
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    parent_school_id: e.target.value || undefined,
+                    parent_university_id: e.target.value ? undefined : formData.parent_university_id
+                  })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={!!formData.parent_university_id}
                 >
-                  <option value="">Aucune école parente (école de niveau supérieur)</option>
+                  <option value="">Sélectionnez une école parente</option>
                   {schools.filter(s => s.id !== modal.item?.id).map((school) => (
                     <option key={school.id} value={school.id}>
                       {school.name_fr} {school.acronym && `(${school.acronym})`}
@@ -527,7 +596,7 @@ export default function AdminSchoolsPage() {
                   ))}
                 </select>
                 <p className="text-sm text-gray-500 mt-1">
-                  Les écoles sont organisées de manière hiérarchique. Sélectionnez une école parente pour créer une sous-école.
+                  Une école doit avoir soit une université parente, soit une école parente (pas les deux).
                 </p>
               </div>
 
@@ -848,6 +917,35 @@ export default function AdminSchoolsPage() {
                   ))}
                 </tbody>
               </table>
+
+              {/* Show All Button for List View */}
+              {viewMode === 'list' && !showAllSchools && flatList.length >= 20 && (
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                  <div className="text-center">
+                    <button
+                      onClick={() => setShowAllSchools(true)}
+                      className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors mx-auto"
+                    >
+                      <span>Afficher toutes les écoles</span>
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {viewMode === 'list' && showAllSchools && (
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                  <div className="text-center">
+                    <button
+                      onClick={() => setShowAllSchools(false)}
+                      className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors mx-auto"
+                    >
+                      <span>Afficher moins</span>
+                      <ChevronRight className="w-4 h-4 rotate-90" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
