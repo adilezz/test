@@ -559,7 +559,10 @@ async def main():
     """Example usage of the metadata extractor"""
     
     # Configuration
-    API_KEY = "AIzaSyCG3cAtPWujvtHurXDTvrzJX4aHqEWtTVY"
+    API_KEY = os.getenv("GEMINI_API_KEY")
+    if not API_KEY:
+        print("GEMINI_API_KEY not set; skipping example run.")
+        return
     
     # Test files
     test_files = [
