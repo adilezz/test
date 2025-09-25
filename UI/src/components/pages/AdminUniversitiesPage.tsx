@@ -238,6 +238,20 @@ export default function AdminUniversitiesPage() {
   };
 
   const transformToTreeNodes = (data: any[]): TreeNode[] => {
+    // Create a map of current expanded states
+    const expandedStates = new Map<string, boolean>();
+    const collectExpandedStates = (nodes: TreeNode[]) => {
+      nodes.forEach(node => {
+        if (node.expanded) {
+          expandedStates.set(node.id, true);
+        }
+        if (node.children) {
+          collectExpandedStates(node.children);
+        }
+      });
+    };
+    collectExpandedStates(treeData);
+
     const mapUniversity = (u: any): TreeNode => ({
       id: u.id,
       name_fr: u.name_fr,
@@ -246,7 +260,7 @@ export default function AdminUniversitiesPage() {
       acronym: u.acronym,
       type: 'university',
       thesis_count: u.thesis_count,
-      expanded: false,
+      expanded: expandedStates.get(u.id) || false, // Preserve expanded state
       children: (u.faculties || []).map(mapFaculty)
     });
     const mapFaculty = (f: any): TreeNode => ({
@@ -258,7 +272,7 @@ export default function AdminUniversitiesPage() {
       type: 'faculty',
       parent_id: f.parent_id,
       thesis_count: f.thesis_count,
-      expanded: false,
+      expanded: expandedStates.get(f.id) || false, // Preserve expanded state
       children: (f.departments || []).map(mapDepartment)
     });
     const mapDepartment = (d: any): TreeNode => ({
@@ -269,7 +283,8 @@ export default function AdminUniversitiesPage() {
       acronym: d.acronym,
       type: 'department',
       parent_id: d.parent_id,
-      thesis_count: d.thesis_count
+      thesis_count: d.thesis_count,
+      expanded: expandedStates.get(d.id) || false // Preserve expanded state
     });
     // Roots can be universities, faculties, or departments depending on startLevel
     return data.map((node: any) => {

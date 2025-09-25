@@ -106,6 +106,20 @@ export default function AdminCategoriesPage() {
   };
 
   const transformToTreeNodesFromNested = (data: any[]): TreeNode[] => {
+    // Create a map of current expanded states
+    const expandedStates = new Map<string, boolean>();
+    const collectExpandedStates = (nodes: TreeNode[]) => {
+      nodes.forEach(node => {
+        if (node.expanded) {
+          expandedStates.set(node.id, true);
+        }
+        if (node.children) {
+          collectExpandedStates(node.children);
+        }
+      });
+    };
+    collectExpandedStates(treeData);
+
     const build = (node: any, level: number): TreeNode => ({
       id: node.id,
       code: node.code,
@@ -116,7 +130,7 @@ export default function AdminCategoriesPage() {
       level: typeof node.level === 'number' ? node.level : level,
       parent_id: node.parent_id,
       thesis_count: node.thesis_count,
-      expanded: false,
+      expanded: expandedStates.get(node.id) || false, // Preserve expanded state
       children: Array.isArray(node.children) ? node.children.map((ch: any) => build(ch, (typeof node.level === 'number' ? node.level : level) + 1)) : []
     });
     return data.map(n => build(n, 0));

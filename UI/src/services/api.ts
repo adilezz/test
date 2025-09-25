@@ -538,6 +538,25 @@ class ApiService {
     return this.request<StatisticsResponse>('/statistics');
   }
 
+
+  // Geographic entities methods
+  async getGeographicEntities(
+    page: number = 1,
+    limit: number = 20,
+    search?: string
+  ): Promise<PaginatedResponse> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+    });
+    
+    if (search) {
+      params.append('search', search);
+    }
+    
+    return this.request<PaginatedResponse>(`/admin/geographic-entities?${params}`);
+  }
+
   // Health check
   async healthCheck(): Promise<BaseResponse> {
     return this.request<BaseResponse>('/health');

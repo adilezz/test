@@ -57,7 +57,10 @@ export default function AdminGeographicEntitiesPage() {
   const [flatList, setFlatList] = useState<GeographicEntityResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
+  const [startLevel, setStartLevel] = useState<'country' | 'region' | 'province' | 'city'>('country');
+  const [stopLevel, setStopLevel] = useState<'country' | 'region' | 'province' | 'city'>('city');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAllEntities, setShowAllEntities] = useState(false);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
   const [formData, setFormData] = useState<GeographicEntityCreate>({
     name_fr: '',
@@ -72,7 +75,33 @@ export default function AdminGeographicEntitiesPage() {
 
   useEffect(() => {
     loadData();
-  }, [viewMode]);
+    setShowAllEntities(false); // Reset pagination when switching views
+  }, [viewMode, startLevel, stopLevel]);
+
+  // Keep hierarchical view available when changing levels
+  useEffect(() => {
+    if (viewMode === 'tree') {
+      // Ensure hierarchical view is maintained when levels change
+      loadData();
+    }
+  }, [startLevel, stopLevel]);
+
+  // Debounced search effect
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (viewMode === 'list') {
+        loadData();
+      }
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  // Show all entities effect
+  useEffect(() => {
+    if (viewMode === 'list') {
+      loadData();
+    }
+  }, [showAllEntities]);
 
   const loadData = async () => {
     setLoading(true);
@@ -80,11 +109,20 @@ export default function AdminGeographicEntitiesPage() {
       if (viewMode === 'tree') {
         const treeResponse = await apiService.getAdminReferencesTree({
           ref_type: 'geographic',
+          start_level: startLevel,
+          stop_level: stopLevel,
           include_counts: true
         });
         setTreeData(transformToTreeNodesFromNested(treeResponse));
       } else {
-        const listResponse = await apiService.adminList<PaginatedResponse>('geographic_entities');
+        const params: Record<string, string | number> = {};
+        if (searchTerm.trim()) {
+          params.search = searchTerm.trim();
+        }
+        if (!showAllEntities) {
+          params.limit = 20; // Show limited results initially
+        }
+        const listResponse = await apiService.adminList<PaginatedResponse>('geographic_entities', params);
         setFlatList(listResponse.data);
       }
     } catch (error) {
@@ -95,6 +133,20 @@ export default function AdminGeographicEntitiesPage() {
   };
 
   const transformToTreeNodesFromNested = (data: any[]): TreeNode[] => {
+    // Create a map of current expanded states
+    const expandedStates = new Map<string, boolean>();
+    const collectExpandedStates = (nodes: TreeNode[]) => {
+      nodes.forEach(node => {
+        if (node.expanded) {
+          expandedStates.set(node.id, true);
+        }
+        if (node.children) {
+          collectExpandedStates(node.children);
+        }
+      });
+    };
+    collectExpandedStates(treeData);
+
     const build = (node: any, level: number): TreeNode => ({
       id: node.id,
       name_fr: node.name_fr,
@@ -106,10 +158,32 @@ export default function AdminGeographicEntitiesPage() {
       latitude: node.latitude,
       longitude: node.longitude,
       thesis_count: node.thesis_count,
-      expanded: false,
+      expanded: expandedStates.get(node.id) || false, // Preserve expanded state
       children: Array.isArray(node.children) ? node.children.map((ch: any) => build(ch, level + 1)) : []
     });
     return data.map(n => build(n, 0));
+  };
+
+  const filterTreeData = (nodes: TreeNode[], searchTerm: string): TreeNode[] => {
+    if (!searchTerm.trim()) return nodes;
+    
+    return nodes.filter(node => {
+      const matchesSearch = node.name_fr.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (node.name_en && node.name_en.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                           (node.code && node.code.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      const hasMatchingChildren = node.children && filterTreeData(node.children, searchTerm).length > 0;
+      
+      if (matchesSearch || hasMatchingChildren) {
+        return {
+          ...node,
+          children: node.children ? filterTreeData(node.children, searchTerm) : undefined,
+          expanded: hasMatchingChildren ? true : node.expanded
+        };
+      }
+      
+      return false;
+    }).map(node => node as TreeNode);
   };
 
   const toggleNode = (nodeId: string) => {
@@ -666,6 +740,37 @@ export default function AdminGeographicEntitiesPage() {
                 <Filter className="w-4 h-4" />
                 <span>Filtres</span>
               </button>
+
+              {viewMode === 'tree' && (
+                <div className="flex items-center space-x-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Niveau départ</label>
+                    <select
+                      value={startLevel}
+                      onChange={(e) => setStartLevel(e.target.value as any)}
+                      className="px-2 py-1 border border-gray-300 rounded"
+                    >
+                      <option value="country">Pays</option>
+                      <option value="region">Région</option>
+                      <option value="province">Province</option>
+                      <option value="city">Ville</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Niveau fin</label>
+                    <select
+                      value={stopLevel}
+                      onChange={(e) => setStopLevel(e.target.value as any)}
+                      className="px-2 py-1 border border-gray-300 rounded"
+                    >
+                      <option value="country">Pays</option>
+                      <option value="region">Région</option>
+                      <option value="province">Province</option>
+                      <option value="city">Ville</option>
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center space-x-2">
@@ -701,14 +806,15 @@ export default function AdminGeographicEntitiesPage() {
                 Structure Hiérarchique des Entités Géographiques
               </h2>
               <div className="space-y-1">
-                {treeData.map((node) => renderTreeNode(node))}
+                {filterTreeData(treeData, searchTerm).length > 0 ? (
+                  filterTreeData(treeData, searchTerm).map((node) => renderTreeNode(node))
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Globe className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p>Aucune entité géographique trouvée</p>
+                  </div>
+                )}
               </div>
-              {treeData.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <Globe className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                  <p>Aucune entité géographique trouvée</p>
-                </div>
-              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -800,6 +906,35 @@ export default function AdminGeographicEntitiesPage() {
                   ))}
                 </tbody>
               </table>
+
+              {/* Show All Button for List View */}
+              {viewMode === 'list' && !showAllEntities && flatList.length >= 20 && (
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                  <div className="text-center">
+                    <button
+                      onClick={() => setShowAllEntities(true)}
+                      className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors mx-auto"
+                    >
+                      <span>Afficher toutes les entités</span>
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {viewMode === 'list' && showAllEntities && (
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                  <div className="text-center">
+                    <button
+                      onClick={() => setShowAllEntities(false)}
+                      className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors mx-auto"
+                    >
+                      <span>Afficher moins</span>
+                      <ChevronRight className="w-4 h-4 rotate-90" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
