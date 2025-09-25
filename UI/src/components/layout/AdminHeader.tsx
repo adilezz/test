@@ -59,13 +59,13 @@ const AdminHeader: React.FC = () => {
   const adminNavigationItems = [
     { 
       label: 'Dashboard', 
-      href: '/admin', 
+      href: '/admin/dashboard', 
       icon: <Home className="w-4 h-4" />,
       description: 'Vue d\'ensemble' 
     },
     { 
       label: 'Administration', 
-      href: '/admin/universities', 
+      href: '/admin', 
       icon: <Settings className="w-4 h-4" />,
       description: 'Gestion des entités'
     },
@@ -94,7 +94,7 @@ const AdminHeader: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <Link to="/admin" className="flex items-center space-x-3 group">
+          <Link to="/admin/dashboard" className="flex items-center space-x-3 group">
             <motion.div
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -136,14 +136,6 @@ const AdminHeader: React.FC = () => {
 
           {/* Right Side Actions */}
           <div className="flex items-center space-x-4">
-            {/* Back to Main Site */}
-            <Link
-              to="/"
-              className="hidden sm:inline-flex items-center space-x-2 text-gray-600 hover:text-gray-900 px-3 py-2 rounded-lg hover:bg-gray-100 transition-all duration-200"
-            >
-              <BookOpen className="w-4 h-4" />
-              <span className="text-sm">Site Principal</span>
-            </Link>
 
             {/* Notifications */}
             <button className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200">
@@ -275,15 +267,6 @@ const AdminHeader: React.FC = () => {
               ))}
 
               <div className="pt-4 border-t border-gray-200 space-y-2">
-                <Link
-                  to="/"
-                  className="flex items-center space-x-3 px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <BookOpen className="w-4 h-4" />
-                  <span>Site Principal</span>
-                </Link>
-                
                 <button
                   onClick={() => {
                     handleLogout();

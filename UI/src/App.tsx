@@ -11,6 +11,7 @@ import UploadPage from './components/pages/UploadPage';
 import ThesisDetailPage from './components/pages/ThesisDetailPage';
 import AdminThesisPage from './components/pages/AdminThesisPage';
 import AdminDashboardPage from './components/pages/AdminDashboardPage';
+import AdminMainPage from './components/pages/AdminMainPage';
 import AdminUniversitiesPage from './components/pages/AdminUniversitiesPage';
 import AdminSchoolsPage from './components/pages/AdminSchoolsPage';
 import AdminFacultiesPage from './components/pages/AdminFacultiesPage';
@@ -99,7 +100,7 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             
             {/* Admin Routes - No Layout (they have their own AdminHeader) */}
-            <Route path="/admin" element={
+            <Route path="/dashboard" element={
               <ProtectedRoute>
                 <AdminRoute>
                   <AdminDashboardPage />
@@ -110,6 +111,13 @@ function App() {
               <ProtectedRoute>
                 <AdminRoute>
                   <AdminDashboardPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminMainPage />
                 </AdminRoute>
               </ProtectedRoute>
             } />
@@ -205,7 +213,7 @@ function App() {
                   <Route path="/admin" element={
                     <ProtectedRoute>
                       <AdminRoute>
-                        <AdminDashboardPage />
+                        <AdminMainPage />
                       </AdminRoute>
                     </ProtectedRoute>
                   } />

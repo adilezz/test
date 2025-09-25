@@ -246,6 +246,20 @@ export default function AdminDashboardPage() {
 
               <div className="bg-white rounded-lg shadow p-6">
                 <div className="flex items-center">
+                  <div className="p-3 rounded-full bg-red-100 text-red-600">
+                    <Users className="w-6 h-6" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Départements</p>
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {statistics.total_departments?.toLocaleString() || '0'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
                   <div className="p-3 rounded-full bg-orange-100 text-orange-600">
                     <Users className="w-6 h-6" />
                   </div>
@@ -309,6 +323,34 @@ export default function AdminDashboardPage() {
                     <p className="text-sm font-medium text-gray-600">Langues</p>
                     <p className="text-2xl font-semibold text-gray-900">
                       {statistics.total_languages.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <div className="p-3 rounded-full bg-yellow-100 text-yellow-600">
+                    <GraduationCap className="w-6 h-6" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Diplômes</p>
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {statistics.total_degrees?.toLocaleString() || '0'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <div className="p-3 rounded-full bg-emerald-100 text-emerald-600">
+                    <MapPin className="w-6 h-6" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Entités Géographiques</p>
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {statistics.total_geographic_entities?.toLocaleString() || '0'}
                     </p>
                   </div>
                 </div>
