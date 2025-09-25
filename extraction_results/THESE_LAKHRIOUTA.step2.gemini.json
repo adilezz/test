@@ -1,0 +1,159 @@
+{
+  "thesis": {
+    "title_fr": "RHONCHOPATHIE CHRONIQUE Enquête épidémiologique auprès de la population générale (AGADIR)",
+    "title_en": null,
+    "title_ar": null,
+    "abstract_fr": null,
+    "abstract_en": null,
+    "abstract_ar": null,
+    "defense_date": "2006-00-00",
+    "submission_date": null,
+    "academic_year": "2006",
+    "page_count": null,
+    "thesis_number": "01",
+    "document_type": "thèse",
+    "specialization": "Médecine",
+    "total_pages": null,
+    "table_of_contents": [],
+    "chapter_titles": [],
+    "references_count": null
+  },
+  "university": {
+    "name_fr": "UNIVERSITÉ HASSAN II",
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "faculty": {
+    "name_fr": "FACULTE DE MEDECINE ET DE PHARMACIE DE CASABLANCA",
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "school": {
+    "name_fr": null,
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "department": {
+    "name_fr": null,
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "degree": {
+    "name_fr": "DOCTORAT EN MEDECINE",
+    "name_en": null,
+    "name_ar": null,
+    "abbreviation": null,
+    "type": "doctorate",
+    "category": "research"
+  },
+  "language": {
+    "primary": "fr",
+    "secondary": []
+  },
+  "academic_persons": [
+    {
+      "complete_name_fr": "LAKHRIOUTA KENZA",
+      "complete_name_ar": null,
+      "first_name_fr": "KENZA",
+      "last_name_fr": "LAKHRIOUTA",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mme.",
+      "role": "author",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "A. MAAROUFI",
+      "complete_name_ar": null,
+      "first_name_fr": "A.",
+      "last_name_fr": "MAAROUFI",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "president",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "M. ESSAADI",
+      "complete_name_ar": null,
+      "first_name_fr": "M.",
+      "last_name_fr": "ESSAADI",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "rapporteur",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "A. AICHANE",
+      "complete_name_ar": null,
+      "first_name_fr": "A.",
+      "last_name_fr": "AICHANE",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "judge",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "C. AIT BENHAMOU",
+      "complete_name_ar": null,
+      "first_name_fr": "C.",
+      "last_name_fr": "AIT BENHAMOU",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "judge",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "A. BAKHATAR",
+      "complete_name_ar": null,
+      "first_name_fr": "A.",
+      "last_name_fr": "BAKHATAR",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "judge",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    }
+  ],
+  "categories": [
+    "Médecine",
+    "Épidémiologie"
+  ],
+  "keywords": [
+    "Rhonchopathie chronique",
+    "ronflement",
+    "syndrome d'apnées du sommeil",
+    "épidémiologie"
+  ],
+  "study_location": {
+    "name_fr": "Agadir",
+    "name_en": null,
+    "name_ar": null,
+    "level": "city"
+  }
+}

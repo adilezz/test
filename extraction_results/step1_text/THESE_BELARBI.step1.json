@@ -1,0 +1,25 @@
+{
+  "file": "THESE_BELARBI.pdf",
+  "total_pages": 151,
+  "pages_checked": 15,
+  "pages_with_text": 13,
+  "text_coverage_ratio": 0.8666666666666667,
+  "scanned_pdf": false,
+  "abstract_fr": null,
+  "abstract_en": null,
+  "abstract_ar": null,
+  "has_keywords_marker": true,
+  "toc_items": [
+    "INTRODUCTION ...................... ...................................... ..............3",
+    "CHAPITRE 1 ……………………………………………………7",
+    "2).Le cont enu…………………………………………………………..8",
+    "C). La hernie discale ……………………………………………………....17",
+    "a). facteurs mécaniques………………………………………………..24",
+    "b).facteurs ch imiques…………………………………………………..25",
+    "CHAPITRE2 : …………………………………………………..28",
+    "*potentiels membranaires  et conduction nerveuse……………………..32"
+  ],
+  "toc_start_page": 3,
+  "toc_end_page": 10,
+  "references_count": null
+}

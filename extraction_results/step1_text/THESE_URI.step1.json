@@ -1,0 +1,22 @@
+{
+  "file": "THESE_URI.pdf",
+  "total_pages": 198,
+  "pages_checked": 15,
+  "pages_with_text": 14,
+  "text_coverage_ratio": 0.9333333333333333,
+  "scanned_pdf": false,
+  "abstract_fr": "RESUMES…………………………………………………………………166",
+  "abstract_en": null,
+  "abstract_ar": null,
+  "has_keywords_marker": true,
+  "toc_items": [
+    "MATERIEL ET METHODES……………………………………………..4",
+    "RESULTATS………………………………………………………………..14",
+    "C- CARCINOGENESE HEPATIQUE……………………………..67",
+    "1- EXAMENS BIOLOGIQUES… ……………………………………..78",
+    "2- EXAMENS MORPHOLOGI QUES………………………………..86"
+  ],
+  "toc_start_page": 3,
+  "toc_end_page": 10,
+  "references_count": null
+}

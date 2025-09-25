@@ -1,0 +1,18 @@
+{
+  "file": "THESE_AMRANI.pdf",
+  "total_pages": 103,
+  "pages_checked": 15,
+  "pages_with_text": 15,
+  "text_coverage_ratio": 1.0,
+  "scanned_pdf": false,
+  "abstract_fr": null,
+  "abstract_en": null,
+  "abstract_ar": null,
+  "has_keywords_marker": false,
+  "toc_items": [
+    "0 Introduction et préliminaires 5"
+  ],
+  "toc_start_page": 3,
+  "toc_end_page": 10,
+  "references_count": null
+}

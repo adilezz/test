@@ -1,0 +1,29 @@
+{
+  "file": "THESE_KHARRASSE.pdf",
+  "total_pages": 118,
+  "pages_checked": 15,
+  "pages_with_text": 15,
+  "text_coverage_ratio": 1.0,
+  "scanned_pdf": false,
+  "abstract_fr": "RESUMES ..………………………… …………………………………. 78",
+  "abstract_en": null,
+  "abstract_ar": null,
+  "has_keywords_marker": true,
+  "toc_items": [
+    "INTRODUCTION ……………………………………………............. 1",
+    "RESULTATS ………………………………………………………...... 7",
+    "C. PARITE…………………………………………………….. 9",
+    "E. ANTECEDENTS MEDICO -CHIRURGICAUX………….. 11",
+    "II. CICATRICE ANTERIEURE .…………………………………... 13",
+    "A. NOMBRE DE CICA TRICES…………………………….... 13",
+    "C. INDICATION DE CESARI ENNE ANTERIEURE……….. 14",
+    "D. SUITES OPERATOIRES………………………………….. 16",
+    "A. SUIVI DE GROSSESSE…………………………………... 17",
+    "B. PATHLOGIES GRAVIDIQUES…………………………..17",
+    "C. HAUTEUR UTERINE…………………………………….. 18",
+    "F. MEMBRANE ET LIQUIDES AMNIOTIQUES………….. 19"
+  ],
+  "toc_start_page": 3,
+  "toc_end_page": 10,
+  "references_count": 0
+}

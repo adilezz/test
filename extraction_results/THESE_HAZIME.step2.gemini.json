@@ -1,0 +1,148 @@
+{
+  "thesis": {
+    "title_fr": "PRISE EN CHARGE DES ACCIDENTS VASCULAIRES CEREBRAUX A L'HOPITAL DE KHOURIBGA",
+    "title_en": null,
+    "title_ar": null,
+    "abstract_fr": null,
+    "abstract_en": null,
+    "abstract_ar": null,
+    "defense_date": null,
+    "submission_date": null,
+    "academic_year": "2006",
+    "page_count": null,
+    "thesis_number": "03",
+    "document_type": "thèse",
+    "specialization": "Médecine",
+    "total_pages": null,
+    "table_of_contents": [],
+    "chapter_titles": [],
+    "references_count": null
+  },
+  "university": {
+    "name_fr": "UNIVERSITE HASSAN II",
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "faculty": {
+    "name_fr": "FACULTE DE MEDECINE ET DE PHARMACIE DE CASABLANCA",
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "school": {
+    "name_fr": null,
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "department": {
+    "name_fr": null,
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "degree": {
+    "name_fr": "DOCTORAT EN MEDECINE",
+    "name_en": null,
+    "name_ar": null,
+    "abbreviation": null,
+    "type": "doctorate",
+    "category": "research"
+  },
+  "language": {
+    "primary": "fr",
+    "secondary": []
+  },
+  "academic_persons": [
+    {
+      "complete_name_fr": "Aïcha HAZIME",
+      "complete_name_ar": null,
+      "first_name_fr": "Aïcha",
+      "last_name_fr": "HAZIME",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mlle",
+      "role": "author",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "A. EL AZHARI",
+      "complete_name_ar": null,
+      "first_name_fr": "A.",
+      "last_name_fr": "EL AZHARI",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "jury_president",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "L. BARROU",
+      "complete_name_ar": null,
+      "first_name_fr": "L.",
+      "last_name_fr": "BARROU",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "jury_reporter",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "R. AL HARRAR",
+      "complete_name_ar": null,
+      "first_name_fr": "R.",
+      "last_name_fr": "AL HARRAR",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "jury_examiner",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "B. IDALI",
+      "complete_name_ar": null,
+      "first_name_fr": "B.",
+      "last_name_fr": "IDALI",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "jury_examiner",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    }
+  ],
+  "categories": [
+    "Médecine",
+    "Neurochirurgie",
+    "Anesthésie Réanimation"
+  ],
+  "keywords": [
+    "Accident vasculaire cérébral",
+    "aspects épidémiologiques",
+    "cliniques",
+    "paracliniques",
+    "thérapeutiques",
+    "évolutifs"
+  ],
+  "study_location": {
+    "name_fr": "KHOURIBGA",
+    "name_en": null,
+    "name_ar": null,
+    "level": "city"
+  }
+}

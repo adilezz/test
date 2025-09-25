@@ -1,0 +1,148 @@
+{
+  "thesis": {
+    "title_fr": "APPORT DE L'IMAGERIE DANS LE DIAGNOSTIC PRÉCOCE DE LA POLYARTHRITE RHUMATOÏDE ET DANS LE RACHIS CERVICAL RHUMATOÏDE",
+    "title_en": null,
+    "title_ar": null,
+    "abstract_fr": null,
+    "abstract_en": null,
+    "abstract_ar": null,
+    "defense_date": "2006-00-00",
+    "submission_date": null,
+    "academic_year": "2006",
+    "page_count": null,
+    "thesis_number": "19",
+    "document_type": "thèse",
+    "specialization": "Rhumatologie",
+    "total_pages": null,
+    "table_of_contents": [],
+    "chapter_titles": [],
+    "references_count": null
+  },
+  "university": {
+    "name_fr": "UNIVERSITE HASSAN II",
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "faculty": {
+    "name_fr": "FACULTE DE MEDECINE ET DE PHARMACIE DE CASABLANCA",
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "school": {
+    "name_fr": null,
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "department": {
+    "name_fr": null,
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "degree": {
+    "name_fr": "DOCTORAT EN MEDECINE",
+    "name_en": null,
+    "name_ar": null,
+    "abbreviation": null,
+    "type": "doctorate",
+    "category": "research"
+  },
+  "language": {
+    "primary": "fr",
+    "secondary": []
+  },
+  "academic_persons": [
+    {
+      "complete_name_fr": "EL ANBARI YOUNES",
+      "complete_name_ar": null,
+      "first_name_fr": "YOUNES",
+      "last_name_fr": "EL ANBARI",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "author",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "N. CHIKHAOUI",
+      "complete_name_ar": null,
+      "first_name_fr": "N.",
+      "last_name_fr": "CHIKHAOUI",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "jury_president",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "A. EL ABBASSI SKALLI",
+      "complete_name_ar": null,
+      "first_name_fr": "A.",
+      "last_name_fr": "EL ABBASSI SKALLI",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mme.",
+      "role": "jury_rapporteur",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "N. ETAOUIL",
+      "complete_name_ar": null,
+      "first_name_fr": "N.",
+      "last_name_fr": "ETAOUIL",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mme.",
+      "role": "jury_examiner",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "F. EL AMRAOUI",
+      "complete_name_ar": null,
+      "first_name_fr": "F.",
+      "last_name_fr": "EL AMRAOUI",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mme.",
+      "role": "jury_examiner",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    }
+  ],
+  "categories": [
+    "Rhumatologie",
+    "Radiologie",
+    "Imagerie médicale"
+  ],
+  "keywords": [
+    "Polyarthrite rhumatoïde débutante",
+    "Rachis cervical rhumatoïde",
+    "Radiographie conventionnelle",
+    "IRM",
+    "Echographie",
+    "TDM"
+  ],
+  "study_location": {
+    "name_fr": "Casablanca",
+    "name_en": null,
+    "name_ar": null,
+    "level": "city"
+  }
+}
