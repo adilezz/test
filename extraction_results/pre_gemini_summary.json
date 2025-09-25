@@ -1,0 +1,26 @@
+{
+  "num_pdfs": 100,
+  "pages": {
+    "mean": 165.82828282828282,
+    "median": 156,
+    "min": 74,
+    "max": 342
+  },
+  "text_coverage": {
+    "mean": 0.07680782103256102,
+    "pct_ge_50": 0.0,
+    "pct_ge_80": 0.0
+  },
+  "field_markers": {
+    "abstract_rate": 0.76,
+    "toc_rate": 0.85,
+    "references_rate": 0.77,
+    "keywords_rate": 0.32
+  },
+  "language_hint_distribution": {
+    "fr": 99,
+    "en": 0,
+    "ar": 0,
+    "unknown": 1
+  }
+}

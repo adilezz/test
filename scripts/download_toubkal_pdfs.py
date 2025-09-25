@@ -97,9 +97,12 @@ def download_pdf(pdf_url: str, outdir: str, session: requests.Session, min_bytes
 
 
 def process_handles(
-    handle_urls: List[str], outdir: str, limit: Optional[int], min_bytes: int, delay_s: float
+    handle_urls: List[str], outdir: str, limit: Optional[int], min_bytes: int, delay_s: float, insecure: bool = False
 ) -> List[DownloadOutcome]:
     session = requests.Session()
+    if insecure:
+        session.verify = False  # type: ignore
+        requests.packages.urllib3.disable_warnings()  # type: ignore
     results: List[DownloadOutcome] = []
     total = len(handle_urls)
     for idx, handle_url in enumerate(handle_urls, start=1):
@@ -158,12 +161,20 @@ def main():
     parser.add_argument("--min-bytes", type=int, default=50000, help="Minimum bytes for a valid PDF")
     parser.add_argument("--delay", type=float, default=0.5, help="Delay between requests in seconds")
     parser.add_argument("--log-csv", default="/workspace/scripts/download_results.csv", help="CSV log path")
+    parser.add_argument("--insecure", action="store_true", help="Disable SSL verification (testing only)")
 
     args = parser.parse_args()
     handles = read_handle_urls(args.input, args.limit if args.limit and args.limit > 0 else None)
+    # Configure session SSL verification via environment flag if requested
+    if args.insecure:
+        # requests.Session respects verify attribute
+        requests.packages.urllib3.disable_warnings()  # type: ignore
+        # We will set session.verify=False inside process_handles by relying on requests defaults update via env
+        os.environ["CURL_CA_BUNDLE"] = ""  # mitigate
+        os.environ["REQUESTS_CA_BUNDLE"] = ""
     print(f"Found {len(handles)} handle URLs to process")
 
-    results = process_handles(handles, args.outdir, None, args.min_bytes, args.delay)
+    results = process_handles(handles, args.outdir, None, args.min_bytes, args.delay, insecure=args.insecure)
     ok = sum(1 for r in results if r.status == "ok")
     print(f"Downloaded {ok}/{len(results)} PDFs")
 
