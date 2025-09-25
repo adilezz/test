@@ -81,6 +81,14 @@ export default function AdminDashboardPage() {
       color: 'bg-green-500'
     },
     {
+      title: 'Départements',
+      description: 'Gérer les départements des facultés et écoles',
+      icon: <Users className="w-6 h-6" />,
+      count: statistics?.total_departments,
+      path: '/admin/departments',
+      color: 'bg-purple-500'
+    },
+    {
       title: 'Écoles',
       description: 'Gérer les écoles et leurs hiérarchies',
       icon: <BookOpen className="w-6 h-6" />,

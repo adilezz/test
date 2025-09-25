@@ -74,6 +74,14 @@ export default function AdminCategoriesPage() {
     setShowAllCategories(false); // Reset pagination when switching views
   }, [viewMode, startLevel, stopLevel]);
 
+  // Keep hierarchical view available when changing levels
+  useEffect(() => {
+    if (viewMode === 'tree') {
+      // Ensure hierarchical view is maintained when levels change
+      loadData();
+    }
+  }, [startLevel, stopLevel]);
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -161,6 +169,35 @@ export default function AdminCategoriesPage() {
       (category.description && category.description.toLowerCase().includes(searchLower))
     );
   });
+
+  // Filter tree data for search
+  const filterTreeData = (nodes: TreeNode[], searchTerm: string): TreeNode[] => {
+    if (!searchTerm.trim()) return nodes;
+    
+    const lowerSearch = searchTerm.toLowerCase();
+    
+    return nodes.filter(node => {
+      const matchesNode = 
+        node.name_fr.toLowerCase().includes(lowerSearch) ||
+        node.code?.toLowerCase().includes(lowerSearch) ||
+        node.name_en?.toLowerCase().includes(lowerSearch) ||
+        node.name_ar?.toLowerCase().includes(lowerSearch) ||
+        node.description?.toLowerCase().includes(lowerSearch);
+      
+      const hasMatchingChildren = node.children && 
+        filterTreeData(node.children, searchTerm).length > 0;
+      
+      if (matchesNode || hasMatchingChildren) {
+        return {
+          ...node,
+          children: node.children ? filterTreeData(node.children, searchTerm) : undefined,
+          expanded: hasMatchingChildren ? true : node.expanded
+        };
+      }
+      
+      return false;
+    }).map(node => typeof node === 'object' ? node : nodes.find(n => n === node)!);
+  };
 
   const displayedCategories = viewMode === 'list' && !showAllCategories 
     ? filteredCategories.slice(0, 50) 
@@ -717,14 +754,18 @@ export default function AdminCategoriesPage() {
                 Structure Hiérarchique des Catégories
               </h2>
               <div className="space-y-1">
-                {treeData.map((node) => renderTreeNode(node))}
+                {filterTreeData(treeData, searchTerm).length > 0 ? (
+                  filterTreeData(treeData, searchTerm).map((node) => renderTreeNode(node))
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Tags className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p className="text-lg font-medium">Aucune catégorie trouvée</p>
+                    <p className="text-sm">
+                      {searchTerm ? 'Aucun résultat pour votre recherche' : 'Aucune donnée disponible'}
+                    </p>
+                  </div>
+                )}
               </div>
-              {treeData.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <Tags className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                  <p>Aucune catégorie trouvée</p>
-                </div>
-              )}
             </div>
           ) : (
             <div className="overflow-x-auto">

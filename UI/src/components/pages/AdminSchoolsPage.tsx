@@ -25,6 +25,7 @@ import { Link } from 'react-router-dom';
 import { apiService } from '../../services/api';
 import TreeView from '../ui/TreeView/TreeView';
 import { TreeNode as UITreeNode } from '../../types/tree';
+import AdminHeader from '../layout/AdminHeader';
 import { 
   SchoolResponse, 
   UniversityResponse,
@@ -60,16 +61,14 @@ export default function AdminSchoolsPage() {
   const [flatList, setFlatList] = useState<SchoolResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
-  const [startLevel, setStartLevel] = useState<'university' | 'school' | 'department'>('university');
-  const [stopLevel, setStopLevel] = useState<'university' | 'school' | 'department'>('department');
+  const [startLevel, setStartLevel] = useState<'school' | 'department'>('school');
+  const [stopLevel, setStopLevel] = useState<'school' | 'department'>('department');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
-  const [universities, setUniversities] = useState<UniversityResponse[]>([]);
   const [schools, setSchools] = useState<SchoolResponse[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
-    parent_university_id: '',
     parent_school_id: '',
     has_departments: ''
   });
@@ -78,24 +77,14 @@ export default function AdminSchoolsPage() {
     name_en: '',
     name_ar: '',
     acronym: '',
-    parent_university_id: undefined,
     parent_school_id: undefined
   });
 
   useEffect(() => {
     loadData();
-    loadUniversities();
     loadSchoolsList();
   }, []);
 
-  const loadUniversities = async () => {
-    try {
-      const response = await apiService.adminList<PaginatedResponse>('universities', { load_all: 'true' });
-      setUniversities(response.data || []);
-    } catch (error) {
-      console.error('Error loading universities:', error);
-    }
-  };
 
   const loadSchoolsList = async () => {
     try {
@@ -109,6 +98,14 @@ export default function AdminSchoolsPage() {
   useEffect(() => {
     loadData();
   }, [viewMode, startLevel, stopLevel]);
+
+  // Keep hierarchical view available when changing levels
+  useEffect(() => {
+    if (viewMode === 'tree') {
+      // Ensure hierarchical view is maintained when levels change
+      loadData();
+    }
+  }, [startLevel, stopLevel]);
 
   // Debounced search effect
   useEffect(() => {
@@ -172,9 +169,6 @@ export default function AdminSchoolsPage() {
         const params: Record<string, string | number> = {};
         if (searchTerm.trim()) {
           params.search = searchTerm.trim();
-        }
-        if (filters.parent_university_id) {
-          params.parent_university_id = filters.parent_university_id;
         }
         if (filters.parent_school_id) {
           params.parent_school_id = filters.parent_school_id;
@@ -265,7 +259,6 @@ export default function AdminSchoolsPage() {
         name_en: formData.name_en || undefined,
         name_ar: formData.name_ar || undefined,
         acronym: formData.acronym || undefined,
-        parent_university_id: formData.parent_university_id || undefined,
         parent_school_id: formData.parent_school_id || undefined
       };
       
@@ -276,7 +269,6 @@ export default function AdminSchoolsPage() {
         name_en: '',
         name_ar: '',
         acronym: '',
-        parent_university_id: undefined,
         parent_school_id: undefined
       });
       loadData();
@@ -296,7 +288,6 @@ export default function AdminSchoolsPage() {
         name_en: formData.name_en || undefined,
         name_ar: formData.name_ar || undefined,
         acronym: formData.acronym || undefined,
-        parent_university_id: formData.parent_university_id || undefined,
         parent_school_id: formData.parent_school_id || undefined
       };
       
@@ -327,7 +318,6 @@ export default function AdminSchoolsPage() {
         name_en: item.name_en || '',
         name_ar: item.name_ar || '',
         acronym: item.acronym || '',
-        parent_university_id: item.parent_university_id || undefined,
         parent_school_id: item.parent_school_id || undefined
       });
     } else if (mode === 'create') {
@@ -336,7 +326,6 @@ export default function AdminSchoolsPage() {
         name_en: '',
         name_ar: '',
         acronym: '',
-        parent_university_id: undefined,
         parent_school_id: undefined
       });
     }
@@ -521,59 +510,27 @@ export default function AdminSchoolsPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Université Parent
-                  </label>
-                  <select
-                    value={formData.parent_university_id || ''}
-                    onChange={(e) => {
-                      setFormData({ 
-                        ...formData, 
-                        parent_university_id: e.target.value || undefined,
-                        parent_school_id: undefined // Clear school when university changes
-                      });
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Sélectionner une université</option>
-                    {universities.map((university) => (
-                      <option key={university.id} value={university.id}>
-                        {university.name_fr} {university.acronym && `(${university.acronym})`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    École Parent
-                  </label>
-                  <select
-                    value={formData.parent_school_id || ''}
-                    onChange={(e) => {
-                      setFormData({ 
-                        ...formData, 
-                        parent_school_id: e.target.value || undefined,
-                        parent_university_id: undefined // Clear university when school is selected
-                      });
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Sélectionner une école parent</option>
-                    {schools.map((school) => (
-                      <option key={school.id} value={school.id}>
-                        {school.name_fr} {school.acronym && `(${school.acronym})`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  École parente (optionnel)
+                </label>
+                <select
+                  value={formData.parent_school_id || ''}
+                  onChange={(e) => setFormData({ ...formData, parent_school_id: e.target.value || undefined })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Aucune école parente (école de niveau supérieur)</option>
+                  {schools.filter(s => s.id !== modal.item?.id).map((school) => (
+                    <option key={school.id} value={school.id}>
+                      {school.name_fr} {school.acronym && `(${school.acronym})`}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-sm text-gray-500 mt-1">
+                  Les écoles sont organisées de manière hiérarchique. Sélectionnez une école parente pour créer une sous-école.
+                </p>
               </div>
 
-              <div className="text-sm text-gray-500">
-                Une école peut être rattachée soit à une université, soit à une autre école (mais pas aux deux).
-              </div>
 
               <div className="flex justify-end space-x-3 pt-4">
                 <button
@@ -617,14 +574,6 @@ export default function AdminSchoolsPage() {
                   <p className="mt-1 text-gray-900">{modal.item.acronym}</p>
                 </div>
               )}
-              {modal.item.parent_university_id && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Université Parent</label>
-                  <p className="mt-1 text-gray-900">
-                    {universities.find(u => u.id === modal.item?.parent_university_id)?.name_fr || 'Non spécifiée'}
-                  </p>
-                </div>
-              )}
               {modal.item.parent_school_id && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700">École Parent</label>
@@ -656,6 +605,7 @@ export default function AdminSchoolsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <AdminHeader />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -711,10 +661,10 @@ export default function AdminSchoolsPage() {
                     value={startLevel}
                     onChange={(e) => setStartLevel(e.target.value as any)}
                     className="px-2 py-1 border border-gray-300 rounded"
+                    disabled
+                    title="Le niveau de départ est toujours École"
                   >
-                    <option value="university">Université</option>
                     <option value="school">École</option>
-                    <option value="department">Département</option>
                   </select>
                 </div>
                 <div>
@@ -724,7 +674,6 @@ export default function AdminSchoolsPage() {
                     onChange={(e) => setStopLevel(e.target.value as any)}
                     className="px-2 py-1 border border-gray-300 rounded"
                   >
-                    <option value="university">Université</option>
                     <option value="school">École</option>
                     <option value="department">Département</option>
                   </select>
@@ -761,24 +710,7 @@ export default function AdminSchoolsPage() {
         {showFilters && (
           <div className="bg-white rounded-lg shadow p-4 mb-6">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Filtres</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Université Parent
-                </label>
-                <select
-                  value={filters.parent_university_id}
-                  onChange={(e) => setFilters({ ...filters, parent_university_id: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">Toutes les universités</option>
-                  {universities.map((university) => (
-                    <option key={university.id} value={university.id}>
-                      {university.name_fr} {university.acronym && `(${university.acronym})`}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -816,7 +748,7 @@ export default function AdminSchoolsPage() {
 
             <div className="flex justify-end mt-4">
               <button
-                onClick={() => setFilters({ parent_university_id: '', parent_school_id: '', has_departments: '' })}
+                onClick={() => setFilters({ parent_school_id: '', has_departments: '' })}
                 className="px-4 py-2 text-gray-600 hover:text-gray-800"
               >
                 Réinitialiser
@@ -879,11 +811,9 @@ export default function AdminSchoolsPage() {
                         {school.acronym || '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {school.parent_university_id && 
-                          universities.find(u => u.id === school.parent_university_id)?.name_fr}
                         {school.parent_school_id && 
                           schools.find(s => s.id === school.parent_school_id)?.name_fr}
-                        {!school.parent_university_id && !school.parent_school_id && '-'}
+                        {!school.parent_school_id && '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(school.created_at).toLocaleDateString('fr-FR')}

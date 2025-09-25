@@ -134,6 +134,14 @@ export default function AdminUniversitiesPage() {
     loadData();
   }, [viewMode, startLevel, stopLevel]);
 
+  // Keep hierarchical view available when changing levels
+  useEffect(() => {
+    if (viewMode === 'tree') {
+      // Ensure hierarchical view is maintained when levels change
+      loadData();
+    }
+  }, [startLevel, stopLevel]);
+
   // Debounced search effect
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -151,6 +159,12 @@ export default function AdminUniversitiesPage() {
       loadData();
     }
   }, [filters]);
+
+  // Search effect for tree view
+  useEffect(() => {
+    // For tree view, we filter client-side, so no need to reload data
+    // The filterTreeData function handles the search in tree view
+  }, [searchTerm]);
 
   const filterTreeData = (nodes: TreeNode[], searchTerm: string): TreeNode[] => {
     if (!searchTerm.trim()) return nodes;
@@ -718,10 +732,10 @@ export default function AdminUniversitiesPage() {
                     value={startLevel}
                     onChange={(e) => setStartLevel(e.target.value as any)}
                     className="px-2 py-1 border border-gray-300 rounded"
+                    disabled
+                    title="Le niveau de départ est toujours Université"
                   >
                     <option value="university">Université</option>
-                    <option value="faculty">Faculté</option>
-                    <option value="department">Département</option>
                   </select>
                 </div>
                 <div>

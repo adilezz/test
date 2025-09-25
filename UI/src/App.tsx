@@ -14,6 +14,7 @@ import AdminDashboardPage from './components/pages/AdminDashboardPage';
 import AdminUniversitiesPage from './components/pages/AdminUniversitiesPage';
 import AdminSchoolsPage from './components/pages/AdminSchoolsPage';
 import AdminFacultiesPage from './components/pages/AdminFacultiesPage';
+import AdminDepartmentsPage from './components/pages/AdminDepartmentsPage';
 import AdminCategoriesPage from './components/pages/AdminCategoriesPage';
 import AdminAcademicPersonsPage from './components/pages/AdminAcademicPersonsPage';
 import AdminKeywordsPage from './components/pages/AdminKeywordsPage';
@@ -233,6 +234,13 @@ function App() {
                     <ProtectedRoute>
                       <AdminRoute>
                         <AdminFacultiesPage />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/departments" element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminDepartmentsPage />
                       </AdminRoute>
                     </ProtectedRoute>
                   } />
