@@ -22,6 +22,7 @@ from gemini_metadata_extractor import (
     ExtractionResult,
     ExtractedMetadata
 )
+from metadata_pipeline import run_pipeline as run_two_step_pipeline
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -263,7 +264,19 @@ async def extract_metadata_from_file(
         )
     
     try:
-        # Extract metadata
+        # Prefer the new 2-step pipeline (Step1 + Step2) for lower cost and broader coverage
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            merged = await run_two_step_pipeline(file_path, api_key)
+            return ExtractionResponse(
+                extraction_id=extraction_id,
+                success=True,
+                message="Metadata extracted via two-step pipeline",
+                metadata=merged,  # type: ignore
+                confidence_score=None,
+                processing_time=None
+            )
+        # Fallback to legacy single-step extractor
         result = await extractor.extract_metadata(file_path)
         
         if result.success:
