@@ -1,0 +1,26 @@
+{
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "pdf-parse": "^1.1.1"
+  },
+  "name": "workspace",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adilezz/test.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/adilezz/test/issues"
+  },
+  "homepage": "https://github.com/adilezz/test#readme",
+  "description": ""
+}
