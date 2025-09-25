@@ -35,6 +35,7 @@ export default function AdminKeywordsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categories, setCategories] = useState<CategoryResponse[]>([]);
+  const [categoriesTree, setCategoriesTree] = useState<any[]>([]);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
   const [formData, setFormData] = useState<KeywordCreate>({
     parent_keyword_id: null,
@@ -65,6 +66,13 @@ export default function AdminKeywordsPage() {
     try {
       const response = await apiService.adminList<PaginatedResponse>('categories', { limit: 1000 });
       setCategories(response.data);
+      
+      // Load hierarchical categories tree
+      const treeResponse = await apiService.getAdminReferencesTree({
+        ref_type: 'categories',
+        include_counts: false
+      });
+      setCategoriesTree(treeResponse);
     } catch (error) {
       console.error('Error loading categories:', error);
     }
@@ -150,6 +158,36 @@ export default function AdminKeywordsPage() {
     (keyword.keyword_ar && keyword.keyword_ar.includes(searchTerm))
   );
 
+  const renderCategoryTree = (categories: any[], level: number = 0): React.ReactNode => {
+    return categories.map((category) => (
+      <div key={category.id} className="ml-4">
+        <label className="flex items-center space-x-2 py-1">
+          <input
+            type="radio"
+            name="category_id"
+            value={category.id}
+            checked={formData.category_id === category.id}
+            onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+          />
+          <span className="text-sm text-gray-900" style={{ marginLeft: `${level * 20}px` }}>
+            {category.name_fr}
+            {category.level > 0 && (
+              <span className="ml-2 text-xs text-gray-500">
+                (Niveau {category.level})
+              </span>
+            )}
+          </span>
+        </label>
+        {category.children && category.children.length > 0 && (
+          <div className="ml-4">
+            {renderCategoryTree(category.children, level + 1)}
+          </div>
+        )}
+      </div>
+    ));
+  };
+
   const renderModal = () => {
     if (!modal.isOpen) return null;
 
@@ -203,18 +241,20 @@ export default function AdminKeywordsPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Catégorie
                     </label>
-                    <select
-                      value={formData.category_id || ''}
-                      onChange={(e) => setFormData({ ...formData, category_id: e.target.value || null })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Aucune catégorie</option>
-                      {categories.map(category => (
-                        <option key={category.id} value={category.id}>
-                          {category.name_fr}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto">
+                      <label className="flex items-center space-x-2 py-1">
+                        <input
+                          type="radio"
+                          name="category_id"
+                          value=""
+                          checked={!formData.category_id}
+                          onChange={(e) => setFormData({ ...formData, category_id: null })}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                        />
+                        <span className="text-sm text-gray-900">Aucune catégorie</span>
+                      </label>
+                      {renderCategoryTree(categoriesTree)}
+                    </div>
                   </div>
                 </div>
               </div>
