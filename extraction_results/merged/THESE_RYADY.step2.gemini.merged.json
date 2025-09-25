@@ -1,0 +1,148 @@
+{
+  "file_name": "THESE_RYADY.step2.gemini.pdf",
+  "thesis": {
+    "title_fr": "PREVENTION DE LA MALADIE THROMBOEMBOLIQUE POSTOPERATOIRE A L'HOPITAL SIDI EL BERNOUSSI (A propos de 620 cas)",
+    "title_en": null,
+    "title_ar": null,
+    "abstract_fr": null,
+    "abstract_en": null,
+    "abstract_ar": null,
+    "defense_date": "2006",
+    "submission_date": null,
+    "academic_year": "2006",
+    "page_count": null,
+    "thesis_number": "05",
+    "table_of_contents": null,
+    "references_count": null
+  },
+  "university": {
+    "name_fr": "UNIVERSITE HASSAN II",
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "faculty": {
+    "name_fr": "FACULTE DE MEDECINE ET DE PHARMACIE",
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "school": {
+    "name_fr": null,
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "department": {
+    "name_fr": null,
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "degree": {
+    "name_fr": "DOCTORAT EN MEDECINE",
+    "name_en": null,
+    "name_ar": null,
+    "abbreviation": null,
+    "type": "doctorate",
+    "category": "research"
+  },
+  "language": {
+    "primary": "fr",
+    "secondary": []
+  },
+  "academic_persons": [
+    {
+      "complete_name_fr": "Houda RYADY",
+      "complete_name_ar": null,
+      "first_name_fr": "Houda",
+      "last_name_fr": "RYADY",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mlle",
+      "role": "author",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "A. EL AZHARI",
+      "complete_name_ar": null,
+      "first_name_fr": "A.",
+      "last_name_fr": "EL AZHARI",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "jury_president",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "L. BARROU",
+      "complete_name_ar": null,
+      "first_name_fr": "L.",
+      "last_name_fr": "BARROU",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "jury_reporter",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "B. IDALI",
+      "complete_name_ar": null,
+      "first_name_fr": "B.",
+      "last_name_fr": "IDALI",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "jury_examiner",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "M. NECHAD",
+      "complete_name_ar": null,
+      "first_name_fr": "M.",
+      "last_name_fr": "NECHAD",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "jury_examiner",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "S. SALMI",
+      "complete_name_ar": null,
+      "first_name_fr": "S.",
+      "last_name_fr": "SALMI",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "jury_examiner",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    }
+  ],
+  "categories": [],
+  "keywords": [
+    "Maladie thromboembolique",
+    "Postopératoire",
+    "Prévention"
+  ],
+  "scanned_pdf": false,
+  "has_keywords_marker": false
+}

@@ -6,16 +6,42 @@
     "abstract_fr": null,
     "abstract_en": null,
     "abstract_ar": null,
-    "defense_date": null,
+    "defense_date": "2006",
     "submission_date": null,
     "academic_year": "2006",
     "page_count": null,
     "thesis_number": "05",
     "document_type": "thèse",
-    "specialization": "Médecine",
+    "specialization": null,
     "total_pages": null,
-    "table_of_contents": [],
-    "chapter_titles": [],
+    "table_of_contents": [
+      "INTRODUCTION",
+      "PATIENTS ET METHODES",
+      "RESULTATS",
+      "I – EPIDEMIOLOGIE",
+      "A – NOMBRE",
+      "B – AGE",
+      "C – SEXE",
+      "D – ANTECEDENTS",
+      "E – FACTEURS DE RISQUE DE LA MALADIE THROMBOEMBOLIQUE",
+      "II – EVALUATION DU RISQUE ET LA PROPHYLAXIE DE LA MALADIE THROMBOEMBOLIQUE DANS CHAQUE SERVICE",
+      "A – SERVICE DE CHIRURGIE VISCERALE",
+      "1. Nombre",
+      "2. Age",
+      "3. Sexe",
+      "4. Type d’interventions",
+      "5. Risque lié au malade",
+      "6. Risque lié à la chirurgie",
+      "7. Risque thromboembolique global",
+      "8. Prophylaxie de la maladie thromboembolique"
+    ],
+    "chapter_titles": [
+      "INTRODUCTION",
+      "PATIENTS ET METHODES",
+      "RESULTATS",
+      "I – EPIDEMIOLOGIE",
+      "II – EVALUATION DU RISQUE ET LA PROPHYLAXIE DE LA MALADIE THROMBOEMBOLIQUE DANS CHAQUE SERVICE"
+    ],
     "references_count": null
   },
   "university": {
@@ -140,17 +166,14 @@
       "is_external": false
     }
   ],
-  "categories": [
-    "Médecine",
-    "Chirurgie"
-  ],
+  "categories": [],
   "keywords": [
     "Maladie thromboembolique",
     "Postopératoire",
     "Prévention"
   ],
   "study_location": {
-    "name_fr": "Casablanca",
+    "name_fr": "CASABLANCA",
     "name_en": null,
     "name_ar": null,
     "level": "city"

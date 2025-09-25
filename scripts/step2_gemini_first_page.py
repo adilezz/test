@@ -41,11 +41,28 @@ def load_first_page_image(pdf_path: str):
     except Exception:
         return None
 
+def read_pages_2_3_text(pdf_path: str) -> str:
+    try:
+        with open(pdf_path, "rb") as f:
+            reader = PyPDF2.PdfReader(f)
+            texts = []
+            for idx in (1, 2):  # pages 2 and 3 (0-based)
+                if idx < len(reader.pages):
+                    try:
+                        txt = reader.pages[idx].extract_text() or ""
+                        if txt:
+                            texts.append(txt)
+                    except Exception:
+                        pass
+            return ("\n".join(texts))[:6000]
+    except Exception:
+        return ""
 
 async def process_file(extractor, pdf_path: str) -> Tuple[str, dict]:
     # Construct minimal text_sections and single image
     text_sections = {
-        "first_pages": read_first_page_text(pdf_path)[:6000]
+        "first_pages": read_first_page_text(pdf_path)[:6000],
+        "pages_2_3": read_pages_2_3_text(pdf_path),
     }
     image = load_first_page_image(pdf_path)
     metadata = await extractor.extract_with_enhanced_gemini(text_sections, [image] if image else None)
