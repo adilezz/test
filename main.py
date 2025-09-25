@@ -44,6 +44,7 @@ from datetime import datetime, timedelta, date
 from typing import Optional, List, Dict, Any, Union
 import json
 from enum import Enum
+from fastapi_gemini_integration import setup_gemini_extraction
 
 # =============================================================================
 # CONFIGURATION
@@ -98,6 +99,11 @@ class Settings:
     # Search Configuration
     SEARCH_MIN_QUERY_LENGTH: int = 2
     SEARCH_MAX_RESULTS: int = 1000
+
+    # Gemini / Metadata Extraction
+    GEMINI_API_KEY: Optional[str] = os.getenv("GEMINI_API_KEY")
+    GEMINI_MODEL_NAME: str = os.getenv("GEMINI_MODEL_NAME", "gemini-1.5-flash")
+    ENABLE_GEMINI_API: bool = os.getenv("ENABLE_GEMINI_API", "true").lower() == "true"
 
 # Initialize settings
 settings = Settings()
@@ -9025,6 +9031,15 @@ async def startup_event():
         for directory in [TEMP_UPLOAD_DIR, PUBLISHED_DIR, BULK_UPLOAD_DIR]:
             directory.mkdir(parents=True, exist_ok=True)
         logger.info("Upload directories created/verified")
+        # Setup Gemini extraction router if enabled and API key provided
+        try:
+            if settings.ENABLE_GEMINI_API and settings.GEMINI_API_KEY:
+                setup_gemini_extraction(app, settings.GEMINI_API_KEY, settings.GEMINI_MODEL_NAME)
+                logger.info("Gemini metadata extraction router enabled")
+            else:
+                logger.warning("Gemini extraction disabled or missing GEMINI_API_KEY; router not included")
+        except Exception as e:
+            logger.error(f"Failed to setup Gemini extraction router: {e}")
     except Exception as e:
         logger.error(f"Failed to initialize application: {e}")
         raise
