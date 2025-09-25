@@ -1,0 +1,160 @@
+{
+  "thesis": {
+    "title_fr": "INFECTIONS URINAIRES DU NOUVEAU-NE (A propos de 89 cas)",
+    "title_en": null,
+    "title_ar": null,
+    "abstract_fr": null,
+    "abstract_en": null,
+    "abstract_ar": null,
+    "defense_date": "2006-00-00",
+    "submission_date": null,
+    "academic_year": "2006",
+    "page_count": null,
+    "thesis_number": "23",
+    "document_type": "thèse",
+    "specialization": "Pédiatrie",
+    "total_pages": null,
+    "table_of_contents": [],
+    "chapter_titles": [],
+    "references_count": null
+  },
+  "university": {
+    "name_fr": "UNIVERSITE HASSAN II",
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "faculty": {
+    "name_fr": "FACULTE DE MEDECINE ET DE PHARMACIE DE CASABLANCA",
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "school": {
+    "name_fr": null,
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "department": {
+    "name_fr": null,
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "degree": {
+    "name_fr": "DOCTORAT EN MEDECINE",
+    "name_en": null,
+    "name_ar": null,
+    "abbreviation": null,
+    "type": "doctorate",
+    "category": "research"
+  },
+  "language": {
+    "primary": "fr",
+    "secondary": []
+  },
+  "academic_persons": [
+    {
+      "complete_name_fr": "Lamiaa HALLAB",
+      "complete_name_ar": null,
+      "first_name_fr": "Lamiaa",
+      "last_name_fr": "HALLAB",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mlle",
+      "role": "author",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "S. BENOMAR",
+      "complete_name_ar": null,
+      "first_name_fr": "S.",
+      "last_name_fr": "BENOMAR",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "jury_president",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "A. HABZI",
+      "complete_name_ar": null,
+      "first_name_fr": "A.",
+      "last_name_fr": "HABZI",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "jury_reporter",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "L. OUZIDANE",
+      "complete_name_ar": null,
+      "first_name_fr": "L.",
+      "last_name_fr": "OUZIDANE",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "jury_examiner",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "A. ZINEDDINE",
+      "complete_name_ar": null,
+      "first_name_fr": "A.",
+      "last_name_fr": "ZINEDDINE",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "jury_examiner",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "N. NEJJARI",
+      "complete_name_ar": null,
+      "first_name_fr": "N.",
+      "last_name_fr": "NEJJARI",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "Mr.",
+      "role": "jury_examiner",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    }
+  ],
+  "categories": [
+    "Pediatrics",
+    "Infections urinaires",
+    "Néonatologie"
+  ],
+  "keywords": [
+    "Nouveau-né",
+    "Infection urinaire",
+    "Uropathies",
+    "Antibioprophylaxie"
+  ],
+  "study_location": {
+    "name_fr": "Casablanca",
+    "name_en": null,
+    "name_ar": null,
+    "level": "city"
+  }
+}

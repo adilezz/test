@@ -1,0 +1,142 @@
+{
+  "thesis": {
+    "title_fr": null,
+    "title_en": null,
+    "title_ar": "وقوع وتقييم أمراض القلب والأوعية بغرفة العمليات الجراحية",
+    "abstract_fr": null,
+    "abstract_en": null,
+    "abstract_ar": "خطر القلب عند إجراء عملية جراحية - فرط ضغط الدم الشرياني والتبنيج - قصور القلب والتبنيج - اعتلالات الصمام والتبنيج",
+    "defense_date": null,
+    "submission_date": null,
+    "academic_year": "2006",
+    "page_count": null,
+    "thesis_number": "25",
+    "document_type": "أطروحة",
+    "specialization": "أمراض القلب والأوعية",
+    "total_pages": null,
+    "table_of_contents": [],
+    "chapter_titles": [],
+    "references_count": null
+  },
+  "university": {
+    "name_fr": "جامعة الحسن الثاني",
+    "name_en": null,
+    "name_ar": "جامعة الحسن الثاني",
+    "acronym": null
+  },
+  "faculty": {
+    "name_fr": "كلية الطب و الصيدلة",
+    "name_en": null,
+    "name_ar": "كلية الطب و الصيدلة",
+    "acronym": null
+  },
+  "school": {
+    "name_fr": null,
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "department": {
+    "name_fr": null,
+    "name_en": null,
+    "name_ar": null,
+    "acronym": null
+  },
+  "degree": {
+    "name_fr": "الدكتوراه في الطب",
+    "name_en": null,
+    "name_ar": "الدكتوراه في الطب",
+    "abbreviation": null,
+    "type": "doctorate",
+    "category": "research"
+  },
+  "language": {
+    "primary": "ar",
+    "secondary": [
+      "fr"
+    ]
+  },
+  "academic_persons": [
+    {
+      "complete_name_fr": null,
+      "complete_name_ar": "السيد ربيع الندا",
+      "first_name_fr": null,
+      "last_name_fr": null,
+      "first_name_ar": "ربيع",
+      "last_name_ar": "الندا",
+      "title": "السيد",
+      "role": "author",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "ع. حارتي",
+      "complete_name_ar": null,
+      "first_name_fr": "ع.",
+      "last_name_fr": "حارتي",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "الاستاذ",
+      "role": "supervisor",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "ر. الحرار",
+      "complete_name_ar": null,
+      "first_name_fr": "ر.",
+      "last_name_fr": "الحرار",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "ال أستاذ",
+      "role": "jury_examiner",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "م. ر. لفريخ",
+      "complete_name_ar": null,
+      "first_name_fr": "م. ر.",
+      "last_name_fr": "لفريخ",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "الأستاذ",
+      "role": "jury_examiner",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    },
+    {
+      "complete_name_fr": "ي. ميلودي",
+      "complete_name_ar": null,
+      "first_name_fr": "ي.",
+      "last_name_fr": "ميلودي",
+      "first_name_ar": null,
+      "last_name_ar": null,
+      "title": "ال أستاذ",
+      "role": "jury_examiner",
+      "external_institution_name": null,
+      "external_institution_country": null,
+      "external_institution_type": null,
+      "is_external": false
+    }
+  ],
+  "categories": [
+    "Cardiology",
+    "Cardiovascular Surgery"
+  ],
+  "keywords": [],
+  "study_location": {
+    "name_fr": "الدار البيضاء",
+    "name_en": "Casablanca",
+    "name_ar": "الدار البيضاء",
+    "level": "city"
+  }
+}
