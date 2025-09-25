@@ -569,6 +569,7 @@ export interface SearchRequest {
   category_id?: string;
   degree_id?: string;
   language_id?: string;
+  status?: ThesisStatus;
   year_from?: number;
   year_to?: number;
   defense_date_from?: string;
@@ -594,6 +595,7 @@ export interface StatisticsResponse {
   total_theses: number;
   total_universities: number;
   total_faculties: number;
+  total_departments: number;
   total_schools: number;
   total_categories: number;
   total_keywords: number;

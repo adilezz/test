@@ -24,7 +24,9 @@ import {
   ThesisResponse,
   PaginatedResponse,
   ThesisStatus,
-  SearchRequest
+  SearchRequest,
+  SortField,
+  SortOrder
 } from '../../types/api';
 
 interface FilterState {
@@ -62,13 +64,34 @@ export default function AdminThesesListPage() {
   const loadTheses = async () => {
     setLoading(true);
     try {
+      // Convert filters to API format
+      const apiFilters: Partial<SearchRequest> = {};
+      
+      if (filters.status && filters.status !== '' as any) {
+        apiFilters.status = filters.status as ThesisStatus;
+      }
+      if (filters.university_id) {
+        apiFilters.university_id = filters.university_id;
+      }
+      if (filters.language_id) {
+        apiFilters.language_id = filters.language_id;
+      }
+      if (filters.year_from) {
+        const year = parseInt(filters.year_from);
+        if (!isNaN(year)) apiFilters.year_from = year;
+      }
+      if (filters.year_to) {
+        const year = parseInt(filters.year_to);
+        if (!isNaN(year)) apiFilters.year_to = year;
+      }
+
       const searchParams: Partial<SearchRequest> = {
         q: searchTerm || undefined,
         page: currentPage,
         limit: itemsPerPage,
-        sort_field: 'created_at',
-        sort_order: 'desc',
-        ...filters
+        sort_field: SortField.CREATED_AT,
+        sort_order: SortOrder.DESC,
+        ...apiFilters
       };
 
       // Remove empty filters

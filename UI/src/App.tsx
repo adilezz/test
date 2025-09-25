@@ -184,6 +184,48 @@ function App() {
                 </AdminRoute>
               </ProtectedRoute>
             } />
+            <Route path="/admin/schools" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminSchoolsPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/faculties" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminFacultiesPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/departments" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminDepartmentsPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/degrees" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminDegreesPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/languages" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminLanguagesPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/geographic-entities" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminGeographicEntitiesPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
             
             {/* Routes with Layout */}
             <Route path="/*" element={
@@ -207,112 +249,6 @@ function App() {
                   <Route path="/upload" element={
                     <ProtectedRoute>
                       <UploadPage />
-                    </ProtectedRoute>
-                  } />
-                  {/* Admin Routes */}
-                  <Route path="/admin" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminMainPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/dashboard" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminDashboardPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/universities" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminUniversitiesPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/schools" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminSchoolsPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/faculties" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminFacultiesPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/departments" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminDepartmentsPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/categories" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminCategoriesPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/academic-persons" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminAcademicPersonsPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/keywords" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminKeywordsPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/degrees" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminDegreesPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/geographic-entities" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminGeographicEntitiesPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/languages" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminLanguagesPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/theses" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminThesesListPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/theses/new" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminThesisPage />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/theses/:id" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminThesisPage />
-                      </AdminRoute>
                     </ProtectedRoute>
                   } />
                   {/* Catch all route */}

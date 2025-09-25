@@ -264,28 +264,28 @@ export default function AdminMainPage() {
             </Link>
             
             <Link
-              to="/admin/universities/new"
+              to="/admin/universities"
               className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition-all duration-200"
             >
               <div className="p-2 bg-green-100 text-green-600 rounded-lg">
                 <Building2 className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-medium text-gray-900">Nouvelle Université</h3>
-                <p className="text-sm text-gray-600">Ajouter une université</p>
+                <h3 className="font-medium text-gray-900">Gérer Universités</h3>
+                <p className="text-sm text-gray-600">Voir et gérer les universités</p>
               </div>
             </Link>
             
             <Link
-              to="/admin/academic-persons/new"
+              to="/admin/academic-persons"
               className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 transition-all duration-200"
             >
               <div className="p-2 bg-orange-100 text-orange-600 rounded-lg">
                 <Users className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-medium text-gray-900">Nouvelle Personne</h3>
-                <p className="text-sm text-gray-600">Ajouter une personne académique</p>
+                <h3 className="font-medium text-gray-900">Gérer Personnes</h3>
+                <p className="text-sm text-gray-600">Voir et gérer les personnes académiques</p>
               </div>
             </Link>
           </div>
