@@ -16,6 +16,7 @@ import {
   Languages
 } from 'lucide-react';
 import { apiService } from '../../services/api';
+import AdminHeader from '../layout/AdminHeader';
 import { 
   LanguageResponse, 
   LanguageCreate, 
@@ -199,6 +200,7 @@ export default function AdminLanguagesPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <AdminHeader />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -475,22 +477,18 @@ export default function AdminLanguagesPage() {
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Code de Langue</label>
-                    <select
+                    <input
+                      type="text"
                       value={formData.code}
                       onChange={(e) => setFormData({ ...formData, code: e.target.value as LanguageCode })}
                       className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       required
-                      disabled={modal.mode === 'edit'}
-                    >
-                      {getLanguageCodeOptions().map(code => (
-                        <option key={code} value={code}>
-                          {getLanguageCodeLabel(code)}
-                        </option>
-                      ))}
-                    </select>
-                    {modal.mode === 'edit' && (
-                      <p className="mt-1 text-xs text-gray-500">Le code ne peut pas être modifié</p>
-                    )}
+                      placeholder="Ex: fr, en, ar, es, zgh"
+                      maxLength={10}
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Code ISO 639-1 (2 caractères) ou ISO 639-3 (3 caractères)
+                    </p>
                   </div>
 
                   <div>
