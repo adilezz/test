@@ -80,7 +80,9 @@ export default function AdminUniversitiesPage() {
     geographic_entities_id: undefined
   });
   const [geoModalOpen, setGeoModalOpen] = useState(false);
+  const [geoFilterModalOpen, setGeoFilterModalOpen] = useState(false);
   const [geoNodes, setGeoNodes] = useState<UITreeNode[]>([]);
+  const [geoFilterNodes, setGeoFilterNodes] = useState<UITreeNode[]>([]);
   const [selectedGeoLabel, setSelectedGeoLabel] = useState<string>('');
 
   useEffect(() => {
@@ -297,10 +299,17 @@ export default function AdminUniversitiesPage() {
       thesis_count: d.thesis_count,
       expanded: expandedStates.get(d.id) || false // Preserve expanded state
     });
-    // Roots can be universities, faculties, or departments depending on startLevel
+
+    // Handle different API response structures
     return data.map((node: any) => {
+      // The node already has a type property from the API
       if (node.type === 'university') return mapUniversity(node);
       if (node.type === 'faculty') return mapFaculty(node);
+      if (node.type === 'department') return mapDepartment(node);
+      
+      // Fallback: detect type based on properties
+      if (node.faculties) return mapUniversity(node);
+      if (node.departments) return mapFaculty(node);
       return mapDepartment(node);
     });
   };
@@ -813,18 +822,64 @@ export default function AdminUniversitiesPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Localisation
                 </label>
-                <select
-                  value={filters.geographic_entity}
-                  onChange={(e) => setFilters({ ...filters, geographic_entity: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">Toutes les localisations</option>
-                  {geographicEntities.map((entity) => (
-                    <option key={entity.id} value={entity.id}>
-                      {entity.name_fr} {entity.level && `(${entity.level})`}
-                    </option>
-                  ))}
-                </select>
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      // Open location filter modal
+                      try {
+                        setGeoFilterModalOpen(true);
+                        let tree;
+                        try {
+                          tree = await apiService.getAdminReferencesTree({
+                            ref_type: 'geographic',
+                            start_level: 'country',
+                            stop_level: 'city',
+                            include_counts: false
+                          });
+                        } catch (err) {
+                          console.warn('Unified tree endpoint failed, trying dedicated endpoint:', err);
+                          tree = await apiService.getGeographicEntitiesTree();
+                        }
+                        
+                        const mapNode = (n: any, level: number = 0): UITreeNode => ({
+                          id: n.id,
+                          label: n.name_fr,
+                          type: 'location',
+                          level,
+                          count: n.thesis_count || 0,
+                          children: Array.isArray(n.children) ? n.children.map((c: any) => mapNode(c, level + 1)) : []
+                        });
+                        setGeoFilterNodes(Array.isArray(tree) ? tree.map((n: any) => mapNode(n, 0)) : []);
+                      } catch (e) {
+                        console.error('Failed to load geographic tree', e);
+                        setGeoFilterNodes([]);
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-left flex items-center justify-between focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <span className={filters.geographic_entity ? "text-gray-900" : "text-gray-500"}>
+                      {filters.geographic_entity ? 
+                        geographicEntities.find(e => e.id === filters.geographic_entity)?.name_fr || "Localisation sélectionnée" :
+                        "Toutes les localisations"
+                      }
+                    </span>
+                    <MapPin className="w-4 h-4 text-gray-400" />
+                  </button>
+                  {filters.geographic_entity && (
+                    <div className="flex items-center justify-between text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                      <span>Filtré par: {geographicEntities.find(e => e.id === filters.geographic_entity)?.name_fr}</span>
+                      <button
+                        type="button"
+                        onClick={() => setFilters({ ...filters, geographic_entity: '' })}
+                        className="text-gray-400 hover:text-red-500"
+                        title="Supprimer le filtre"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -1022,6 +1077,89 @@ export default function AdminUniversitiesPage() {
         </div>
 
         {renderModal()}
+        
+        {/* Location Filter Modal */}
+        {geoFilterModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col">
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Filtrer par localisation</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Sélectionnez une localisation pour filtrer les universités
+                  </p>
+                </div>
+                <button
+                  onClick={() => setGeoFilterModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              {/* Hierarchy Info */}
+              <div className="px-6 py-3 bg-blue-50 border-b border-blue-100">
+                <div className="flex items-center space-x-2 text-sm text-blue-700">
+                  <MapPin className="w-4 h-4" />
+                  <span>Maroc → Région → Province/Préfecture → Ville</span>
+                </div>
+              </div>
+
+              {/* Tree Content */}
+              <div className="flex-1 p-6 overflow-hidden">
+                {geoFilterNodes.length > 0 ? (
+                  <TreeView
+                    nodes={geoFilterNodes}
+                    onNodeSelect={(node) => {
+                      setFilters({ ...filters, geographic_entity: node.id });
+                      setGeoFilterModalOpen(false);
+                    }}
+                    multiSelect={false}
+                    searchable={true}
+                    maxHeight="450px"
+                    showCounts={false}
+                    showIcons={true}
+                    className="border-0"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-64 text-gray-500">
+                    <div className="text-center">
+                      <MapPin className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <p>Chargement de la hiérarchie géographique...</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
+                <p className="text-sm text-gray-600">
+                  Cliquez sur un élément pour filtrer par cette localisation
+                </p>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => {
+                      setFilters({ ...filters, geographic_entity: '' });
+                      setGeoFilterModalOpen(false);
+                    }}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
+                  >
+                    Effacer le filtre
+                  </button>
+                  <button
+                    onClick={() => setGeoFilterModalOpen(false)}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* University Location Selection Modal */}
         {geoModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col">
