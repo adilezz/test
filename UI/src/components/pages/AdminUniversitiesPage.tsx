@@ -62,6 +62,7 @@ export default function AdminUniversitiesPage() {
   const [startLevel, setStartLevel] = useState<'university' | 'faculty' | 'department'>('university');
   const [stopLevel, setStopLevel] = useState<'university' | 'faculty' | 'department'>('department');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAllUniversities, setShowAllUniversities] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
   const [geographicEntities, setGeographicEntities] = useState<any[]>([]);
@@ -153,6 +154,13 @@ export default function AdminUniversitiesPage() {
     return () => clearTimeout(timeoutId);
   }, [searchTerm]);
 
+  // Show all universities effect
+  useEffect(() => {
+    if (viewMode === 'list') {
+      loadData();
+    }
+  }, [showAllUniversities]);
+
   // Filter effect
   useEffect(() => {
     if (viewMode === 'list') {
@@ -220,6 +228,9 @@ export default function AdminUniversitiesPage() {
         }
         if (filters.geographic_entity) {
           params.geographic_entity_id = filters.geographic_entity;
+        }
+        if (!showAllUniversities) {
+          params.limit = 20; // Show limited results initially
         }
         const listResponse = await apiService.adminList<PaginatedResponse>('universities', params);
         setFlatList(listResponse.data || []);
@@ -977,6 +988,35 @@ export default function AdminUniversitiesPage() {
                   )}
                 </tbody>
               </table>
+
+              {/* Show All Button for List View */}
+              {viewMode === 'list' && !showAllUniversities && flatList.length >= 20 && (
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                  <div className="text-center">
+                    <button
+                      onClick={() => setShowAllUniversities(true)}
+                      className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors mx-auto"
+                    >
+                      <span>Afficher toutes les universités</span>
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {viewMode === 'list' && showAllUniversities && (
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                  <div className="text-center">
+                    <button
+                      onClick={() => setShowAllUniversities(false)}
+                      className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors mx-auto"
+                    >
+                      <span>Afficher moins</span>
+                      <ChevronRight className="w-4 h-4 rotate-90" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
