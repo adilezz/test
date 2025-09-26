@@ -5288,7 +5288,7 @@ def build_references_tree(
             for ch in children:
                 # include only children whose level <= e_int
                 ch_level = int(ch.get("level") or 0)
-                if ch_level < e_int:
+                if ch_level <= e_int:  # Fixed: include stop level
                     ch["children"] = attach_limited(ch.get("id"))
                 else:
                     ch["children"] = []
@@ -5383,7 +5383,7 @@ def build_references_tree(
             for ch in children:
                 # limit by stop level index
                 lvl = map_to_idx.get(str(ch.get("level") or "").lower(), 99)
-                if lvl < e_idx:
+                if lvl <= e_idx:  # Fixed: include stop level
                     ch["children"] = attach_geo(ch.get("id"))
                 else:
                     ch["children"] = []
