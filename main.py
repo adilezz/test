@@ -5596,6 +5596,7 @@ async def get_admin_academic_persons(
     university_id: Optional[str] = Query(None, description="Filter by university"),
     faculty_id: Optional[str] = Query(None, description="Filter by faculty"),
     school_id: Optional[str] = Query(None, description="Filter by school"),
+    title: Optional[str] = Query(None, description="Filter by title"),
     is_external: Optional[bool] = Query(None, description="Filter by external status"),
     load_all: bool = Query(False, description="Load all entities without pagination"),
     order_by: str = Query("complete_name_fr", description="Field to order by"),
@@ -5660,6 +5661,10 @@ async def get_admin_academic_persons(
                 where_conditions.append("ap.external_institution_name IS NOT NULL")
             else:
                 where_conditions.append("ap.external_institution_name IS NULL")
+
+        if title:
+            where_conditions.append("LOWER(ap.title) = LOWER(%s)")
+            params.append(title)
         
         # Add WHERE clause if conditions exist
         if where_conditions:
@@ -5721,6 +5726,13 @@ async def get_admin_academic_persons(
                 "first_name_ar": row["first_name_ar"],
                 "last_name_ar": row["last_name_ar"],
                 "title": row["title"],
+                "university_id": str(row["university_id"]) if row["university_id"] else None,
+                "faculty_id": str(row["faculty_id"]) if row["faculty_id"] else None,
+                "school_id": str(row["school_id"]) if row["school_id"] else None,
+                "external_institution_name": row["external_institution_name"],
+                "external_institution_country": row["external_institution_country"],
+                "external_institution_type": row["external_institution_type"],
+                "user_id": str(row["user_id"]) if row["user_id"] else None,
                 "institution": institution_info,
                 "created_at": row["created_at"],
                 "updated_at": row["updated_at"]
