@@ -314,25 +314,20 @@ export default function AdminUniversitiesPage() {
     });
   };
 
-  const toggleNode = (nodeId: string, path: number[] = []) => {
-    setTreeData(prev => {
-      const newData = [...prev];
-      let current = newData;
-      
-      for (let i = 0; i < path.length; i++) {
-        current = current[path[i]].children!;
-      }
-      
-      const nodeIndex = current.findIndex(node => node.id === nodeId);
-      if (nodeIndex !== -1) {
-        current[nodeIndex] = {
-          ...current[nodeIndex],
-          expanded: !current[nodeIndex].expanded
-        };
-      }
-      
-      return newData;
-    });
+  const toggleNode = (nodeId: string) => {
+    const updateNode = (nodes: TreeNode[]): TreeNode[] => {
+      return nodes.map(node => {
+        if (node.id === nodeId) {
+          return { ...node, expanded: !node.expanded };
+        }
+        if (node.children) {
+          return { ...node, children: updateNode(node.children) };
+        }
+        return node;
+      });
+    };
+
+    setTreeData(updateNode(treeData));
   };
 
   const handleCreate = async () => {
@@ -412,7 +407,7 @@ export default function AdminUniversitiesPage() {
     }
   };
 
-  const renderTreeNode = (node: TreeNode, path: number[] = [], depth: number = 0) => {
+  const renderTreeNode = (node: TreeNode, depth: number = 0): React.ReactNode => {
     const hasChildren = node.children && node.children.length > 0;
     const isExpanded = node.expanded;
 
@@ -426,7 +421,7 @@ export default function AdminUniversitiesPage() {
         >
           {hasChildren ? (
             <button
-              onClick={() => toggleNode(node.id, path)}
+              onClick={() => toggleNode(node.id)}
               className="p-1 hover:bg-gray-200 rounded"
             >
               {isExpanded ? (
@@ -515,8 +510,8 @@ export default function AdminUniversitiesPage() {
 
         {hasChildren && isExpanded && (
           <div>
-            {node.children!.map((child, index) =>
-              renderTreeNode(child, [...path, index], depth + 1)
+            {node.children!.map((child) =>
+              renderTreeNode(child, depth + 1)
             )}
           </div>
         )}
@@ -933,7 +928,7 @@ export default function AdminUniversitiesPage() {
               </h2>
               <div className="space-y-1">
                 {filterTreeData(treeData, searchTerm).length > 0 ? (
-                  filterTreeData(treeData, searchTerm).map((node, index) => renderTreeNode(node, [index]))
+                  filterTreeData(treeData, searchTerm).map((node) => renderTreeNode(node))
                 ) : (
                   <div className="flex items-center justify-center h-64 text-gray-500">
                     <div className="text-center">
