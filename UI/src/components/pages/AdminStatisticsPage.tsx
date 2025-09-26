@@ -120,7 +120,7 @@ export default function AdminStatisticsPage() {
       <div className="min-h-screen bg-gray-50">
         <AdminHeader />
         <div className="flex items-center justify-center py-20">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-red-600"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
         </div>
       </div>
     );
