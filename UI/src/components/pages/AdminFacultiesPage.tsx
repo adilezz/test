@@ -58,7 +58,10 @@ export default function AdminFacultiesPage() {
   const [universities, setUniversities] = useState<UniversityResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('list');
+  const [startLevel, setStartLevel] = useState<'faculty' | 'department'>('faculty');
+  const [stopLevel, setStopLevel] = useState<'faculty' | 'department'>('department');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAllFaculties, setShowAllFaculties] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
   const [showFilters, setShowFilters] = useState(false);
@@ -102,6 +105,20 @@ export default function AdminFacultiesPage() {
     return () => clearTimeout(timeoutId);
   }, [searchTerm, filters, page, viewMode]);
 
+  // Level changes effect
+  useEffect(() => {
+    if (viewMode === 'tree') {
+      loadData();
+    }
+  }, [startLevel, stopLevel]);
+
+  // Show all faculties effect
+  useEffect(() => {
+    if (viewMode === 'list') {
+      loadData();
+    }
+  }, [showAllFaculties]);
+
   const loadUniversities = async () => {
     try {
       const response = await apiService.adminList<PaginatedResponse>('universities', { load_all: 'true' });
@@ -111,16 +128,38 @@ export default function AdminFacultiesPage() {
     }
   };
 
+  const filterTreeData = (nodes: TreeNode[], searchTerm: string): TreeNode[] => {
+    if (!searchTerm.trim()) return nodes;
+    
+    return nodes.filter(node => {
+      const matchesSearch = node.name_fr.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (node.name_en && node.name_en.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                           (node.acronym && node.acronym.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      const hasMatchingChildren = node.children && filterTreeData(node.children, searchTerm).length > 0;
+      
+      if (matchesSearch || hasMatchingChildren) {
+        return {
+          ...node,
+          children: node.children ? filterTreeData(node.children, searchTerm) : undefined,
+          expanded: hasMatchingChildren ? true : node.expanded
+        };
+      }
+      
+      return false;
+    }).map(node => node as TreeNode);
+  };
+
   const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
       if (viewMode === 'tree') {
-        // Load tree data using the unified references tree endpoint
+        // Load tree data starting from faculties to departments
         const treeResponse = await apiService.getAdminReferencesTree({
           ref_type: 'universities',
-          start_level: 'university',
-          stop_level: 'department',
+          start_level: startLevel,
+          stop_level: stopLevel,
           include_counts: true
         });
         setTreeData(transformToTreeNodes(treeResponse));
@@ -128,7 +167,7 @@ export default function AdminFacultiesPage() {
         // Load list data
         const params: Record<string, string | number> = {
           page,
-          limit: 20
+          limit: showAllFaculties ? 1000 : 20
         };
         
         if (searchTerm.trim()) {
@@ -702,6 +741,33 @@ export default function AdminFacultiesPage() {
                 <Filter className="w-4 h-4" />
                 <span>Filtres</span>
               </button>
+
+              {viewMode === 'tree' && (
+                <div className="flex items-center space-x-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Niveau départ</label>
+                    <select
+                      value={startLevel}
+                      onChange={(e) => setStartLevel(e.target.value as any)}
+                      className="px-2 py-1 border border-gray-300 rounded"
+                    >
+                      <option value="faculty">Faculté</option>
+                      <option value="department">Département</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Niveau fin</label>
+                    <select
+                      value={stopLevel}
+                      onChange={(e) => setStopLevel(e.target.value as any)}
+                      className="px-2 py-1 border border-gray-300 rounded"
+                    >
+                      <option value="faculty">Faculté</option>
+                      <option value="department">Département</option>
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
             
             <div className="flex items-center space-x-3">
@@ -827,13 +893,13 @@ export default function AdminFacultiesPage() {
                 Structure Hiérarchique des Facultés
               </h2>
               <div className="space-y-1">
-                {treeData.length > 0 ? (
-                  treeData.map((node, index) => renderTreeNode(node, [index]))
+                {filterTreeData(treeData, searchTerm).length > 0 ? (
+                  filterTreeData(treeData, searchTerm).map((node, index) => renderTreeNode(node, [index]))
                 ) : (
                   <div className="text-center py-8 text-gray-500">
                     <GraduationCap className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                     <p className="text-lg font-medium">Aucune faculté trouvée</p>
-                    <p className="text-sm">Aucune donnée disponible</p>
+                    <p className="text-sm">Aucune donnée disponible pour les critères sélectionnés</p>
                   </div>
                 )}
               </div>
@@ -926,6 +992,35 @@ export default function AdminFacultiesPage() {
                 ))}
                 </tbody>
               </table>
+
+              {/* Show All Button for List View */}
+              {viewMode === 'list' && !showAllFaculties && faculties.length >= 20 && (
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                  <div className="text-center">
+                    <button
+                      onClick={() => setShowAllFaculties(true)}
+                      className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors mx-auto"
+                    >
+                      <span>Afficher toutes les facultés</span>
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {viewMode === 'list' && showAllFaculties && (
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                  <div className="text-center">
+                    <button
+                      onClick={() => setShowAllFaculties(false)}
+                      className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors mx-auto"
+                    >
+                      <span>Afficher moins</span>
+                      <ChevronRight className="w-4 h-4 rotate-90" />
+                    </button>
+                  </div>
+                </div>
+              )}
               
               {faculties.length === 0 && !loading && (
                 <div className="px-6 py-12 text-center">

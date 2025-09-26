@@ -38,11 +38,11 @@ export default function AdminKeywordsPage() {
   const [categoriesTree, setCategoriesTree] = useState<any[]>([]);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
   const [formData, setFormData] = useState<KeywordCreate>({
-    parent_keyword_id: null,
+    parent_keyword_id: undefined,
     keyword_fr: '',
     keyword_en: '',
     keyword_ar: '',
-    category_id: null
+    category_id: undefined
   });
 
   useEffect(() => {
@@ -83,10 +83,10 @@ export default function AdminKeywordsPage() {
       // Clean the form data to ensure empty strings become null for optional UUID fields
       const cleanedData = {
         ...formData,
-        parent_keyword_id: formData.parent_keyword_id || null,
-        category_id: formData.category_id || null,
-        keyword_en: formData.keyword_en || null,
-        keyword_ar: formData.keyword_ar || null
+        parent_keyword_id: formData.parent_keyword_id || undefined,
+        category_id: formData.category_id || undefined,
+        keyword_en: formData.keyword_en || undefined,
+        keyword_ar: formData.keyword_ar || undefined
       };
       await apiService.adminCreate('keywords', cleanedData);
       setModal({ isOpen: false, mode: 'create' });
@@ -104,10 +104,10 @@ export default function AdminKeywordsPage() {
       // Clean the form data to ensure empty strings become null for optional UUID fields
       const cleanedData = {
         ...formData,
-        parent_keyword_id: formData.parent_keyword_id || null,
-        category_id: formData.category_id || null,
-        keyword_en: formData.keyword_en || null,
-        keyword_ar: formData.keyword_ar || null
+        parent_keyword_id: formData.parent_keyword_id || undefined,
+        category_id: formData.category_id || undefined,
+        keyword_en: formData.keyword_en || undefined,
+        keyword_ar: formData.keyword_ar || undefined
       };
       await apiService.adminUpdate('keywords', modal.item.id, cleanedData);
       setModal({ isOpen: false, mode: 'edit' });
@@ -128,11 +128,11 @@ export default function AdminKeywordsPage() {
 
   const resetForm = () => {
     setFormData({
-      parent_keyword_id: null,
+      parent_keyword_id: undefined,
       keyword_fr: '',
       keyword_en: '',
       keyword_ar: '',
-      category_id: null
+      category_id: undefined
     });
   };
 
@@ -141,11 +141,11 @@ export default function AdminKeywordsPage() {
     
     if (mode === 'edit' && item) {
       setFormData({
-        parent_keyword_id: item.parent_keyword_id || null,
+        parent_keyword_id: item.parent_keyword_id || undefined,
         keyword_fr: item.keyword_fr,
         keyword_en: item.keyword_en || '',
         keyword_ar: item.keyword_ar || '',
-        category_id: item.category_id || null
+        category_id: item.category_id || undefined
       });
     } else if (mode === 'create') {
       resetForm();
@@ -225,7 +225,7 @@ export default function AdminKeywordsPage() {
                     </label>
                     <select
                       value={formData.parent_keyword_id || ''}
-                      onChange={(e) => setFormData({ ...formData, parent_keyword_id: e.target.value || null })}
+                      onChange={(e) => setFormData({ ...formData, parent_keyword_id: e.target.value || undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Aucun parent (mot-clé racine)</option>
@@ -248,7 +248,7 @@ export default function AdminKeywordsPage() {
                           name="category_id"
                           value=""
                           checked={!formData.category_id}
-                          onChange={(e) => setFormData({ ...formData, category_id: null })}
+                          onChange={(e) => setFormData({ ...formData, category_id: undefined })}
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
                         />
                         <span className="text-sm text-gray-900">Aucune catégorie</span>

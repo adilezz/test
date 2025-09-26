@@ -62,6 +62,7 @@ export default function AdminUniversitiesPage() {
   const [startLevel, setStartLevel] = useState<'university' | 'faculty' | 'department'>('university');
   const [stopLevel, setStopLevel] = useState<'university' | 'faculty' | 'department'>('department');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAllUniversities, setShowAllUniversities] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
   const [geographicEntities, setGeographicEntities] = useState<any[]>([]);
@@ -153,6 +154,13 @@ export default function AdminUniversitiesPage() {
     return () => clearTimeout(timeoutId);
   }, [searchTerm]);
 
+  // Show all universities effect
+  useEffect(() => {
+    if (viewMode === 'list') {
+      loadData();
+    }
+  }, [showAllUniversities]);
+
   // Filter effect
   useEffect(() => {
     if (viewMode === 'list') {
@@ -221,6 +229,9 @@ export default function AdminUniversitiesPage() {
         if (filters.geographic_entity) {
           params.geographic_entity_id = filters.geographic_entity;
         }
+        if (!showAllUniversities) {
+          params.limit = 20; // Show limited results initially
+        }
         const listResponse = await apiService.adminList<PaginatedResponse>('universities', params);
         setFlatList(listResponse.data || []);
       }
@@ -238,6 +249,20 @@ export default function AdminUniversitiesPage() {
   };
 
   const transformToTreeNodes = (data: any[]): TreeNode[] => {
+    // Create a map of current expanded states
+    const expandedStates = new Map<string, boolean>();
+    const collectExpandedStates = (nodes: TreeNode[]) => {
+      nodes.forEach(node => {
+        if (node.expanded) {
+          expandedStates.set(node.id, true);
+        }
+        if (node.children) {
+          collectExpandedStates(node.children);
+        }
+      });
+    };
+    collectExpandedStates(treeData);
+
     const mapUniversity = (u: any): TreeNode => ({
       id: u.id,
       name_fr: u.name_fr,
@@ -246,7 +271,7 @@ export default function AdminUniversitiesPage() {
       acronym: u.acronym,
       type: 'university',
       thesis_count: u.thesis_count,
-      expanded: false,
+      expanded: expandedStates.get(u.id) || false, // Preserve expanded state
       children: (u.faculties || []).map(mapFaculty)
     });
     const mapFaculty = (f: any): TreeNode => ({
@@ -258,7 +283,7 @@ export default function AdminUniversitiesPage() {
       type: 'faculty',
       parent_id: f.parent_id,
       thesis_count: f.thesis_count,
-      expanded: false,
+      expanded: expandedStates.get(f.id) || false, // Preserve expanded state
       children: (f.departments || []).map(mapDepartment)
     });
     const mapDepartment = (d: any): TreeNode => ({
@@ -269,7 +294,8 @@ export default function AdminUniversitiesPage() {
       acronym: d.acronym,
       type: 'department',
       parent_id: d.parent_id,
-      thesis_count: d.thesis_count
+      thesis_count: d.thesis_count,
+      expanded: expandedStates.get(d.id) || false // Preserve expanded state
     });
     // Roots can be universities, faculties, or departments depending on startLevel
     return data.map((node: any) => {
@@ -962,6 +988,35 @@ export default function AdminUniversitiesPage() {
                   )}
                 </tbody>
               </table>
+
+              {/* Show All Button for List View */}
+              {viewMode === 'list' && !showAllUniversities && flatList.length >= 20 && (
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                  <div className="text-center">
+                    <button
+                      onClick={() => setShowAllUniversities(true)}
+                      className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors mx-auto"
+                    >
+                      <span>Afficher toutes les universités</span>
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {viewMode === 'list' && showAllUniversities && (
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                  <div className="text-center">
+                    <button
+                      onClick={() => setShowAllUniversities(false)}
+                      className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors mx-auto"
+                    >
+                      <span>Afficher moins</span>
+                      <ChevronRight className="w-4 h-4 rotate-90" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -702,7 +702,7 @@ export default function AdminThesisPage() {
                               <option value="">Sélectionnez une personne</option>
                               {academicPersons.map(person => (
                                 <option key={person.id} value={person.id}>
-                                  {person.first_name} {person.last_name}
+                                  {person.first_name_fr} {person.last_name_fr}
                                 </option>
                               ))}
                             </select>
@@ -760,9 +760,9 @@ export default function AdminThesisPage() {
                             }}
                             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                           />
-                          <span className="text-sm text-gray-900">{keyword.word_fr}</span>
-                          {keyword.word_en && (
-                            <span className="text-sm text-gray-500">({keyword.word_en})</span>
+                          <span className="text-sm text-gray-900">{keyword.keyword_fr}</span>
+                          {keyword.keyword_en && (
+                            <span className="text-sm text-gray-500">({keyword.keyword_en})</span>
                           )}
                         </label>
                       ))}
