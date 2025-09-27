@@ -469,7 +469,7 @@ export interface ThesisBase {
   thesis_number?: string;
   study_location_id?: string;
   defense_date: string; // ISO date string
-  language_id: string;
+  language_id?: string; // Made optional to handle empty form state, but required for submission
   secondary_language_ids?: string[];
   page_count?: number;
   status: ThesisStatus;
