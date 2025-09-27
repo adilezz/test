@@ -86,17 +86,17 @@ export default function AdminThesisPage() {
     abstract_fr: '',
     abstract_en: '',
     abstract_ar: '',
-    university_id: '',
-    faculty_id: '',
-    school_id: '',
-    department_id: '',
-    degree_id: '',
+    university_id: undefined,
+    faculty_id: undefined,
+    school_id: undefined,
+    department_id: undefined,
+    degree_id: undefined,
     thesis_number: '',
-    study_location_id: '',
+    study_location_id: undefined,
     defense_date: '',
     language_id: '',
     secondary_language_ids: [],
-    page_count: 0,
+    page_count: undefined,
     status: ThesisStatus.DRAFT,
     file_id: ''
   });
@@ -231,22 +231,22 @@ export default function AdminThesisPage() {
       const details = await apiService.getThesis(id);
       setFormData({
         title_fr: details.thesis.title_fr,
-        title_en: details.thesis.title_en || '',
-        title_ar: details.thesis.title_ar || '',
+        title_en: details.thesis.title_en || undefined,
+        title_ar: details.thesis.title_ar || undefined,
         abstract_fr: details.thesis.abstract_fr,
-        abstract_en: details.thesis.abstract_en || '',
-        abstract_ar: details.thesis.abstract_ar || '',
-        university_id: (details.institution.university.id as string) || '',
-        faculty_id: (details.institution.faculty.id as string) || '',
-        school_id: (details.institution.school.id as string) || '',
-        department_id: (details.institution.department.id as string) || '',
-        degree_id: (details.academic.degree.id as string) || '',
-        thesis_number: details.thesis.thesis_number || '',
-        study_location_id: '',
+        abstract_en: details.thesis.abstract_en || undefined,
+        abstract_ar: details.thesis.abstract_ar || undefined,
+        university_id: (details.institution.university.id as string) || undefined,
+        faculty_id: (details.institution.faculty.id as string) || undefined,
+        school_id: (details.institution.school.id as string) || undefined,
+        department_id: (details.institution.department.id as string) || undefined,
+        degree_id: (details.academic.degree.id as string) || undefined,
+        thesis_number: details.thesis.thesis_number || undefined,
+        study_location_id: undefined,
         defense_date: details.thesis.defense_date || '',
         language_id: details.academic.language.id,
         secondary_language_ids: [],
-        page_count: details.thesis.page_count || 0,
+        page_count: details.thesis.page_count || undefined,
         status: details.thesis.status,
         file_id: ''
       });
@@ -296,16 +296,16 @@ export default function AdminThesisPage() {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: value === '' ? undefined : value
     }));
   };
 
   const handleUniversityChange = (universityId: string) => {
     setFormData(prev => ({
       ...prev,
-      university_id: universityId,
-      faculty_id: '',
-      department_id: ''
+      university_id: universityId || undefined,
+      faculty_id: undefined,
+      department_id: undefined
     }));
     setFaculties([]);
     setDepartments([]);
@@ -317,8 +317,8 @@ export default function AdminThesisPage() {
   const handleFacultyChange = (facultyId: string) => {
     setFormData(prev => ({
       ...prev,
-      faculty_id: facultyId,
-      department_id: ''
+      faculty_id: facultyId || undefined,
+      department_id: undefined
     }));
     if (facultyId) {
       loadDepartments(facultyId);
@@ -462,7 +462,24 @@ export default function AdminThesisPage() {
       if (isEditMode) {
         await apiService.updateThesis(id!, formData as ThesisUpdate);
       } else {
-        const created = await apiService.createThesis(formData);
+        // Clean the form data before sending to API
+        const cleanedData = {
+          ...formData,
+          university_id: formData.university_id || undefined,
+          faculty_id: formData.faculty_id || undefined,
+          school_id: formData.school_id || undefined,
+          department_id: formData.department_id || undefined,
+          degree_id: formData.degree_id || undefined,
+          study_location_id: formData.study_location_id || undefined,
+          thesis_number: formData.thesis_number || undefined,
+          title_en: formData.title_en || undefined,
+          title_ar: formData.title_ar || undefined,
+          abstract_en: formData.abstract_en || undefined,
+          abstract_ar: formData.abstract_ar || undefined,
+          page_count: formData.page_count || undefined,
+          secondary_language_ids: formData.secondary_language_ids || []
+        };
+        const created = await apiService.createThesis(cleanedData);
         const thesisId = created.id;
         // Save academic persons
         for (const a of academicPersonAssignments) {
@@ -696,7 +713,7 @@ export default function AdminThesisPage() {
                     </label>
                     <select
                       name="university_id"
-                      value={formData.university_id}
+                      value={formData.university_id || ''}
                       onChange={(e) => handleUniversityChange(e.target.value)}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       required
@@ -716,7 +733,7 @@ export default function AdminThesisPage() {
                     </label>
                     <select
                       name="faculty_id"
-                      value={formData.faculty_id}
+                      value={formData.faculty_id || ''}
                       onChange={(e) => handleFacultyChange(e.target.value)}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       disabled={!formData.university_id}
@@ -738,7 +755,7 @@ export default function AdminThesisPage() {
                     </label>
                     <select
                       name="department_id"
-                      value={formData.department_id}
+                      value={formData.department_id || ''}
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       disabled={!formData.faculty_id}
@@ -758,7 +775,7 @@ export default function AdminThesisPage() {
                     </label>
                     <select
                       name="degree_id"
-                      value={formData.degree_id}
+                      value={formData.degree_id || ''}
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       required
@@ -814,7 +831,7 @@ export default function AdminThesisPage() {
                     </label>
                     <select
                       name="language_id"
-                      value={formData.language_id}
+                      value={formData.language_id || ''}
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       required
@@ -836,7 +853,13 @@ export default function AdminThesisPage() {
                       type="number"
                       name="page_count"
                       value={formData.page_count || ''}
-                      onChange={handleInputChange}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setFormData(prev => ({
+                          ...prev,
+                          page_count: value === '' ? undefined : parseInt(value) || undefined
+                        }));
+                      }}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       min="1"
                     />
@@ -852,7 +875,7 @@ export default function AdminThesisPage() {
                     <select
                       name="study_location_id"
                       value={formData.study_location_id || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, study_location_id: e.target.value }))}
+                      onChange={(e) => setFormData(prev => ({ ...prev, study_location_id: e.target.value || undefined }))}
                       className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Sélectionnez une localisation</option>
