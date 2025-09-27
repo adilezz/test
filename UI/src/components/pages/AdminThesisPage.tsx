@@ -86,15 +86,15 @@ export default function AdminThesisPage() {
     abstract_fr: '',
     abstract_en: '',
     abstract_ar: '',
-    university_id: '',
-    faculty_id: '',
-    school_id: '',
-    department_id: '',
-    degree_id: '',
+    university_id: undefined,
+    faculty_id: undefined,
+    school_id: undefined,
+    department_id: undefined,
+    degree_id: undefined,
     thesis_number: '',
-    study_location_id: '',
+    study_location_id: undefined,
     defense_date: '',
-    language_id: '',
+    language_id: undefined,
     secondary_language_ids: [],
     page_count: 0,
     status: ThesisStatus.DRAFT,
@@ -294,18 +294,23 @@ export default function AdminThesisPage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    
+    // Convert empty strings to undefined for UUID fields
+    const uuidFields = ['university_id', 'faculty_id', 'school_id', 'department_id', 'degree_id', 'study_location_id', 'language_id'];
+    const processedValue = uuidFields.includes(name) ? (value || undefined) : value;
+    
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: processedValue
     }));
   };
 
   const handleUniversityChange = (universityId: string) => {
     setFormData(prev => ({
       ...prev,
-      university_id: universityId,
-      faculty_id: '',
-      department_id: ''
+      university_id: universityId || undefined,
+      faculty_id: undefined,
+      department_id: undefined
     }));
     setFaculties([]);
     setDepartments([]);
@@ -317,8 +322,8 @@ export default function AdminThesisPage() {
   const handleFacultyChange = (facultyId: string) => {
     setFormData(prev => ({
       ...prev,
-      faculty_id: facultyId,
-      department_id: ''
+      faculty_id: facultyId || undefined,
+      department_id: undefined
     }));
     if (facultyId) {
       loadDepartments(facultyId);
@@ -427,6 +432,11 @@ export default function AdminThesisPage() {
       return;
     }
     
+    if (!formData.degree_id) {
+      alert('Le diplôme est requis');
+      return;
+    }
+    
     if (!formData.file_id && !isEditMode) {
       alert('Veuillez télécharger un fichier PDF');
       return;
@@ -462,7 +472,19 @@ export default function AdminThesisPage() {
       if (isEditMode) {
         await apiService.updateThesis(id!, formData as ThesisUpdate);
       } else {
-        const created = await apiService.createThesis(formData);
+        // Clean up the form data - convert empty strings to null for UUID fields
+        const cleanedFormData: ThesisCreate = {
+          ...formData,
+          university_id: formData.university_id || undefined,
+          faculty_id: formData.faculty_id || undefined,
+          school_id: formData.school_id || undefined,
+          department_id: formData.department_id || undefined,
+          degree_id: formData.degree_id || undefined,
+          study_location_id: formData.study_location_id || undefined,
+          language_id: formData.language_id || undefined,
+        };
+        
+        const created = await apiService.createThesis(cleanedFormData);
         const thesisId = created.id;
         // Save academic persons
         for (const a of academicPersonAssignments) {
@@ -696,7 +718,7 @@ export default function AdminThesisPage() {
                     </label>
                     <select
                       name="university_id"
-                      value={formData.university_id}
+                      value={formData.university_id || ''}
                       onChange={(e) => handleUniversityChange(e.target.value)}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       required
@@ -716,7 +738,7 @@ export default function AdminThesisPage() {
                     </label>
                     <select
                       name="faculty_id"
-                      value={formData.faculty_id}
+                      value={formData.faculty_id || ''}
                       onChange={(e) => handleFacultyChange(e.target.value)}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       disabled={!formData.university_id}
@@ -738,7 +760,7 @@ export default function AdminThesisPage() {
                     </label>
                     <select
                       name="department_id"
-                      value={formData.department_id}
+                      value={formData.department_id || ''}
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       disabled={!formData.faculty_id}
@@ -758,7 +780,7 @@ export default function AdminThesisPage() {
                     </label>
                     <select
                       name="degree_id"
-                      value={formData.degree_id}
+                      value={formData.degree_id || ''}
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       required
@@ -814,7 +836,7 @@ export default function AdminThesisPage() {
                     </label>
                     <select
                       name="language_id"
-                      value={formData.language_id}
+                      value={formData.language_id || ''}
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       required
@@ -852,7 +874,7 @@ export default function AdminThesisPage() {
                     <select
                       name="study_location_id"
                       value={formData.study_location_id || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, study_location_id: e.target.value }))}
+                      onChange={(e) => setFormData(prev => ({ ...prev, study_location_id: e.target.value || undefined }))}
                       className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Sélectionnez une localisation</option>
