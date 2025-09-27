@@ -87,7 +87,6 @@ export default function AdminThesisPage() {
   // Reference data
   const [universities, setUniversities] = useState<UniversityResponse[]>([]);
   const [faculties, setFaculties] = useState<FacultyResponse[]>([]);
-  const [departments, setDepartments] = useState<any[]>([]);
   const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
   const [degrees, setDegrees] = useState<DegreeResponse[]>([]);
   const [languages, setLanguages] = useState<LanguageResponse[]>([]);
