@@ -346,8 +346,8 @@ export interface KeywordResponse extends KeywordBase {
 export interface AcademicPersonBase {
   complete_name_fr?: string;
   complete_name_ar?: string;
-  first_name_fr: string;
-  last_name_fr: string;
+  first_name_fr?: string;
+  last_name_fr?: string;
   first_name_ar?: string;
   last_name_ar?: string;
   title?: string;
