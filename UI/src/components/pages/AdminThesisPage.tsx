@@ -97,6 +97,9 @@ export default function AdminThesisPage() {
   const [geoModalOpen, setGeoModalOpen] = useState(false);
   const [geoNodes, setGeoNodes] = useState<UITreeNode[]>([]);
   const [selectedGeoLabel, setSelectedGeoLabel] = useState<string>('');
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [categoryNodes, setCategoryNodes] = useState<UITreeNode[]>([]);
+  const [categoryLabelById, setCategoryLabelById] = useState<Record<string, string>>({});
 
   // Form data
   const [formData, setFormData] = useState<ThesisCreate>({
@@ -154,7 +157,23 @@ export default function AdminThesisPage() {
       setDegrees(ref.degrees as any);
       // languages with is_active already filtered
       setLanguages((ref.languages as any).map((l: any) => ({ id: l.id, code: l.code, name: l.name, native_name: '', rtl: false, is_active: true, display_order: 0, created_at: '', updated_at: '' })).slice());
-      // categories list fallback: flatten categories_tree names unavailable; keep existing adminList as fallback
+      // categories tree mapping for tree selector
+      const labelMap: Record<string, string> = {};
+      const mapNode = (n: any, level: number = 0): UITreeNode => {
+        labelMap[n.id] = n.name_fr;
+        return {
+          id: n.id,
+          label: n.name_fr,
+          type: 'category',
+          level,
+          count: 0,
+          children: Array.isArray(n.children) ? n.children.map((c: any) => mapNode(c, level + 1)) : []
+        };
+      };
+      const roots = Array.isArray((ref as any).categories_tree) ? (ref as any).categories_tree : [];
+      setCategoryNodes(roots.map((n: any) => mapNode(n, 0)));
+      setCategoryLabelById(labelMap);
+      // keep flat categories list empty (not used when tree selector present)
       setCategories([]);
       // load keywords via existing endpoint (not included in form)
       const [keywordsRes, academicPersonsRes, geoRes] = await Promise.all([
@@ -856,47 +875,23 @@ export default function AdminThesisPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Catégories
                   </label>
-                  <div className="space-y-2">
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Catégorie primaire *</label>
-                      <select
-                        value={primaryCategoryId}
-                        onChange={(e) => setPrimaryCategoryId(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                        required
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-gray-600">Catégorie primaire *</div>
+                      <button
+                        type="button"
+                        onClick={() => setCategoryModalOpen(true)}
+                        className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 text-sm"
                       >
-                        <option value="">Sélectionnez une catégorie primaire</option>
-                        {categories.map(cat => (
-                          <option key={cat.id} value={cat.id}>
-                            {cat.name_fr}
-                          </option>
-                        ))}
-                      </select>
+                        Parcourir…
+                      </button>
                     </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Catégories secondaires</label>
-                      <div className="border border-gray-300 rounded-lg p-3 max-h-40 overflow-y-auto">
-                        <div className="space-y-2">
-                          {categories.map(cat => (
-                            <label key={cat.id} className="flex items-center space-x-2">
-                              <input
-                                type="checkbox"
-                                checked={selectedCategories.includes(cat.id)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedCategories(prev => [...prev, cat.id]);
-                                  } else {
-                                    setSelectedCategories(prev => prev.filter(id => id !== cat.id));
-                                  }
-                                }}
-                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                              />
-                              <span className="text-sm text-gray-900">{cat.name_fr}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
+                    {primaryCategoryId && (
+                      <div className="text-sm text-gray-800">Sélectionné: {categoryLabelById[primaryCategoryId] || primaryCategoryId}</div>
+                    )}
+                    {selectedCategories.length > 0 && (
+                      <div className="text-xs text-gray-600">Secondaires: {selectedCategories.map(id => categoryLabelById[id] || id).join(', ')}</div>
+                    )}
                   </div>
                 </div>
 
@@ -1093,6 +1088,53 @@ export default function AdminThesisPage() {
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   Créer
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Category Tree Modal */}
+        {categoryModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-3xl mx-4 max-h-[80vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Sélectionner des catégories</h2>
+                <button
+                  onClick={() => setCategoryModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="mb-4 text-sm text-gray-600">
+                Choisissez une catégorie primaire et des catégories secondaires (facultatif)
+              </div>
+              <TreeView
+                nodes={categoryNodes}
+                onNodeSelect={(node, opts) => {
+                  // If nothing selected yet, set primary; else toggle in secondary list
+                  if (!primaryCategoryId) {
+                    setPrimaryCategoryId(node.id);
+                  } else if (node.id === primaryCategoryId) {
+                    // toggle off primary
+                    setPrimaryCategoryId('');
+                  } else {
+                    setSelectedCategories(prev => prev.includes(node.id) ? prev.filter(id => id !== node.id) : [...prev, node.id]);
+                  }
+                }}
+                multiSelect={true}
+                searchable={true}
+                maxHeight="500px"
+                showCounts={false}
+                showIcons={true}
+              />
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={() => setCategoryModalOpen(false)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                >
+                  Fermer
                 </button>
               </div>
             </div>
