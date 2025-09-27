@@ -2,7 +2,17 @@
 
 ## Issues Identified and Fixed
 
-### 1. **Database Schema Alignment** ✅
+### 1. **React Hook Dependencies Issue** ✅ **[MAIN ISSUE]**
+- **Problem**: The `loadData` function was not wrapped in `useCallback`, causing infinite re-renders and the blank page
+- **Solution**: Wrapped `loadData` with `useCallback` and fixed useEffect dependencies
+- **Root Cause**: Function recreated on every render → useEffect triggers → infinite loop → React stops rendering
+- **Changes Made**:
+  - Added `useCallback` import
+  - Wrapped `loadData` function with `useCallback([searchTerm, filters, showAllPersons])`
+  - Fixed useEffect dependencies to prevent infinite loops
+  - Removed duplicate useEffect for `showAllPersons` (now handled by `loadData` dependencies)
+
+### 2. **Database Schema Alignment** ✅
 - **Problem**: Form fields didn't match the database schema exactly
 - **Solution**: Updated form data types to use `undefined` for optional fields instead of empty strings
 - **Changes Made**:
