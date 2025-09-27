@@ -1,0 +1,29 @@
+{
+  "description": "Package.json updates needed for UI testing",
+  "changes": {
+    "scripts": {
+      "added": {
+        "test:ui": "playwright test",
+        "test:ui:headed": "playwright test --headed",
+        "test:ui:debug": "playwright test --debug",
+        "test:ui:report": "playwright show-report"
+      }
+    },
+    "devDependencies": {
+      "added": {
+        "@playwright/test": "^1.40.0"
+      }
+    }
+  },
+  "instructions": "Add these scripts and dependencies to your UI/package.json file to enable frontend testing",
+  "full_scripts_section": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "test:ui": "playwright test",
+    "test:ui:headed": "playwright test --headed",
+    "test:ui:debug": "playwright test --debug",
+    "test:ui:report": "playwright show-report"
+  }
+}
