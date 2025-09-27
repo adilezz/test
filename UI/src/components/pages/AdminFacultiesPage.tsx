@@ -58,8 +58,6 @@ export default function AdminFacultiesPage() {
   const [universities, setUniversities] = useState<UniversityResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('list');
-  const [startLevel, setStartLevel] = useState<'faculty' | 'department'>('faculty');
-  const [stopLevel, setStopLevel] = useState<'faculty' | 'department'>('department');
   const [searchTerm, setSearchTerm] = useState('');
   const [showAllFaculties, setShowAllFaculties] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
@@ -105,12 +103,6 @@ export default function AdminFacultiesPage() {
     return () => clearTimeout(timeoutId);
   }, [searchTerm, filters, page, viewMode]);
 
-  // Level changes effect
-  useEffect(() => {
-    if (viewMode === 'tree') {
-      loadData();
-    }
-  }, [startLevel, stopLevel]);
 
   // Show all faculties effect
   useEffect(() => {
@@ -155,11 +147,11 @@ export default function AdminFacultiesPage() {
     setError(null);
     try {
       if (viewMode === 'tree') {
-        // Load tree data starting from faculties to departments
+        // Load tree data starting from universities to departments (fixed hierarchy)
         const treeResponse = await apiService.getAdminReferencesTree({
           ref_type: 'universities',
-          start_level: startLevel,
-          stop_level: stopLevel,
+          start_level: 'university',
+          stop_level: 'department',
           include_counts: true
         });
         setTreeData(transformToTreeNodes(treeResponse));
@@ -434,6 +426,14 @@ export default function AdminFacultiesPage() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Users className="w-4 h-4" />
+                </Link>
+                <Link
+                  to={`/admin/departments?faculty_id=${node.id}&action=create`}
+                  className="p-1 text-gray-400 hover:text-green-600"
+                  title="Ajouter un département"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Plus className="w-4 h-4" />
                 </Link>
                 <button
                   onClick={(e) => {
@@ -742,32 +742,6 @@ export default function AdminFacultiesPage() {
                 <span>Filtres</span>
               </button>
 
-              {viewMode === 'tree' && (
-                <div className="flex items-center space-x-3">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Niveau départ</label>
-                    <select
-                      value={startLevel}
-                      onChange={(e) => setStartLevel(e.target.value as any)}
-                      className="px-2 py-1 border border-gray-300 rounded"
-                    >
-                      <option value="faculty">Faculté</option>
-                      <option value="department">Département</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Niveau fin</label>
-                    <select
-                      value={stopLevel}
-                      onChange={(e) => setStopLevel(e.target.value as any)}
-                      className="px-2 py-1 border border-gray-300 rounded"
-                    >
-                      <option value="faculty">Faculté</option>
-                      <option value="department">Département</option>
-                    </select>
-                  </div>
-                </div>
-              )}
             </div>
             
             <div className="flex items-center space-x-3">
