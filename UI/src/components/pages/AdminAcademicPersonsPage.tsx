@@ -80,8 +80,8 @@ export default function AdminAcademicPersonsPage() {
   const [formData, setFormData] = useState<AcademicPersonCreate>({
     complete_name_fr: undefined,
     complete_name_ar: undefined,
-    first_name_fr: '',
-    last_name_fr: '',
+    first_name_fr: undefined,
+    last_name_fr: undefined,
     first_name_ar: undefined,
     last_name_ar: undefined,
     title: undefined,
@@ -218,7 +218,9 @@ export default function AdminAcademicPersonsPage() {
     persons.forEach(person => {
       const personNode: TreeNode = {
         id: person.id,
-        name_fr: person.complete_name_fr || `${person.first_name_fr} ${person.last_name_fr}`,
+        name_fr: person.complete_name_fr || 
+                 (person.first_name_fr && person.last_name_fr ? `${person.first_name_fr} ${person.last_name_fr}` : '') ||
+                 person.first_name_fr || person.last_name_fr || 'Nom non défini',
         name_ar: person.complete_name_ar,
         type: 'person',
         title: person.title,
@@ -356,14 +358,16 @@ export default function AdminAcademicPersonsPage() {
   };
 
   const validateForm = () => {
-    if (!formData.first_name_fr.trim()) {
-      setError('Le prénom en français est obligatoire');
+    // Check if we have at least some name information
+    const hasCompleteName = formData.complete_name_fr?.trim() || formData.complete_name_ar?.trim();
+    const hasFirstLastName = (formData.first_name_fr?.trim() && formData.last_name_fr?.trim()) ||
+                            (formData.first_name_ar?.trim() && formData.last_name_ar?.trim());
+    
+    if (!hasCompleteName && !hasFirstLastName) {
+      setError('Au moins un nom complet ou prénom+nom (en français ou arabe) est requis');
       return false;
     }
-    if (!formData.last_name_fr.trim()) {
-      setError('Le nom en français est obligatoire');
-      return false;
-    }
+    
     setError(null);
     return true;
   };
@@ -422,8 +426,8 @@ export default function AdminAcademicPersonsPage() {
     setFormData({
       complete_name_fr: undefined,
       complete_name_ar: undefined,
-      first_name_fr: '',
-      last_name_fr: '',
+      first_name_fr: undefined,
+      last_name_fr: undefined,
       first_name_ar: undefined,
       last_name_ar: undefined,
       title: undefined,
@@ -444,8 +448,8 @@ export default function AdminAcademicPersonsPage() {
       setFormData({
         complete_name_fr: item.complete_name_fr || undefined,
         complete_name_ar: item.complete_name_ar || undefined,
-        first_name_fr: item.first_name_fr,
-        last_name_fr: item.last_name_fr,
+        first_name_fr: item.first_name_fr || undefined,
+        last_name_fr: item.last_name_fr || undefined,
         first_name_ar: item.first_name_ar || undefined,
         last_name_ar: item.last_name_ar || undefined,
         title: item.title || undefined,
@@ -518,7 +522,9 @@ export default function AdminAcademicPersonsPage() {
               </p>
               <div className="bg-gray-50 p-3 rounded">
                 <p className="font-medium">
-                  {modal.item.complete_name_fr || `${modal.item.first_name_fr} ${modal.item.last_name_fr}`}
+                  {modal.item.complete_name_fr || 
+                   (modal.item.first_name_fr && modal.item.last_name_fr ? `${modal.item.first_name_fr} ${modal.item.last_name_fr}` : '') ||
+                   modal.item.first_name_fr || modal.item.last_name_fr || 'Nom non défini'}
                 </p>
                 {modal.item.title && (
                   <p className="text-sm text-gray-600">{modal.item.title}</p>
@@ -553,29 +559,30 @@ export default function AdminAcademicPersonsPage() {
               {/* Names Section - French */}
               <div className="space-y-4">
                 <h3 className="text-lg font-medium text-gray-900">Informations Personnelles (Français)</h3>
+                <p className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                  <strong>Note:</strong> Au moins un nom complet OU prénom+nom (en français ou arabe) est requis.
+                </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Prénom (Français) *
+                      Prénom (Français)
                     </label>
                     <input
                       type="text"
-                      value={formData.first_name_fr}
-                      onChange={(e) => setFormData({ ...formData, first_name_fr: e.target.value })}
+                      value={formData.first_name_fr || ''}
+                      onChange={(e) => setFormData({ ...formData, first_name_fr: e.target.value || undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Nom (Français) *
+                      Nom (Français)
                     </label>
                     <input
                       type="text"
-                      value={formData.last_name_fr}
-                      onChange={(e) => setFormData({ ...formData, last_name_fr: e.target.value })}
+                      value={formData.last_name_fr || ''}
+                      onChange={(e) => setFormData({ ...formData, last_name_fr: e.target.value || undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required
                     />
                   </div>
                 </div>
@@ -810,7 +817,9 @@ export default function AdminAcademicPersonsPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Nom complet (Français)</label>
                   <p className="mt-1 text-gray-900">
-                    {modal.item.complete_name_fr || `${modal.item.first_name_fr} ${modal.item.last_name_fr}`}
+                    {modal.item.complete_name_fr || 
+                     (modal.item.first_name_fr && modal.item.last_name_fr ? `${modal.item.first_name_fr} ${modal.item.last_name_fr}` : '') ||
+                     modal.item.first_name_fr || modal.item.last_name_fr || 'Non défini'}
                   </p>
                 </div>
                 {modal.item.complete_name_ar && (
@@ -1182,12 +1191,14 @@ export default function AdminAcademicPersonsPage() {
                         <div className="flex items-center">
                           <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
                             <span className="text-white font-medium text-sm">
-                              {person.first_name_fr.charAt(0)}{person.last_name_fr.charAt(0)}
+                              {((person.first_name_fr?.charAt(0) || '') + (person.last_name_fr?.charAt(0) || '')).toUpperCase() || 'NN'}
                             </span>
                           </div>
                           <div className="ml-4">
                             <div className="text-sm font-medium text-gray-900">
-                              {person.complete_name_fr || `${person.first_name_fr} ${person.last_name_fr}`}
+                              {person.complete_name_fr || 
+                               (person.first_name_fr && person.last_name_fr ? `${person.first_name_fr} ${person.last_name_fr}` : '') ||
+                               person.first_name_fr || person.last_name_fr || 'Nom non défini'}
                             </div>
                             {person.complete_name_ar && (
                               <div className="text-xs text-gray-500" dir="rtl">
