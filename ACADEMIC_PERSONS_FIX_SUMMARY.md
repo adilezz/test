@@ -3,14 +3,14 @@
 ## Issues Identified and Fixed
 
 ### 1. **React Hook Dependencies Issue** ✅ **[MAIN ISSUE]**
-- **Problem**: The `loadData` function was not wrapped in `useCallback`, causing infinite re-renders and the blank page
-- **Solution**: Wrapped `loadData` with `useCallback` and fixed useEffect dependencies
-- **Root Cause**: Function recreated on every render → useEffect triggers → infinite loop → React stops rendering
+- **Problem**: The useEffect hooks had incorrect dependency patterns causing infinite re-renders and the blank page
+- **Solution**: Aligned useEffect patterns with other admin pages in the codebase
+- **Root Cause**: Different useEffect dependency patterns than other admin pages → infinite re-render loop → React stops rendering
 - **Changes Made**:
-  - Added `useCallback` import
-  - Wrapped `loadData` function with `useCallback([searchTerm, filters, showAllPersons])`
-  - Fixed useEffect dependencies to prevent infinite loops
-  - Removed duplicate useEffect for `showAllPersons` (now handled by `loadData` dependencies)
+  - Removed `useCallback` to match other admin pages pattern
+  - Fixed useEffect dependencies to use specific state variables: `[searchTerm]`, `[showAllPersons]`, `[filters]`
+  - Separated concerns into individual useEffect hooks like other admin pages
+  - Ensured consistent patterns across all admin pages
 
 ### 2. **Database Schema Alignment** ✅
 - **Problem**: Form fields didn't match the database schema exactly

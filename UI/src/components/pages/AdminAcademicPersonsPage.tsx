@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Plus,
   Search,
@@ -91,14 +91,19 @@ export default function AdminAcademicPersonsPage() {
       loadData();
     }, 300);
     return () => clearTimeout(timeoutId);
-  }, [loadData]);
+  }, [searchTerm]);
 
-  // Show all persons effect - this is now handled by loadData dependencies
-  // useEffect(() => {
-  //   loadData();
-  // }, [showAllPersons]);
+  // Show all persons effect
+  useEffect(() => {
+    loadData();
+  }, [showAllPersons]);
 
-  const loadData = useCallback(async () => {
+  // Filter effect
+  useEffect(() => {
+    loadData();
+  }, [filters]);
+
+  const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
@@ -148,7 +153,7 @@ export default function AdminAcademicPersonsPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, filters, showAllPersons]);
+  };
 
   const loadUniversities = async () => {
     try {
