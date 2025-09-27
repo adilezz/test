@@ -501,18 +501,47 @@ class ApiService {
     return this.request<ThesisDetailsResponse>(`/admin/theses/${id}`);
   }
 
+  private sanitizeThesisPayload<T extends Partial<ThesisCreate | ThesisUpdate>>(data: T): T {
+    const clone: Record<string, any> = { ...data };
+    const emptyToOmitKeys = [
+      'title_en', 'title_ar', 'abstract_en', 'abstract_ar',
+      'university_id', 'faculty_id', 'school_id', 'department_id',
+      'degree_id', 'thesis_number', 'study_location_id'
+    ];
+
+    emptyToOmitKeys.forEach((k) => {
+      if (clone[k] === '') delete clone[k];
+    });
+
+    if (Array.isArray(clone.secondary_language_ids) && clone.secondary_language_ids.length === 0) {
+      delete clone.secondary_language_ids;
+    }
+
+    if (clone.page_count !== undefined && typeof clone.page_count === 'number' && clone.page_count <= 0) {
+      delete clone.page_count;
+    }
+
+    if (typeof clone.defense_date === 'string' && clone.defense_date.includes('T')) {
+      clone.defense_date = clone.defense_date.split('T')[0];
+    }
+
+    return clone as T;
+  }
+
   async createThesis(data: ThesisCreate): Promise<ThesisResponse> {
     // Backend expects manual create at /admin/thesis-content/manual/create
+    const payload = this.sanitizeThesisPayload<ThesisCreate>(data);
     return this.request<ThesisResponse>('/admin/thesis-content/manual/create', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
   }
 
   async updateThesis(id: string, data: ThesisUpdate): Promise<ThesisResponse> {
+    const payload = this.sanitizeThesisPayload<ThesisUpdate>(data);
     return this.request<ThesisResponse>(`/admin/theses/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
   }
 

@@ -7001,7 +7001,7 @@ async def get_thesis_form_structure(
 # Create Thesis with Metadata
 # =============================================================================
 
-@app.post("/admin/thesis-content/manual/create", response_model=ThesisResponse, tags=["Admin - Thesis Content"])
+@app.post("/admin/thesis-content/manual/create", response_model=ThesisResponse, tags=["Admin - Thesis Content"], status_code=status.HTTP_201_CREATED)
 async def create_thesis_manual(
     request: Request,
     thesis_data: ThesisCreate,
