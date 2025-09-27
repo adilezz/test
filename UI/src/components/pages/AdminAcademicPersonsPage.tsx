@@ -46,6 +46,7 @@ interface ModalState {
 export default function AdminAcademicPersonsPage() {
   const [data, setData] = useState<AcademicPersonResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('list');
   const [showAllPersons, setShowAllPersons] = useState(false);
@@ -99,6 +100,7 @@ export default function AdminAcademicPersonsPage() {
 
   const loadData = async () => {
     setLoading(true);
+    setError(null);
     try {
       const params: Record<string, string | number> = {};
       
@@ -128,10 +130,19 @@ export default function AdminAcademicPersonsPage() {
         params.limit = 1000;
       }
       
+      console.log('Loading academic persons with params:', params);
       const response = await apiService.adminList<PaginatedResponse>('academic_persons', params);
+      console.log('Academic persons response:', response);
       setData(response.data || []);
     } catch (error) {
       console.error('Error loading academic persons:', error);
+      // Show error details for debugging
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        setError(`Erreur de connexion à l'API: ${error.message}`);
+      } else {
+        setError('Erreur inconnue lors du chargement des données');
+      }
       // If the endpoint doesn't exist, show empty data
       setData([]);
     } finally {
@@ -172,8 +183,15 @@ export default function AdminAcademicPersonsPage() {
       setModal({ isOpen: false, mode: 'create' });
       resetForm();
       loadData();
+      // Show success message
+      setError(null);
     } catch (error) {
       console.error('Error creating academic person:', error);
+      if (error instanceof Error) {
+        setError(`Erreur lors de la création: ${error.message}`);
+      } else {
+        setError('Erreur inconnue lors de la création');
+      }
     }
   };
 
@@ -184,8 +202,14 @@ export default function AdminAcademicPersonsPage() {
       await apiService.adminUpdate('academic_persons', modal.item.id, formData);
       setModal({ isOpen: false, mode: 'edit' });
       loadData();
+      setError(null);
     } catch (error) {
       console.error('Error updating academic person:', error);
+      if (error instanceof Error) {
+        setError(`Erreur lors de la mise à jour: ${error.message}`);
+      } else {
+        setError('Erreur inconnue lors de la mise à jour');
+      }
     }
   };
 
@@ -193,8 +217,14 @@ export default function AdminAcademicPersonsPage() {
     try {
       await apiService.adminDelete('academic_persons', id);
       loadData();
+      setError(null);
     } catch (error) {
       console.error('Error deleting academic person:', error);
+      if (error instanceof Error) {
+        setError(`Erreur lors de la suppression: ${error.message}`);
+      } else {
+        setError('Erreur inconnue lors de la suppression');
+      }
     }
   };
 
@@ -268,31 +298,239 @@ export default function AdminAcademicPersonsPage() {
               modal.mode === 'create' ? handleCreate() : handleUpdate();
             }} className="space-y-6">
               
-              {/* Names Section */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Prénom (Français) *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.first_name_fr}
-                    onChange={(e) => setFormData({ ...formData, first_name_fr: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
+              {/* Names Section - French */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-gray-900">Informations Personnelles (Français)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Prénom (Français) *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.first_name_fr}
+                      onChange={(e) => setFormData({ ...formData, first_name_fr: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Nom (Français) *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.last_name_fr}
+                      onChange={(e) => setFormData({ ...formData, last_name_fr: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nom (Français) *
+                    Nom Complet (Français)
                   </label>
                   <input
                     type="text"
-                    value={formData.last_name_fr}
-                    onChange={(e) => setFormData({ ...formData, last_name_fr: e.target.value })}
+                    value={formData.complete_name_fr || ''}
+                    onChange={(e) => setFormData({ ...formData, complete_name_fr: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
+                    placeholder="Si différent de Prénom + Nom"
                   />
+                </div>
+              </div>
+
+              {/* Names Section - Arabic */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-gray-900">Informations Personnelles (Arabe)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Prénom (Arabe)
+                    </label>
+                    <input
+                      type="text"
+                    value={formData.first_name_ar || ''}
+                    onChange={(e) => setFormData({ ...formData, first_name_ar: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      dir="rtl"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Nom (Arabe)
+                    </label>
+                    <input
+                      type="text"
+                    value={formData.last_name_ar || ''}
+                    onChange={(e) => setFormData({ ...formData, last_name_ar: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      dir="rtl"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Nom Complet (Arabe)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.complete_name_ar || ''}
+                    onChange={(e) => setFormData({ ...formData, complete_name_ar: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    dir="rtl"
+                    placeholder="إذا كان مختلفاً عن الاسم + اللقب"
+                  />
+                </div>
+              </div>
+
+              {/* Title and Professional Info */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-gray-900">Informations Professionnelles</h3>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Titre
+                  </label>
+                  <select
+                  value={formData.title || ''}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Sélectionner un titre</option>
+                    <option value="Prof">Prof</option>
+                    <option value="Dr">Dr</option>
+                    <option value="Pr">Pr</option>
+                    <option value="Mr">Mr</option>
+                    <option value="Mme">Mme</option>
+                    <option value="Mlle">Mlle</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Institutional Affiliation */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-gray-900">Affiliation Institutionnelle</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Université
+                    </label>
+                    <select
+                    value={formData.university_id || ''}
+                    onChange={(e) => setFormData({ ...formData, university_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Sélectionner une université</option>
+                      {universities.map((university) => (
+                        <option key={university.id} value={university.id}>
+                          {university.name_fr}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Faculté
+                    </label>
+                    <select
+                    value={formData.faculty_id || ''}
+                    onChange={(e) => setFormData({ ...formData, faculty_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Sélectionner une faculté</option>
+                      {faculties.map((faculty) => (
+                        <option key={faculty.id} value={faculty.id}>
+                          {faculty.name_fr}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      École
+                    </label>
+                    <select
+                    value={formData.school_id || ''}
+                    onChange={(e) => setFormData({ ...formData, school_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Sélectionner une école</option>
+                      {schools.map((school) => (
+                        <option key={school.id} value={school.id}>
+                          {school.name_fr}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* External Institution */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-gray-900">Institution Externe</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Nom de l'Institution
+                    </label>
+                    <input
+                      type="text"
+                    value={formData.external_institution_name || ''}
+                    onChange={(e) => setFormData({ ...formData, external_institution_name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Nom de l'institution externe"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Pays
+                    </label>
+                    <input
+                      type="text"
+                    value={formData.external_institution_country || ''}
+                    onChange={(e) => setFormData({ ...formData, external_institution_country: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Pays de l'institution"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Type d'Institution
+                    </label>
+                    <select
+                    value={formData.external_institution_type || ''}
+                    onChange={(e) => setFormData({ ...formData, external_institution_type: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Sélectionner le type</option>
+                      <option value="Université">Université</option>
+                      <option value="École">École</option>
+                      <option value="Institut">Institut</option>
+                      <option value="Centre de recherche">Centre de recherche</option>
+                      <option value="Autre">Autre</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* User Association */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-gray-900">Association Utilisateur</h3>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    ID Utilisateur (optionnel)
+                  </label>
+                  <input
+                    type="text"
+                  value={formData.user_id || ''}
+                  onChange={(e) => setFormData({ ...formData, user_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="UUID de l'utilisateur associé"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Laisser vide si cette personne n'a pas de compte utilisateur
+                  </p>
                 </div>
               </div>
 
@@ -556,6 +794,28 @@ export default function AdminAcademicPersonsPage() {
               >
                 Réinitialiser
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Error Display */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center">
+              <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
+              <div>
+                <h3 className="text-sm font-medium text-red-800">Erreur de chargement</h3>
+                <p className="text-sm text-red-700 mt-1">{error}</p>
+                <button
+                  onClick={() => {
+                    setError(null);
+                    loadData();
+                  }}
+                  className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+                >
+                  Réessayer
+                </button>
+              </div>
             </div>
           </div>
         )}
