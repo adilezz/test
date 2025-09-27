@@ -9,7 +9,65 @@ from datetime import datetime
 import urllib.parse
 
 # Mock data
-academic_persons = []
+academic_persons = [
+    {
+        "id": "550e8400-e29b-41d4-a716-446655440001",
+        "complete_name_fr": "Dr. Ahmed Ben Mohammed",
+        "complete_name_ar": "د. أحمد بن محمد",
+        "first_name_fr": "Ahmed",
+        "last_name_fr": "Ben Mohammed",
+        "first_name_ar": "أحمد",
+        "last_name_ar": "بن محمد",
+        "title": "Dr",
+        "university_id": "550e8400-e29b-41d4-a716-446655440010",
+        "faculty_id": "550e8400-e29b-41d4-a716-446655440011",
+        "school_id": None,
+        "external_institution_name": None,
+        "external_institution_country": None,
+        "external_institution_type": None,
+        "user_id": None,
+        "created_at": "2024-01-15T10:30:00",
+        "updated_at": "2024-01-15T10:30:00"
+    },
+    {
+        "id": "550e8400-e29b-41d4-a716-446655440002",
+        "complete_name_fr": "Prof. Fatima El Alaoui",
+        "complete_name_ar": "أ. فاطمة العلوي",
+        "first_name_fr": "Fatima",
+        "last_name_fr": "El Alaoui",
+        "first_name_ar": "فاطمة",
+        "last_name_ar": "العلوي",
+        "title": "Prof",
+        "university_id": "550e8400-e29b-41d4-a716-446655440010",
+        "faculty_id": "550e8400-e29b-41d4-a716-446655440012",
+        "school_id": None,
+        "external_institution_name": None,
+        "external_institution_country": None,
+        "external_institution_type": None,
+        "user_id": None,
+        "created_at": "2024-01-10T09:15:00",
+        "updated_at": "2024-01-10T09:15:00"
+    },
+    {
+        "id": "550e8400-e29b-41d4-a716-446655440003",
+        "complete_name_fr": "Dr. Jean Dupont",
+        "complete_name_ar": None,
+        "first_name_fr": "Jean",
+        "last_name_fr": "Dupont",
+        "first_name_ar": None,
+        "last_name_ar": None,
+        "title": "Dr",
+        "university_id": None,
+        "faculty_id": None,
+        "school_id": None,
+        "external_institution_name": "Université de Paris",
+        "external_institution_country": "France",
+        "external_institution_type": "Université",
+        "user_id": None,
+        "created_at": "2024-02-01T14:20:00",
+        "updated_at": "2024-02-01T14:20:00"
+    }
+]
 
 class MockAPIHandler(BaseHTTPRequestHandler):
     def _send_cors_headers(self):
@@ -34,9 +92,12 @@ class MockAPIHandler(BaseHTTPRequestHandler):
         path = parsed_path.path
         query_params = urllib.parse.parse_qs(parsed_path.query)
         
-        print(f"GET {path}")
+        # Normalize path to handle /api prefix
+        normalized_path = path.replace('/api', '') if path.startswith('/api') else path
         
-        if path == '/admin/academic-persons':
+        print(f"GET {path} -> {normalized_path}")
+        
+        if normalized_path == '/admin/academic-persons':
             # Return paginated list of academic persons
             response = {
                 "success": True,
@@ -50,9 +111,9 @@ class MockAPIHandler(BaseHTTPRequestHandler):
                 "timestamp": datetime.now().isoformat()
             }
             self._send_json_response(response)
-        elif path.startswith('/admin/academic-persons/'):
+        elif normalized_path.startswith('/admin/academic-persons/'):
             # Get single academic person
-            person_id = path.split('/')[-1]
+            person_id = normalized_path.split('/')[-1]
             person = next((p for p in academic_persons if p['id'] == person_id), None)
             if person:
                 self._send_json_response({
@@ -69,37 +130,81 @@ class MockAPIHandler(BaseHTTPRequestHandler):
                     },
                     "timestamp": datetime.now().isoformat()
                 }, 404)
-        elif path == '/admin/universities':
+        elif normalized_path == '/admin/universities':
             # Mock universities
             self._send_json_response({
                 "success": True,
                 "data": [
-                    {"id": str(uuid.uuid4()), "name_fr": "Université Mohammed V", "name_ar": "جامعة محمد الخامس"},
-                    {"id": str(uuid.uuid4()), "name_fr": "Université Hassan II", "name_ar": "جامعة الحسن الثاني"}
+                    {"id": "550e8400-e29b-41d4-a716-446655440010", "name_fr": "Université Mohammed V", "name_ar": "جامعة محمد الخامس"},
+                    {"id": "550e8400-e29b-41d4-a716-446655440020", "name_fr": "Université Hassan II", "name_ar": "جامعة الحسن الثاني"}
                 ],
                 "meta": {"total": 2, "page": 1, "limit": 20, "pages": 1},
                 "timestamp": datetime.now().isoformat()
             })
-        elif path == '/admin/faculties':
+        elif normalized_path == '/admin/faculties':
             # Mock faculties
             self._send_json_response({
                 "success": True,
                 "data": [
-                    {"id": str(uuid.uuid4()), "name_fr": "Faculté des Sciences", "name_ar": "كلية العلوم"},
-                    {"id": str(uuid.uuid4()), "name_fr": "Faculté de Médecine", "name_ar": "كلية الطب"}
+                    {"id": "550e8400-e29b-41d4-a716-446655440011", "name_fr": "Faculté des Sciences", "name_ar": "كلية العلوم"},
+                    {"id": "550e8400-e29b-41d4-a716-446655440012", "name_fr": "Faculté de Médecine", "name_ar": "كلية الطب"}
                 ],
                 "meta": {"total": 2, "page": 1, "limit": 20, "pages": 1},
                 "timestamp": datetime.now().isoformat()
             })
-        elif path == '/admin/schools':
+        elif normalized_path == '/admin/schools':
             # Mock schools
             self._send_json_response({
                 "success": True,
                 "data": [
-                    {"id": str(uuid.uuid4()), "name_fr": "École Nationale Supérieure d'Informatique", "name_ar": "المدرسة الوطنية العليا للمعلوميات"},
-                    {"id": str(uuid.uuid4()), "name_fr": "École Mohammadia d'Ingénieurs", "name_ar": "المدرسة المحمدية للمهندسين"}
+                    {"id": "550e8400-e29b-41d4-a716-446655440013", "name_fr": "École Nationale Supérieure d'Informatique", "name_ar": "المدرسة الوطنية العليا للمعلوميات"},
+                    {"id": "550e8400-e29b-41d4-a716-446655440014", "name_fr": "École Mohammadia d'Ingénieurs", "name_ar": "المدرسة المحمدية للمهندسين"}
                 ],
                 "meta": {"total": 2, "page": 1, "limit": 20, "pages": 1},
+                "timestamp": datetime.now().isoformat()
+            })
+        elif normalized_path == '/auth/login':
+            # Mock login
+            self._send_json_response({
+                "success": True,
+                "access_token": "mock_access_token_12345",
+                "refresh_token": "mock_refresh_token_12345",
+                "token_type": "bearer",
+                "expires_in": 86400,
+                "user": {
+                    "id": "550e8400-e29b-41d4-a716-446655440100",
+                    "email": "admin@test.com",
+                    "first_name": "Admin",
+                    "last_name": "User",
+                    "role": "admin",
+                    "is_active": True,
+                    "created_at": "2024-01-01T00:00:00",
+                    "updated_at": "2024-01-01T00:00:00"
+                },
+                "timestamp": datetime.now().isoformat()
+            })
+        elif normalized_path == '/auth/profile':
+            # Mock profile
+            self._send_json_response({
+                "success": True,
+                "id": "550e8400-e29b-41d4-a716-446655440100",
+                "email": "admin@test.com",
+                "first_name": "Admin",
+                "last_name": "User",
+                "role": "admin",
+                "is_active": True,
+                "created_at": "2024-01-01T00:00:00",
+                "updated_at": "2024-01-01T00:00:00",
+                "timestamp": datetime.now().isoformat()
+            })
+        elif normalized_path == '/auth/refresh':
+            # Mock token refresh
+            self._send_json_response({
+                "success": True,
+                "access_token": "mock_access_token_refreshed_12345",
+                "refresh_token": "mock_refresh_token_refreshed_12345",
+                "token_type": "bearer",
+                "expires_in": 86400,
                 "timestamp": datetime.now().isoformat()
             })
         else:
@@ -116,9 +221,12 @@ class MockAPIHandler(BaseHTTPRequestHandler):
         parsed_path = urllib.parse.urlparse(self.path)
         path = parsed_path.path
         
-        print(f"POST {path}")
+        # Normalize path to handle /api prefix
+        normalized_path = path.replace('/api', '') if path.startswith('/api') else path
         
-        if path == '/admin/academic-persons':
+        print(f"POST {path} -> {normalized_path}")
+        
+        if normalized_path == '/admin/academic-persons':
             # Create new academic person
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)
@@ -138,6 +246,44 @@ class MockAPIHandler(BaseHTTPRequestHandler):
                 **new_person,
                 "timestamp": datetime.now().isoformat()
             }, 201)
+        elif normalized_path == '/auth/login':
+            # Mock login
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data.decode())
+            
+            self._send_json_response({
+                "success": True,
+                "access_token": "mock_access_token_12345",
+                "refresh_token": "mock_refresh_token_12345",
+                "token_type": "bearer",
+                "expires_in": 86400,
+                "user": {
+                    "id": "550e8400-e29b-41d4-a716-446655440100",
+                    "email": "admin@test.com",
+                    "first_name": "Admin",
+                    "last_name": "User",
+                    "role": "admin",
+                    "is_active": True,
+                    "created_at": "2024-01-01T00:00:00",
+                    "updated_at": "2024-01-01T00:00:00"
+                },
+                "timestamp": datetime.now().isoformat()
+            })
+        elif normalized_path == '/auth/refresh':
+            # Mock token refresh
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data.decode())
+            
+            self._send_json_response({
+                "success": True,
+                "access_token": "mock_access_token_refreshed_12345",
+                "refresh_token": "mock_refresh_token_refreshed_12345",
+                "token_type": "bearer",
+                "expires_in": 86400,
+                "timestamp": datetime.now().isoformat()
+            })
         else:
             self._send_json_response({
                 "success": False,
@@ -152,11 +298,14 @@ class MockAPIHandler(BaseHTTPRequestHandler):
         parsed_path = urllib.parse.urlparse(self.path)
         path = parsed_path.path
         
-        print(f"PUT {path}")
+        # Normalize path to handle /api prefix
+        normalized_path = path.replace('/api', '') if path.startswith('/api') else path
         
-        if path.startswith('/admin/academic-persons/'):
+        print(f"PUT {path} -> {normalized_path}")
+        
+        if normalized_path.startswith('/admin/academic-persons/'):
             # Update academic person
-            person_id = path.split('/')[-1]
+            person_id = normalized_path.split('/')[-1]
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)
             data = json.loads(post_data.decode())
@@ -194,11 +343,14 @@ class MockAPIHandler(BaseHTTPRequestHandler):
         parsed_path = urllib.parse.urlparse(self.path)
         path = parsed_path.path
         
-        print(f"DELETE {path}")
+        # Normalize path to handle /api prefix
+        normalized_path = path.replace('/api', '') if path.startswith('/api') else path
         
-        if path.startswith('/admin/academic-persons/'):
+        print(f"DELETE {path} -> {normalized_path}")
+        
+        if normalized_path.startswith('/admin/academic-persons/'):
             # Delete academic person
-            person_id = path.split('/')[-1]
+            person_id = normalized_path.split('/')[-1]
             person_index = next((i for i, p in enumerate(academic_persons) if p['id'] == person_id), None)
             if person_index is not None:
                 del academic_persons[person_index]

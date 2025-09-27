@@ -62,20 +62,20 @@ export default function AdminAcademicPersonsPage() {
   const [schools, setSchools] = useState<SchoolResponse[]>([]);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
   const [formData, setFormData] = useState<AcademicPersonCreate>({
-    complete_name_fr: '',
-    complete_name_ar: '',
+    complete_name_fr: undefined,
+    complete_name_ar: undefined,
     first_name_fr: '',
     last_name_fr: '',
-    first_name_ar: '',
-    last_name_ar: '',
-    title: '',
-    university_id: '',
-    faculty_id: '',
-    school_id: '',
-    external_institution_name: '',
-    external_institution_country: '',
-    external_institution_type: '',
-    user_id: ''
+    first_name_ar: undefined,
+    last_name_ar: undefined,
+    title: undefined,
+    university_id: undefined,
+    faculty_id: undefined,
+    school_id: undefined,
+    external_institution_name: undefined,
+    external_institution_country: undefined,
+    external_institution_type: undefined,
+    user_id: undefined
   });
 
   useEffect(() => {
@@ -91,12 +91,17 @@ export default function AdminAcademicPersonsPage() {
       loadData();
     }, 300);
     return () => clearTimeout(timeoutId);
-  }, [searchTerm, filters]);
+  }, [searchTerm]);
 
   // Show all persons effect
   useEffect(() => {
     loadData();
   }, [showAllPersons]);
+
+  // Filter effect
+  useEffect(() => {
+    loadData();
+  }, [filters]);
 
   const loadData = async () => {
     setLoading(true);
@@ -177,7 +182,21 @@ export default function AdminAcademicPersonsPage() {
     }
   };
 
+  const validateForm = () => {
+    if (!formData.first_name_fr.trim()) {
+      setError('Le prénom en français est obligatoire');
+      return false;
+    }
+    if (!formData.last_name_fr.trim()) {
+      setError('Le nom en français est obligatoire');
+      return false;
+    }
+    return true;
+  };
+
   const handleCreate = async () => {
+    if (!validateForm()) return;
+    
     try {
       await apiService.adminCreate('academic_persons', formData);
       setModal({ isOpen: false, mode: 'create' });
@@ -197,6 +216,7 @@ export default function AdminAcademicPersonsPage() {
 
   const handleUpdate = async () => {
     if (!modal.item) return;
+    if (!validateForm()) return;
     
     try {
       await apiService.adminUpdate('academic_persons', modal.item.id, formData);
@@ -230,20 +250,20 @@ export default function AdminAcademicPersonsPage() {
 
   const resetForm = () => {
     setFormData({
-      complete_name_fr: '',
-      complete_name_ar: '',
+      complete_name_fr: undefined,
+      complete_name_ar: undefined,
       first_name_fr: '',
       last_name_fr: '',
-      first_name_ar: '',
-      last_name_ar: '',
-      title: '',
-      university_id: '',
-      faculty_id: '',
-      school_id: '',
-      external_institution_name: '',
-      external_institution_country: '',
-      external_institution_type: '',
-      user_id: ''
+      first_name_ar: undefined,
+      last_name_ar: undefined,
+      title: undefined,
+      university_id: undefined,
+      faculty_id: undefined,
+      school_id: undefined,
+      external_institution_name: undefined,
+      external_institution_country: undefined,
+      external_institution_type: undefined,
+      user_id: undefined
     });
   };
 
@@ -252,20 +272,20 @@ export default function AdminAcademicPersonsPage() {
     
     if (mode === 'edit' && item) {
       setFormData({
-        complete_name_fr: item.complete_name_fr || '',
-        complete_name_ar: item.complete_name_ar || '',
+        complete_name_fr: item.complete_name_fr || undefined,
+        complete_name_ar: item.complete_name_ar || undefined,
         first_name_fr: item.first_name_fr,
         last_name_fr: item.last_name_fr,
-        first_name_ar: item.first_name_ar || '',
-        last_name_ar: item.last_name_ar || '',
-        title: item.title || '',
-        university_id: item.university_id || '',
-        faculty_id: item.faculty_id || '',
-        school_id: item.school_id || '',
-        external_institution_name: item.external_institution_name || '',
-        external_institution_country: item.external_institution_country || '',
-        external_institution_type: item.external_institution_type || '',
-        user_id: item.user_id || ''
+        first_name_ar: item.first_name_ar || undefined,
+        last_name_ar: item.last_name_ar || undefined,
+        title: item.title || undefined,
+        university_id: item.university_id || undefined,
+        faculty_id: item.faculty_id || undefined,
+        school_id: item.school_id || undefined,
+        external_institution_name: item.external_institution_name || undefined,
+        external_institution_country: item.external_institution_country || undefined,
+        external_institution_type: item.external_institution_type || undefined,
+        user_id: item.user_id || undefined
       });
     } else if (mode === 'create') {
       resetForm();
@@ -331,13 +351,13 @@ export default function AdminAcademicPersonsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Nom Complet (Français)
                   </label>
-                  <input
-                    type="text"
-                    value={formData.complete_name_fr || ''}
-                    onChange={(e) => setFormData({ ...formData, complete_name_fr: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Si différent de Prénom + Nom"
-                  />
+                    <input
+                      type="text"
+                      value={formData.complete_name_fr || ''}
+                      onChange={(e) => setFormData({ ...formData, complete_name_fr: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Si différent de Prénom + Nom"
+                    />
                 </div>
               </div>
 
@@ -352,7 +372,7 @@ export default function AdminAcademicPersonsPage() {
                     <input
                       type="text"
                     value={formData.first_name_ar || ''}
-                    onChange={(e) => setFormData({ ...formData, first_name_ar: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, first_name_ar: e.target.value || undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       dir="rtl"
                     />
@@ -364,7 +384,7 @@ export default function AdminAcademicPersonsPage() {
                     <input
                       type="text"
                     value={formData.last_name_ar || ''}
-                    onChange={(e) => setFormData({ ...formData, last_name_ar: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, last_name_ar: e.target.value || undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       dir="rtl"
                     />
@@ -377,7 +397,7 @@ export default function AdminAcademicPersonsPage() {
                   <input
                     type="text"
                     value={formData.complete_name_ar || ''}
-                    onChange={(e) => setFormData({ ...formData, complete_name_ar: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, complete_name_ar: e.target.value || undefined })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     dir="rtl"
                     placeholder="إذا كان مختلفاً عن الاسم + اللقب"
@@ -394,7 +414,7 @@ export default function AdminAcademicPersonsPage() {
                   </label>
                   <select
                   value={formData.title || ''}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value || undefined })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">Sélectionner un titre</option>
@@ -418,7 +438,7 @@ export default function AdminAcademicPersonsPage() {
                     </label>
                     <select
                     value={formData.university_id || ''}
-                    onChange={(e) => setFormData({ ...formData, university_id: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, university_id: e.target.value || undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Sélectionner une université</option>
@@ -435,7 +455,7 @@ export default function AdminAcademicPersonsPage() {
                     </label>
                     <select
                     value={formData.faculty_id || ''}
-                    onChange={(e) => setFormData({ ...formData, faculty_id: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, faculty_id: e.target.value || undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Sélectionner une faculté</option>
@@ -452,7 +472,7 @@ export default function AdminAcademicPersonsPage() {
                     </label>
                     <select
                     value={formData.school_id || ''}
-                    onChange={(e) => setFormData({ ...formData, school_id: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, school_id: e.target.value || undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Sélectionner une école</option>
@@ -477,7 +497,7 @@ export default function AdminAcademicPersonsPage() {
                     <input
                       type="text"
                     value={formData.external_institution_name || ''}
-                    onChange={(e) => setFormData({ ...formData, external_institution_name: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, external_institution_name: e.target.value || undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Nom de l'institution externe"
                     />
@@ -489,7 +509,7 @@ export default function AdminAcademicPersonsPage() {
                     <input
                       type="text"
                     value={formData.external_institution_country || ''}
-                    onChange={(e) => setFormData({ ...formData, external_institution_country: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, external_institution_country: e.target.value || undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Pays de l'institution"
                     />
@@ -500,7 +520,7 @@ export default function AdminAcademicPersonsPage() {
                     </label>
                     <select
                     value={formData.external_institution_type || ''}
-                    onChange={(e) => setFormData({ ...formData, external_institution_type: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, external_institution_type: e.target.value || undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Sélectionner le type</option>
@@ -524,7 +544,7 @@ export default function AdminAcademicPersonsPage() {
                   <input
                     type="text"
                   value={formData.user_id || ''}
-                  onChange={(e) => setFormData({ ...formData, user_id: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, user_id: e.target.value || undefined })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="UUID de l'utilisateur associé"
                   />
