@@ -38,6 +38,7 @@ import {
   FileUploadResponse,
   UniversityResponse,
   FacultyResponse,
+  DepartmentResponse,
   DegreeResponse,
   LanguageResponse,
   CategoryResponse,
@@ -241,23 +242,11 @@ export default function AdminThesisPage() {
 
   const loadDepartments = async (facultyId: string) => {
     try {
-      const response = await apiService.adminList<PaginatedResponse>('departments', { 
-        faculty_id: facultyId,
-        load_all: 'true' 
-      });
-      setDepartments(response.data);
-    } catch (error) {
-      console.error('Error loading departments:', error);
-      setDepartments([]);
-    }
-  };
-
-  const loadDepartments = async (facultyId: string) => {
-    try {
       const response = await apiService.adminGetFacultyDepartments(facultyId);
       setDepartments(response);
     } catch (error) {
       console.error('Error loading departments:', error);
+      setDepartments([]);
     }
   };
 
@@ -363,9 +352,6 @@ export default function AdminThesisPage() {
       loadDepartments(facultyId);
     } else {
       setDepartments([]);
-    setDepartments([]);
-    if (facultyId) {
-      loadDepartments(facultyId);
     }
   };
 
@@ -816,47 +802,6 @@ export default function AdminThesisPage() {
                   </div>
                 </div>
 
-                {/* Faculty and Department */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Faculté
-                    </label>
-                    <select
-                      name="faculty_id"
-                      value={formData.faculty_id}
-                      onChange={(e) => handleFacultyChange(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Sélectionnez une faculté</option>
-                      {faculties.map(faculty => (
-                        <option key={faculty.id} value={faculty.id}>
-                          {faculty.name_fr}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Département
-                    </label>
-                    <select
-                      name="department_id"
-                      value={formData.department_id}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      disabled={!formData.faculty_id}
-                    >
-                      <option value="">Sélectionnez un département</option>
-                      {departments.map((dept: any) => (
-                        <option key={dept.id} value={dept.id}>
-                          {dept.name_fr}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
 
                 {/* Additional Details */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1104,47 +1049,6 @@ export default function AdminThesisPage() {
                   </div>
                 </div>
 
-                {/* Categories */}
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Catégories
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowCategoryModal(true)}
-                      className="flex items-center space-x-1 text-green-600 hover:text-green-800 text-sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Nouvelle catégorie</span>
-                    </button>
-                  </div>
-                  
-                  <div className="border border-gray-300 rounded-lg p-3 max-h-40 overflow-y-auto">
-                    <div className="space-y-2">
-                      {categories.map(category => (
-                        <label key={category.id} className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            checked={selectedCategories.includes(category.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedCategories(prev => [...prev, category.id]);
-                              } else {
-                                setSelectedCategories(prev => prev.filter(id => id !== category.id));
-                              }
-                            }}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="text-sm text-gray-900">{category.name_fr}</span>
-                          {category.name_en && (
-                            <span className="text-sm text-gray-500">({category.name_en})</span>
-                          )}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </div>
 
                 {/* Abstracts */}
                 <div className="space-y-4">
