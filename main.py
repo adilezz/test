@@ -6412,7 +6412,7 @@ async def create_degree(request: Request, body: DegreeCreate, admin_user: dict =
         INSERT INTO degrees (id, name_en, name_fr, name_ar, abbreviation, type, category)
         VALUES (gen_random_uuid(), %s, %s, %s, %s, %s, %s) RETURNING *
         """,
-        (body.name_en, body.name_fr, body.name_ar, body.abbreviation, body.type.value, body.category.value if body.category else None),
+        (body.name_en, body.name_fr, body.name_ar, body.abbreviation, body.type, body.category),
         fetch_one=True,
     )
     return DegreeResponse(
@@ -6437,8 +6437,8 @@ async def update_degree(request: Request, degree_id: str, body: DegreeUpdate, ad
         "name_fr": body.name_fr,
         "name_ar": body.name_ar,
         "abbreviation": body.abbreviation,
-        "type": body.type.value if body.type else None,
-        "category": body.category.value if body.category else None,
+        "type": body.type if body.type else None,
+        "category": body.category if body.category else None,
     }
     for k, v in mapping.items():
         if v is not None:
