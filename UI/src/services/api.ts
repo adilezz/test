@@ -632,6 +632,11 @@ class ApiService {
   async healthCheck(): Promise<BaseResponse> {
     return this.request<BaseResponse>('/health');
   }
+
+  // Admin thesis form structure (references)
+  async getThesisFormStructure(): Promise<import('../types/api').ThesisFormStructureResponse> {
+    return this.request<import('../types/api').ThesisFormStructureResponse>('/admin/thesis-content/manual/form');
+  }
 }
 
 export const apiService = new ApiService();

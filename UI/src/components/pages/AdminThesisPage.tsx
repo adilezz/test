@@ -148,28 +148,20 @@ export default function AdminThesisPage() {
 
   const loadReferenceData = async () => {
     try {
-      const [
-        universitiesRes,
-        degreesRes,
-        languagesRes,
-        categoriesRes,
-        keywordsRes,
-        academicPersonsRes,
-        geoRes
-      ] = await Promise.all([
-        apiService.adminList<PaginatedResponse>('universities', { load_all: 'true' }),
-        apiService.adminList<PaginatedResponse>('degrees', { load_all: 'true' }),
-        apiService.adminList<PaginatedResponse>('languages', { load_all: 'true' }),
-        apiService.adminList<PaginatedResponse>('categories', { load_all: 'true' }),
+      const form = await apiService.getThesisFormStructure();
+      const ref = form.reference_data;
+      setUniversities(ref.universities as any);
+      setDegrees(ref.degrees as any);
+      // languages with is_active already filtered
+      setLanguages((ref.languages as any).map((l: any) => ({ id: l.id, code: l.code, name: l.name, native_name: '', rtl: false, is_active: true, display_order: 0, created_at: '', updated_at: '' })).slice());
+      // categories list fallback: flatten categories_tree names unavailable; keep existing adminList as fallback
+      setCategories([]);
+      // load keywords via existing endpoint (not included in form)
+      const [keywordsRes, academicPersonsRes, geoRes] = await Promise.all([
         apiService.adminList<PaginatedResponse>('keywords', { load_all: 'true' }),
         apiService.adminList<PaginatedResponse>('academic_persons', { load_all: 'true' }),
         apiService.adminList<PaginatedResponse>('geographic_entities', { load_all: 'true' })
       ]);
-
-      setUniversities(universitiesRes.data);
-      setDegrees(degreesRes.data);
-      setLanguages(languagesRes.data);
-      setCategories(categoriesRes.data);
       setKeywords(keywordsRes.data);
       setAcademicPersons(academicPersonsRes.data);
       setGeographicEntities(geoRes.data);

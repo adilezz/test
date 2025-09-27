@@ -695,3 +695,21 @@ export interface TreeNodeData {
   theses?: any[];
   children?: TreeNodeData[];
 }
+
+// Admin Thesis Form structure (reference data) types
+export interface ThesisFormReferenceData {
+  universities: Array<{ id: string; name_fr: string; acronym?: string }>;
+  faculties: Array<{ id: string; university_id: string; name_fr: string }>;
+  schools: Array<{ id: string; parent_university_id?: string | null; parent_school_id?: string | null; name_fr: string }>;
+  departments: Array<{ id: string; faculty_id?: string | null; school_id?: string | null; name_fr: string }>;
+  degrees: Array<{ id: string; name_fr: string; abbreviation?: string; type?: string }>;
+  languages: Array<{ id: string; code: string; name: string }>;
+  categories_tree: any[];
+  academic_roles: Array<{ value: string; label: string }>;
+}
+
+export interface ThesisFormStructureResponse {
+  thesis_fields: any;
+  related_entities: any;
+  reference_data: ThesisFormReferenceData;
+}
