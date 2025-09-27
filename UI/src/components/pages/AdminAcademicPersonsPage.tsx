@@ -7,22 +7,20 @@ import {
   Trash2,
   Eye,
   Users,
-  Mail,
   Building2,
   GraduationCap,
+  School,
+  Globe,
+  UserPlus,
+  ChevronDown,
+  ChevronRight,
   X,
   Check,
   AlertCircle,
-  UserPlus,
-  ExternalLink,
   Grid3X3,
-  List,
-  Phone,
-  School,
-  Globe,
-  ChevronDown,
-  ChevronRight
+  List
 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { apiService } from '../../services/api';
 import TreeView from '../ui/TreeView/TreeView';
 import { TreeNode as UITreeNode } from '../../types/tree';
@@ -37,6 +35,20 @@ import {
   SchoolResponse
 } from '../../types/api';
 
+interface TreeNode {
+  id: string;
+  name_fr: string;
+  name_en?: string;
+  name_ar?: string;
+  type: 'university' | 'faculty' | 'school' | 'person';
+  children?: TreeNode[];
+  person_count?: number;
+  expanded?: boolean;
+  parent_id?: string;
+  title?: string;
+  external_institution_name?: string;
+}
+
 interface ModalState {
   isOpen: boolean;
   mode: 'create' | 'edit' | 'delete' | 'view';
@@ -44,22 +56,26 @@ interface ModalState {
 }
 
 export default function AdminAcademicPersonsPage() {
+  const [searchParams] = useSearchParams();
   const [data, setData] = useState<AcademicPersonResponse[]>([]);
+  const [treeData, setTreeData] = useState<TreeNode[]>([]);
+  const [universities, setUniversities] = useState<UniversityResponse[]>([]);
+  const [faculties, setFaculties] = useState<FacultyResponse[]>([]);
+  const [schools, setSchools] = useState<SchoolResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('list');
   const [showAllPersons, setShowAllPersons] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
     university_id: '',
     faculty_id: '',
     school_id: '',
-    title: ''
+    title: '',
+    is_external: ''
   });
-  const [universities, setUniversities] = useState<UniversityResponse[]>([]);
-  const [faculties, setFaculties] = useState<FacultyResponse[]>([]);
-  const [schools, setSchools] = useState<SchoolResponse[]>([]);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
   const [formData, setFormData] = useState<AcademicPersonCreate>({
     complete_name_fr: undefined,
@@ -77,12 +93,34 @@ export default function AdminAcademicPersonsPage() {
     external_institution_type: undefined,
     user_id: undefined
   });
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [statistics, setStatistics] = useState({
+    total: 0,
+    withExternalInstitution: 0,
+    withUserAccount: 0,
+    byUniversity: {} as Record<string, number>
+  });
 
   useEffect(() => {
     loadData();
     loadUniversities();
     loadFaculties();
     loadSchools();
+    
+    // Check if filters are provided in URL params
+    const universityId = searchParams.get('university_id');
+    const facultyId = searchParams.get('faculty_id');
+    const schoolId = searchParams.get('school_id');
+    
+    if (universityId || facultyId || schoolId) {
+      setFilters(prev => ({
+        ...prev,
+        university_id: universityId || '',
+        faculty_id: facultyId || '',
+        school_id: schoolId || ''
+      }));
+    }
   }, []);
 
   // Debounced search effect
@@ -91,17 +129,146 @@ export default function AdminAcademicPersonsPage() {
       loadData();
     }, 300);
     return () => clearTimeout(timeoutId);
-  }, [searchTerm]);
+  }, [searchTerm, filters, page]);
 
   // Show all persons effect
   useEffect(() => {
-    loadData();
+    if (viewMode === 'list') {
+      loadData();
+    }
   }, [showAllPersons]);
 
-  // Filter effect
-  useEffect(() => {
-    loadData();
-  }, [filters]);
+  const loadUniversities = async () => {
+    try {
+      const response = await apiService.adminList<PaginatedResponse>('universities', { load_all: 'true' });
+      setUniversities(response.data || []);
+    } catch (error) {
+      console.error('Error loading universities:', error);
+    }
+  };
+
+  const loadFaculties = async () => {
+    try {
+      const response = await apiService.adminList<PaginatedResponse>('faculties', { load_all: 'true' });
+      setFaculties(response.data || []);
+    } catch (error) {
+      console.error('Error loading faculties:', error);
+    }
+  };
+
+  const loadSchools = async () => {
+    try {
+      const response = await apiService.adminList<PaginatedResponse>('schools', { load_all: 'true' });
+      setSchools(response.data || []);
+    } catch (error) {
+      console.error('Error loading schools:', error);
+    }
+  };
+
+  const buildTreeData = (persons: AcademicPersonResponse[]): TreeNode[] => {
+    const universityMap = new Map<string, TreeNode>();
+    const facultyMap = new Map<string, TreeNode>();
+    const schoolMap = new Map<string, TreeNode>();
+
+    // Initialize university nodes
+    universities.forEach(university => {
+      universityMap.set(university.id, {
+        id: university.id,
+        name_fr: university.name_fr,
+        name_en: university.name_en,
+        name_ar: university.name_ar,
+        type: 'university',
+        children: [],
+        person_count: 0,
+        expanded: false
+      });
+    });
+
+    // Initialize faculty nodes
+    faculties.forEach(faculty => {
+      facultyMap.set(faculty.id, {
+        id: faculty.id,
+        name_fr: faculty.name_fr,
+        name_en: faculty.name_en,
+        name_ar: faculty.name_ar,
+        type: 'faculty',
+        children: [],
+        person_count: 0,
+        expanded: false,
+        parent_id: faculty.university_id
+      });
+    });
+
+    // Initialize school nodes
+    schools.forEach(school => {
+      schoolMap.set(school.id, {
+        id: school.id,
+        name_fr: school.name_fr,
+        name_en: school.name_en,
+        name_ar: school.name_ar,
+        type: 'school',
+        children: [],
+        person_count: 0,
+        expanded: false,
+        parent_id: school.faculty_id || school.university_id
+      });
+    });
+
+    // Add persons to appropriate nodes
+    persons.forEach(person => {
+      const personNode: TreeNode = {
+        id: person.id,
+        name_fr: person.complete_name_fr || `${person.first_name_fr} ${person.last_name_fr}`,
+        name_ar: person.complete_name_ar,
+        type: 'person',
+        title: person.title,
+        external_institution_name: person.external_institution_name
+      };
+
+      // Add to school if exists
+      if (person.school_id && schoolMap.has(person.school_id)) {
+        const school = schoolMap.get(person.school_id)!;
+        school.children!.push(personNode);
+        school.person_count! += 1;
+      }
+      // Add to faculty if exists
+      else if (person.faculty_id && facultyMap.has(person.faculty_id)) {
+        const faculty = facultyMap.get(person.faculty_id)!;
+        faculty.children!.push(personNode);
+        faculty.person_count! += 1;
+      }
+      // Add to university if exists
+      else if (person.university_id && universityMap.has(person.university_id)) {
+        const university = universityMap.get(person.university_id)!;
+        university.children!.push(personNode);
+        university.person_count! += 1;
+      }
+    });
+
+    // Build hierarchy: schools -> faculties -> universities
+    schoolMap.forEach(school => {
+      if (school.parent_id && facultyMap.has(school.parent_id)) {
+        const faculty = facultyMap.get(school.parent_id)!;
+        faculty.children!.push(school);
+        faculty.person_count! += school.person_count!;
+      } else if (school.parent_id && universityMap.has(school.parent_id)) {
+        const university = universityMap.get(school.parent_id)!;
+        university.children!.push(school);
+        university.person_count! += school.person_count!;
+      }
+    });
+
+    facultyMap.forEach(faculty => {
+      if (faculty.parent_id && universityMap.has(faculty.parent_id)) {
+        const university = universityMap.get(faculty.parent_id)!;
+        university.children!.push(faculty);
+        university.person_count! += faculty.person_count!;
+      }
+    });
+
+    // Return only universities with persons
+    return Array.from(universityMap.values()).filter(uni => uni.person_count! > 0);
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -127,58 +294,64 @@ export default function AdminAcademicPersonsPage() {
       if (filters.title) {
         params.title = filters.title;
       }
+      if (filters.is_external) {
+        params.is_external = filters.is_external;
+      }
       
-      // Apply limit if not showing all
-      if (!showAllPersons) {
-        params.limit = 20;
+      // Apply pagination
+      if (viewMode === 'list') {
+        if (!showAllPersons) {
+          params.limit = 20;
+          params.page = page;
+        } else {
+          params.load_all = true;
+        }
       } else {
-        params.limit = 1000;
+        params.load_all = true;
       }
       
       console.log('Loading academic persons with params:', params);
-      const response = await apiService.adminList<PaginatedResponse>('academic_persons', params);
+      const response = await apiService.adminList<PaginatedResponse>('academic-persons', params);
       console.log('Academic persons response:', response);
-      setData(response.data || []);
+      
+      const persons = response.data || [];
+      setData(persons);
+      
+      if (response.meta) {
+        setTotalPages(response.meta.pages);
+      }
+      
+      // Build tree data for tree view
+      if (viewMode === 'tree') {
+        const tree = buildTreeData(persons);
+        setTreeData(tree);
+      }
+      
+      // Calculate statistics
+      setStatistics({
+        total: persons.length,
+        withExternalInstitution: persons.filter(p => p.external_institution_name).length,
+        withUserAccount: persons.filter(p => p.user_id).length,
+        byUniversity: persons.reduce((acc, person) => {
+          if (person.university_id) {
+            const uni = universities.find(u => u.id === person.university_id);
+            const key = uni ? uni.name_fr : 'Autre';
+            acc[key] = (acc[key] || 0) + 1;
+          }
+          return acc;
+        }, {} as Record<string, number>)
+      });
+      
     } catch (error) {
       console.error('Error loading academic persons:', error);
-      // Show error details for debugging
       if (error instanceof Error) {
-        console.error('Error message:', error.message);
         setError(`Erreur de connexion à l'API: ${error.message}`);
       } else {
         setError('Erreur inconnue lors du chargement des données');
       }
-      // If the endpoint doesn't exist, show empty data
       setData([]);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadUniversities = async () => {
-    try {
-      const response = await apiService.adminList<PaginatedResponse>('universities', { load_all: 'true' });
-      setUniversities(response.data || []);
-    } catch (error) {
-      console.error('Error loading universities:', error);
-    }
-  };
-
-  const loadFaculties = async () => {
-    try {
-      const response = await apiService.adminList<PaginatedResponse>('faculties', { load_all: 'true' });
-      setFaculties(response.data || []);
-    } catch (error) {
-      console.error('Error loading faculties:', error);
-    }
-  };
-
-  const loadSchools = async () => {
-    try {
-      const response = await apiService.adminList<PaginatedResponse>('schools', { limit: 1000 });
-      setSchools(response.data || []);
-    } catch (error) {
-      console.error('Error loading schools:', error);
     }
   };
 
@@ -191,6 +364,7 @@ export default function AdminAcademicPersonsPage() {
       setError('Le nom en français est obligatoire');
       return false;
     }
+    setError(null);
     return true;
   };
 
@@ -198,12 +372,10 @@ export default function AdminAcademicPersonsPage() {
     if (!validateForm()) return;
     
     try {
-      await apiService.adminCreate('academic_persons', formData);
+      await apiService.adminCreate('academic-persons', formData);
       setModal({ isOpen: false, mode: 'create' });
       resetForm();
       loadData();
-      // Show success message
-      setError(null);
     } catch (error) {
       console.error('Error creating academic person:', error);
       if (error instanceof Error) {
@@ -219,10 +391,9 @@ export default function AdminAcademicPersonsPage() {
     if (!validateForm()) return;
     
     try {
-      await apiService.adminUpdate('academic_persons', modal.item.id, formData);
+      await apiService.adminUpdate('academic-persons', modal.item.id, formData);
       setModal({ isOpen: false, mode: 'edit' });
       loadData();
-      setError(null);
     } catch (error) {
       console.error('Error updating academic person:', error);
       if (error instanceof Error) {
@@ -235,9 +406,8 @@ export default function AdminAcademicPersonsPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      await apiService.adminDelete('academic_persons', id);
+      await apiService.adminDelete('academic-persons', id);
       loadData();
-      setError(null);
     } catch (error) {
       console.error('Error deleting academic person:', error);
       if (error instanceof Error) {
@@ -292,6 +462,34 @@ export default function AdminAcademicPersonsPage() {
     }
   };
 
+  const convertToUITreeNode = (node: TreeNode): UITreeNode => {
+    return {
+      id: node.id,
+      label: node.name_fr,
+      children: node.children ? node.children.map(convertToUITreeNode) : undefined,
+      expanded: node.expanded,
+      icon: node.type === 'university' ? Building2 : 
+            node.type === 'faculty' ? GraduationCap :
+            node.type === 'school' ? School : Users
+    };
+  };
+
+  const handleTreeNodeClick = (nodeId: string) => {
+    const findAndUpdateNode = (nodes: TreeNode[]): TreeNode[] => {
+      return nodes.map(node => {
+        if (node.id === nodeId) {
+          return { ...node, expanded: !node.expanded };
+        }
+        if (node.children) {
+          return { ...node, children: findAndUpdateNode(node.children) };
+        }
+        return node;
+      });
+    };
+    
+    setTreeData(findAndUpdateNode(treeData));
+  };
+
   const renderModal = () => {
     if (!modal.isOpen) return null;
 
@@ -303,6 +501,7 @@ export default function AdminAcademicPersonsPage() {
               {modal.mode === 'create' && 'Nouvelle Personne Académique'}
               {modal.mode === 'edit' && 'Modifier Personne Académique'}
               {modal.mode === 'view' && 'Détails Personne Académique'}
+              {modal.mode === 'delete' && 'Supprimer Personne Académique'}
             </h2>
             <button
               onClick={() => setModal({ isOpen: false, mode: 'create' })}
@@ -311,6 +510,39 @@ export default function AdminAcademicPersonsPage() {
               <X className="w-5 h-5" />
             </button>
           </div>
+
+          {modal.mode === 'delete' && modal.item && (
+            <div className="space-y-4">
+              <p className="text-gray-600">
+                Êtes-vous sûr de vouloir supprimer cette personne académique ?
+              </p>
+              <div className="bg-gray-50 p-3 rounded">
+                <p className="font-medium">
+                  {modal.item.complete_name_fr || `${modal.item.first_name_fr} ${modal.item.last_name_fr}`}
+                </p>
+                {modal.item.title && (
+                  <p className="text-sm text-gray-600">{modal.item.title}</p>
+                )}
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setModal({ isOpen: false, mode: 'create' })}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={() => {
+                    handleDelete(modal.item!.id);
+                    setModal({ isOpen: false, mode: 'create' });
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                >
+                  Supprimer
+                </button>
+              </div>
+            </div>
+          )}
 
           {(modal.mode === 'create' || modal.mode === 'edit') && (
             <form onSubmit={(e) => {
@@ -351,13 +583,13 @@ export default function AdminAcademicPersonsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Nom Complet (Français)
                   </label>
-                    <input
-                      type="text"
-                      value={formData.complete_name_fr || ''}
-                      onChange={(e) => setFormData({ ...formData, complete_name_fr: e.target.value || undefined })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Si différent de Prénom + Nom"
-                    />
+                  <input
+                    type="text"
+                    value={formData.complete_name_fr || ''}
+                    onChange={(e) => setFormData({ ...formData, complete_name_fr: e.target.value || undefined })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Si différent de Prénom + Nom"
+                  />
                 </div>
               </div>
 
@@ -371,8 +603,8 @@ export default function AdminAcademicPersonsPage() {
                     </label>
                     <input
                       type="text"
-                    value={formData.first_name_ar || ''}
-                    onChange={(e) => setFormData({ ...formData, first_name_ar: e.target.value || undefined })}
+                      value={formData.first_name_ar || ''}
+                      onChange={(e) => setFormData({ ...formData, first_name_ar: e.target.value || undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       dir="rtl"
                     />
@@ -383,8 +615,8 @@ export default function AdminAcademicPersonsPage() {
                     </label>
                     <input
                       type="text"
-                    value={formData.last_name_ar || ''}
-                    onChange={(e) => setFormData({ ...formData, last_name_ar: e.target.value || undefined })}
+                      value={formData.last_name_ar || ''}
+                      onChange={(e) => setFormData({ ...formData, last_name_ar: e.target.value || undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       dir="rtl"
                     />
@@ -413,8 +645,8 @@ export default function AdminAcademicPersonsPage() {
                     Titre
                   </label>
                   <select
-                  value={formData.title || ''}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value || undefined })}
+                    value={formData.title || ''}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value || undefined })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">Sélectionner un titre</option>
@@ -437,8 +669,8 @@ export default function AdminAcademicPersonsPage() {
                       Université
                     </label>
                     <select
-                    value={formData.university_id || ''}
-                    onChange={(e) => setFormData({ ...formData, university_id: e.target.value || undefined })}
+                      value={formData.university_id || ''}
+                      onChange={(e) => setFormData({ ...formData, university_id: e.target.value || undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Sélectionner une université</option>
@@ -454,8 +686,8 @@ export default function AdminAcademicPersonsPage() {
                       Faculté
                     </label>
                     <select
-                    value={formData.faculty_id || ''}
-                    onChange={(e) => setFormData({ ...formData, faculty_id: e.target.value || undefined })}
+                      value={formData.faculty_id || ''}
+                      onChange={(e) => setFormData({ ...formData, faculty_id: e.target.value || undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Sélectionner une faculté</option>
@@ -471,8 +703,8 @@ export default function AdminAcademicPersonsPage() {
                       École
                     </label>
                     <select
-                    value={formData.school_id || ''}
-                    onChange={(e) => setFormData({ ...formData, school_id: e.target.value || undefined })}
+                      value={formData.school_id || ''}
+                      onChange={(e) => setFormData({ ...formData, school_id: e.target.value || undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Sélectionner une école</option>
@@ -496,8 +728,8 @@ export default function AdminAcademicPersonsPage() {
                     </label>
                     <input
                       type="text"
-                    value={formData.external_institution_name || ''}
-                    onChange={(e) => setFormData({ ...formData, external_institution_name: e.target.value || undefined })}
+                      value={formData.external_institution_name || ''}
+                      onChange={(e) => setFormData({ ...formData, external_institution_name: e.target.value || undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Nom de l'institution externe"
                     />
@@ -508,8 +740,8 @@ export default function AdminAcademicPersonsPage() {
                     </label>
                     <input
                       type="text"
-                    value={formData.external_institution_country || ''}
-                    onChange={(e) => setFormData({ ...formData, external_institution_country: e.target.value || undefined })}
+                      value={formData.external_institution_country || ''}
+                      onChange={(e) => setFormData({ ...formData, external_institution_country: e.target.value || undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Pays de l'institution"
                     />
@@ -519,8 +751,8 @@ export default function AdminAcademicPersonsPage() {
                       Type d'Institution
                     </label>
                     <select
-                    value={formData.external_institution_type || ''}
-                    onChange={(e) => setFormData({ ...formData, external_institution_type: e.target.value || undefined })}
+                      value={formData.external_institution_type || ''}
+                      onChange={(e) => setFormData({ ...formData, external_institution_type: e.target.value || undefined })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Sélectionner le type</option>
@@ -543,8 +775,8 @@ export default function AdminAcademicPersonsPage() {
                   </label>
                   <input
                     type="text"
-                  value={formData.user_id || ''}
-                  onChange={(e) => setFormData({ ...formData, user_id: e.target.value || undefined })}
+                    value={formData.user_id || ''}
+                    onChange={(e) => setFormData({ ...formData, user_id: e.target.value || undefined })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="UUID de l'utilisateur associé"
                   />
@@ -573,18 +805,51 @@ export default function AdminAcademicPersonsPage() {
           )}
 
           {modal.mode === 'view' && modal.item && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Nom complet</label>
-                <p className="mt-1 text-gray-900">
-                  {modal.item.complete_name_fr || `${modal.item.first_name_fr} ${modal.item.last_name_fr}`}
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Créée le</label>
-                <p className="mt-1 text-gray-900">
-                  {new Date(modal.item.created_at).toLocaleDateString('fr-FR')}
-                </p>
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Nom complet (Français)</label>
+                  <p className="mt-1 text-gray-900">
+                    {modal.item.complete_name_fr || `${modal.item.first_name_fr} ${modal.item.last_name_fr}`}
+                  </p>
+                </div>
+                {modal.item.complete_name_ar && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Nom complet (Arabe)</label>
+                    <p className="mt-1 text-gray-900" dir="rtl">
+                      {modal.item.complete_name_ar}
+                    </p>
+                  </div>
+                )}
+                {modal.item.title && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Titre</label>
+                    <p className="mt-1 text-gray-900">{modal.item.title}</p>
+                  </div>
+                )}
+                {modal.item.external_institution_name && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Institution externe</label>
+                    <p className="mt-1 text-gray-900">
+                      {modal.item.external_institution_name}
+                      {modal.item.external_institution_country && (
+                        <span className="text-gray-500"> ({modal.item.external_institution_country})</span>
+                      )}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Créé le</label>
+                  <p className="mt-1 text-gray-900">
+                    {new Date(modal.item.created_at).toLocaleDateString('fr-FR')}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Mis à jour le</label>
+                  <p className="mt-1 text-gray-900">
+                    {new Date(modal.item.updated_at).toLocaleDateString('fr-FR')}
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -625,7 +890,7 @@ export default function AdminAcademicPersonsPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-blue-100 text-blue-600">
@@ -634,7 +899,7 @@ export default function AdminAcademicPersonsPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Personnes</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {data.length.toLocaleString()}
+                  {statistics.total.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -643,12 +908,12 @@ export default function AdminAcademicPersonsPage() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-green-100 text-green-600">
-                <Building2 className="w-6 h-6" />
+                <Globe className="w-6 h-6" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Avec Institution externe</p>
+                <p className="text-sm font-medium text-gray-600">Institution Externe</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {data.filter(p => p.external_institution_name).length.toLocaleString()}
+                  {statistics.withExternalInstitution.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -657,12 +922,26 @@ export default function AdminAcademicPersonsPage() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-purple-100 text-purple-600">
-                <Users className="w-6 h-6" />
+                <UserPlus className="w-6 h-6" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Avec Utilisateur lié</p>
+                <p className="text-sm font-medium text-gray-600">Avec Compte</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {data.filter(p => p.user_id).length.toLocaleString()}
+                  {statistics.withUserAccount.toLocaleString()}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-orange-100 text-orange-600">
+                <Building2 className="w-6 h-6" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Universités</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {Object.keys(statistics.byUniversity).length.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -707,7 +986,7 @@ export default function AdminAcademicPersonsPage() {
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  Vue Arbre
+                  <Grid3X3 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setViewMode('list')}
@@ -717,7 +996,7 @@ export default function AdminAcademicPersonsPage() {
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  Vue Liste
+                  <List className="w-4 h-4" />
                 </button>
               </div>
 
@@ -732,7 +1011,7 @@ export default function AdminAcademicPersonsPage() {
         {showFilters && (
           <div className="bg-white rounded-lg shadow p-4 mb-6">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Filtres</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Université
@@ -805,11 +1084,26 @@ export default function AdminAcademicPersonsPage() {
                   <option value="Mlle">Mlle</option>
                 </select>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Institution
+                </label>
+                <select
+                  value={filters.is_external}
+                  onChange={(e) => setFilters({ ...filters, is_external: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Toutes</option>
+                  <option value="false">Interne</option>
+                  <option value="true">Externe</option>
+                </select>
+              </div>
             </div>
 
             <div className="flex justify-end mt-4">
               <button
-                onClick={() => setFilters({ university_id: '', faculty_id: '', school_id: '', title: '' })}
+                onClick={() => setFilters({ university_id: '', faculty_id: '', school_id: '', title: '', is_external: '' })}
                 className="px-4 py-2 text-gray-600 hover:text-gray-800"
               >
                 Réinitialiser
@@ -824,7 +1118,7 @@ export default function AdminAcademicPersonsPage() {
             <div className="flex items-center">
               <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
               <div>
-                <h3 className="text-sm font-medium text-red-800">Erreur de chargement</h3>
+                <h3 className="text-sm font-medium text-red-800">Erreur</h3>
                 <p className="text-sm text-red-700 mt-1">{error}</p>
                 <button
                   onClick={() => {
@@ -847,20 +1141,17 @@ export default function AdminAcademicPersonsPage() {
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 Structure Hiérarchique des Personnes Académiques
               </h2>
-              <div className="space-y-1">
-                {data.length > 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>Vue arbre en cours de développement</p>
-                    <p className="text-sm">Utilisez la vue liste pour le moment</p>
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>Aucune personne académique trouvée</p>
-                  </div>
-                )}
-              </div>
+              {treeData.length > 0 ? (
+                <TreeView
+                  data={treeData.map(convertToUITreeNode)}
+                  onNodeClick={handleTreeNodeClick}
+                />
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p>Aucune personne académique trouvée</p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -871,13 +1162,13 @@ export default function AdminAcademicPersonsPage() {
                       Personne
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Titre / Institution externe
+                      Titre / Institution
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Affiliation
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Créée le
+                      Créé le
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
@@ -914,8 +1205,9 @@ export default function AdminAcademicPersonsPage() {
                             </div>
                           )}
                           {person.external_institution_name && (
-                            <div className="text-gray-600 mt-1 truncate">
-                              {person.external_institution_name}
+                            <div className="text-gray-600 mt-1 flex items-center">
+                              <Globe className="w-3 h-3 mr-1" />
+                              <span className="truncate">{person.external_institution_name}</span>
                             </div>
                           )}
                           {!person.title && !person.external_institution_name && (
@@ -956,22 +1248,21 @@ export default function AdminAcademicPersonsPage() {
                           <button
                             onClick={() => openModal('view', person)}
                             className="text-gray-400 hover:text-gray-600"
+                            title="Voir les détails"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => openModal('edit', person)}
                             className="text-blue-600 hover:text-blue-900"
+                            title="Modifier"
                           >
                             <Edit className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => {
-                              if (confirm('Êtes-vous sûr de vouloir supprimer cette personne ?')) {
-                                handleDelete(person.id);
-                              }
-                            }}
+                            onClick={() => openModal('delete', person)}
                             className="text-red-600 hover:text-red-900"
+                            title="Supprimer"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -986,20 +1277,39 @@ export default function AdminAcademicPersonsPage() {
                 <div className="text-center py-12">
                   <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                   <p className="text-gray-500">
-                    {searchTerm ? 'Aucune personne trouvée pour cette recherche' : 'Aucune personne trouvée'}
+                    {searchTerm ? 'Aucune personne trouvée pour cette recherche' : 'Aucune personne académique trouvée'}
                   </p>
                 </div>
               )}
 
-              {/* Show All Button for List View */}
+              {/* Pagination and Show All Button */}
               {viewMode === 'list' && !showAllPersons && data.length >= 20 && (
                 <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
-                  <div className="text-center">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => setPage(Math.max(1, page - 1))}
+                        disabled={page <= 1}
+                        className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                      >
+                        Précédent
+                      </button>
+                      <span className="text-sm text-gray-600">
+                        Page {page} sur {totalPages}
+                      </span>
+                      <button
+                        onClick={() => setPage(Math.min(totalPages, page + 1))}
+                        disabled={page >= totalPages}
+                        className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                      >
+                        Suivant
+                      </button>
+                    </div>
                     <button
                       onClick={() => setShowAllPersons(true)}
-                      className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors mx-auto"
+                      className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
                     >
-                      <span>Afficher toutes les personnes</span>
+                      <span>Afficher tout</span>
                       <ChevronDown className="w-4 h-4" />
                     </button>
                   </div>
@@ -1010,7 +1320,10 @@ export default function AdminAcademicPersonsPage() {
                 <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
                   <div className="text-center">
                     <button
-                      onClick={() => setShowAllPersons(false)}
+                      onClick={() => {
+                        setShowAllPersons(false);
+                        setPage(1);
+                      }}
                       className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors mx-auto"
                     >
                       <span>Afficher moins</span>
