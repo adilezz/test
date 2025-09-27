@@ -35,9 +35,10 @@ export enum AcademicRole {
   AUTHOR = 'author',
   DIRECTOR = 'director',
   CO_DIRECTOR = 'co_director',
-  JURY_MEMBER = 'jury_member',
   JURY_PRESIDENT = 'jury_president',
-  RAPPORTEUR = 'rapporteur'
+  JURY_EXAMINER = 'jury_examiner',
+  JURY_REPORTER = 'jury_reporter',
+  EXTERNAL_EXAMINER = 'external_examiner'
 }
 
 export enum SortField {
@@ -508,6 +509,81 @@ export interface ThesisResponse extends ThesisBase {
   extraction_job_id: string;
   created_at: string;
   updated_at: string;
+}
+
+// Admin list item shape (backend augments with joined names)
+export interface AdminThesisListItem {
+  id: string;
+  title_fr: string;
+  title_en?: string;
+  title_ar?: string;
+  defense_date?: string;
+  status: ThesisStatus;
+  file_url?: string;
+  created_at?: string;
+  updated_at?: string;
+  university_name?: string;
+  faculty_name?: string;
+  degree_name?: string;
+  language_name?: string;
+  author_name?: string;
+}
+
+// Thesis details shape from /admin/theses/{id}
+export interface ThesisDetailsResponse {
+  thesis: {
+    id: string;
+    title_fr: string;
+    title_en?: string;
+    title_ar?: string;
+    abstract_fr: string;
+    abstract_en?: string;
+    abstract_ar?: string;
+    thesis_number?: string;
+    defense_date?: string;
+    page_count?: number;
+    status: ThesisStatus;
+    file_url: string;
+    file_name: string;
+  };
+  institution: {
+    university: { id?: string | null; name?: string | null };
+    faculty: { id?: string | null; name?: string | null };
+    school: { id?: string | null; name?: string | null };
+    department: { id?: string | null; name?: string | null };
+  };
+  academic: {
+    degree: { id?: string | null; name?: string | null };
+    language: { id: string; name?: string | null };
+  };
+  persons: Array<{
+    id: string;
+    person_id: string;
+    role: AcademicRole | string;
+    name?: string;
+    title?: string;
+    is_external?: boolean;
+    institution?: string;
+  }>;
+  categories: Array<{
+    id: string;
+    category_id: string;
+    code?: string;
+    name_fr?: string;
+    is_primary: boolean;
+  }>;
+  keywords: Array<{
+    id: string;
+    keyword_id: string;
+    keyword_fr?: string;
+    position?: number;
+  }>;
+  metadata: {
+    created_at?: string;
+    updated_at?: string;
+    submitted_by?: string;
+    submitted_at?: string;
+  };
 }
 
 // Thesis Relationship Types

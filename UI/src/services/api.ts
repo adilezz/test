@@ -18,8 +18,13 @@ import {
   DegreeResponse,
   LanguageResponse,
   ThesisResponse,
+  ThesisDetailsResponse,
+  AdminThesisListItem,
   ThesisCreate,
   ThesisUpdate,
+  ThesisAcademicPersonCreate,
+  ThesisCategoryCreate,
+  ThesisKeywordCreate,
   SearchRequest,
   PaginatedResponse,
   BaseResponse,
@@ -81,6 +86,14 @@ class ApiService {
   // Convenience for nested admin routes
   async adminGetUniversityFaculties(universityId: string): Promise<FacultyResponse[]> {
     return this.request<FacultyResponse[]>(`/admin/universities/${universityId}/faculties`);
+  }
+
+  async adminGetFacultyDepartments(facultyId: string): Promise<DepartmentResponse[]> {
+    return this.request<DepartmentResponse[]>(`/admin/faculties/${facultyId}/departments`);
+  }
+
+  async adminGetSchoolDepartments(schoolId: string): Promise<DepartmentResponse[]> {
+    return this.request<DepartmentResponse[]>(`/admin/schools/${schoolId}/departments`);
   }
 
   async adminCreate<T = any>(entity: keyof ApiService['adminPaths'], data: any): Promise<T> {
@@ -445,11 +458,47 @@ class ApiService {
       }
     });
     
+    // Public theses list
     return this.request<PaginatedResponse>(`/theses?${params}`);
   }
 
-  async getThesis(id: string): Promise<ThesisResponse> {
-    return this.request<ThesisResponse>(`/admin/theses/${id}`);
+  // Admin theses list
+  async getAdminTheses(searchParams: Partial<SearchRequest> = {}): Promise<PaginatedResponse & { data: AdminThesisListItem[] } > {
+    const params = new URLSearchParams();
+    const orderByMap: Record<string, string> = {
+      created_at: 'created_at',
+      updated_at: 'updated_at',
+      title: 'title_fr',
+      defense_date: 'defense_date',
+      author: 'created_at',
+      university: 'created_at'
+    };
+    Object.entries(searchParams).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+      if (key === 'q') {
+        params.append('search', String(value));
+        return;
+      }
+      if (key === 'sort_field') {
+        const mapped = orderByMap[String(value)] || 'created_at';
+        params.append('order_by', mapped);
+        return;
+      }
+      if (key === 'sort_order') {
+        params.append('order_dir', String(value));
+        return;
+      }
+      if (Array.isArray(value)) {
+        value.forEach(v => params.append(key, v.toString()));
+      } else {
+        params.append(key, value.toString());
+      }
+    });
+    return this.request<PaginatedResponse & { data: AdminThesisListItem[] }>(`/admin/theses?${params}`);
+  }
+
+  async getThesis(id: string): Promise<ThesisDetailsResponse> {
+    return this.request<ThesisDetailsResponse>(`/admin/theses/${id}`);
   }
 
   async createThesis(data: ThesisCreate): Promise<ThesisResponse> {
@@ -470,6 +519,28 @@ class ApiService {
   async deleteThesis(id: string): Promise<BaseResponse> {
     return this.request<BaseResponse>(`/admin/theses/${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  // Relations
+  async addThesisAcademicPerson(thesisId: string, data: ThesisAcademicPersonCreate): Promise<any> {
+    return this.request<any>(`/admin/theses/${thesisId}/academic-persons`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async addThesisCategory(thesisId: string, data: ThesisCategoryCreate): Promise<any> {
+    return this.request<any>(`/admin/theses/${thesisId}/categories`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async addThesisKeyword(thesisId: string, data: ThesisKeywordCreate): Promise<any> {
+    return this.request<any>(`/admin/theses/${thesisId}/keywords`, {
+      method: 'POST',
+      body: JSON.stringify(data)
     });
   }
 

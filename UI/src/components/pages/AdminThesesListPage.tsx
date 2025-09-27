@@ -21,12 +21,12 @@ import { Link } from 'react-router-dom';
 import { apiService } from '../../services/api';
 import AdminHeader from '../layout/AdminHeader';
 import { 
-  ThesisResponse,
   PaginatedResponse,
   ThesisStatus,
   SearchRequest,
   SortField,
-  SortOrder
+  SortOrder,
+  AdminThesisListItem
 } from '../../types/api';
 
 interface FilterState {
@@ -38,7 +38,7 @@ interface FilterState {
 }
 
 export default function AdminThesesListPage() {
-  const [theses, setTheses] = useState<ThesisResponse[]>([]);
+  const [theses, setTheses] = useState<AdminThesisListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTheses, setSelectedTheses] = useState<string[]>([]);
@@ -101,7 +101,7 @@ export default function AdminThesesListPage() {
         }
       });
 
-      const response = await apiService.getTheses(searchParams);
+      const response = await apiService.getAdminTheses(searchParams);
       setTheses(response.data);
       setTotalPages(response.meta.pages);
       setTotalItems(response.meta.total);
@@ -452,7 +452,7 @@ export default function AdminThesesListPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <div className="flex items-center space-x-1">
                         <Calendar className="w-4 h-4 text-gray-400" />
-                        <span>{new Date(thesis.defense_date).toLocaleDateString('fr-FR')}</span>
+                        <span>{thesis.defense_date ? new Date(thesis.defense_date).toLocaleDateString('fr-FR') : '-'}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
