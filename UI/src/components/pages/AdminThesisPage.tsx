@@ -84,6 +84,7 @@ export default function AdminThesisPage() {
   // Reference data
   const [universities, setUniversities] = useState<UniversityResponse[]>([]);
   const [faculties, setFaculties] = useState<FacultyResponse[]>([]);
+  const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
   const [degrees, setDegrees] = useState<DegreeResponse[]>([]);
   const [languages, setLanguages] = useState<LanguageResponse[]>([]);
   const [categories, setCategories] = useState<CategoryResponse[]>([]);
@@ -120,12 +121,28 @@ export default function AdminThesisPage() {
   const [academicPersonAssignments, setAcademicPersonAssignments] = useState<AcademicPersonAssignment[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategoryData, setNewCategoryData] = useState({ 
+    code: '', 
+    name_fr: '', 
+    name_en: '', 
+    name_ar: '',
+    level: 0,
+    parent_id: ''
+  });
 
   // Modals
   const [showPersonModal, setShowPersonModal] = useState(false);
   const [showKeywordModal, setShowKeywordModal] = useState(false);
-  const [newPersonData, setNewPersonData] = useState({ first_name: '', last_name: '', email: '', title: '' });
-  const [newKeywordData, setNewKeywordData] = useState({ word_fr: '', word_en: '', word_ar: '' });
+  const [newPersonData, setNewPersonData] = useState({ 
+    first_name_fr: '', 
+    last_name_fr: '', 
+    complete_name_fr: '', 
+    title: '',
+    university_id: '',
+    faculty_id: ''
+  });
+  const [newKeywordData, setNewKeywordData] = useState({ keyword_fr: '', keyword_en: '', keyword_ar: '' });
 
   useEffect(() => {
     loadReferenceData();
@@ -198,12 +215,24 @@ export default function AdminThesisPage() {
 
   const loadFaculties = async (universityId: string) => {
     try {
-      const response = await apiService.adminGet<UniversityResponse>('universities', universityId);
-      // Load faculties for this university - would need specific endpoint
-      // For now, we'll use a placeholder
-      setFaculties([]);
+      const response = await apiService.adminGetUniversityFaculties(universityId);
+      setFaculties(response);
     } catch (error) {
       console.error('Error loading faculties:', error);
+      setFaculties([]);
+    }
+  };
+
+  const loadDepartments = async (facultyId: string) => {
+    try {
+      const response = await apiService.adminList<PaginatedResponse>('departments', { 
+        faculty_id: facultyId,
+        load_all: 'true' 
+      });
+      setDepartments(response.data);
+    } catch (error) {
+      console.error('Error loading departments:', error);
+      setDepartments([]);
     }
   };
 
@@ -289,8 +318,22 @@ export default function AdminThesisPage() {
       faculty_id: '',
       department_id: ''
     }));
+    setFaculties([]);
+    setDepartments([]);
     if (universityId) {
       loadFaculties(universityId);
+    }
+  };
+
+  const handleFacultyChange = (facultyId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      faculty_id: facultyId,
+      department_id: ''
+    }));
+    setDepartments([]);
+    if (facultyId) {
+      loadDepartments(facultyId);
     }
   };
 
@@ -316,9 +359,24 @@ export default function AdminThesisPage() {
 
   const createNewPerson = async () => {
     try {
-      const newPerson = await apiService.adminCreate<AcademicPersonResponse>('academic_persons', newPersonData);
+      // Create complete_name_fr from first and last names if not provided
+      const personData = {
+        ...newPersonData,
+        complete_name_fr: newPersonData.complete_name_fr || `${newPersonData.first_name_fr} ${newPersonData.last_name_fr}`.trim(),
+        university_id: newPersonData.university_id || formData.university_id || null,
+        faculty_id: newPersonData.faculty_id || formData.faculty_id || null
+      };
+      
+      const newPerson = await apiService.adminCreate<AcademicPersonResponse>('academic_persons', personData);
       setAcademicPersons(prev => [...prev, newPerson]);
-      setNewPersonData({ first_name: '', last_name: '', email: '', title: '' });
+      setNewPersonData({ 
+        first_name_fr: '', 
+        last_name_fr: '', 
+        complete_name_fr: '', 
+        title: '',
+        university_id: '',
+        faculty_id: ''
+      });
       setShowPersonModal(false);
     } catch (error) {
       console.error('Error creating person:', error);
@@ -330,18 +388,66 @@ export default function AdminThesisPage() {
       const newKeyword = await apiService.adminCreate<KeywordResponse>('keywords', newKeywordData);
       setKeywords(prev => [...prev, newKeyword]);
       setSelectedKeywords(prev => [...prev, newKeyword.id]);
-      setNewKeywordData({ word_fr: '', word_en: '', word_ar: '' });
+      setNewKeywordData({ keyword_fr: '', keyword_en: '', keyword_ar: '' });
       setShowKeywordModal(false);
     } catch (error) {
       console.error('Error creating keyword:', error);
     }
   };
 
+  const createNewCategory = async () => {
+    try {
+      const newCategory = await apiService.adminCreate<CategoryResponse>('categories', newCategoryData);
+      setCategories(prev => [...prev, newCategory]);
+      setSelectedCategories(prev => [...prev, newCategory.id]);
+      setNewCategoryData({ 
+        code: '', 
+        name_fr: '', 
+        name_en: '', 
+        name_ar: '',
+        level: 0,
+        parent_id: ''
+      });
+      setShowCategoryModal(false);
+    } catch (error) {
+      console.error('Error creating category:', error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate required fields
+    if (!formData.title_fr.trim()) {
+      alert('Le titre en français est requis');
+      return;
+    }
+    
+    if (!formData.abstract_fr.trim()) {
+      alert('Le résumé en français est requis');
+      return;
+    }
+    
+    if (!formData.defense_date) {
+      alert('La date de soutenance est requise');
+      return;
+    }
+    
+    if (!formData.language_id) {
+      alert('La langue principale est requise');
+      return;
+    }
+    
     if (!formData.file_id && !isEditMode) {
       alert('Veuillez télécharger un fichier PDF');
+      return;
+    }
+
+    // Validate defense date is not in the future
+    const defenseDate = new Date(formData.defense_date);
+    const today = new Date();
+    if (defenseDate > today) {
+      alert('La date de soutenance ne peut pas être dans le futur');
       return;
     }
 
@@ -354,9 +460,20 @@ export default function AdminThesisPage() {
       }
       
       navigate('/admin/theses');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving thesis:', error);
-      alert('Erreur lors de la sauvegarde');
+      
+      // Better error handling
+      let errorMessage = 'Erreur lors de la sauvegarde';
+      if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
+      alert(`Erreur: ${errorMessage}`);
     } finally {
       setSaving(false);
     }
@@ -548,6 +665,48 @@ export default function AdminThesisPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Faculté
+                    </label>
+                    <select
+                      name="faculty_id"
+                      value={formData.faculty_id}
+                      onChange={(e) => handleFacultyChange(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={!formData.university_id}
+                    >
+                      <option value="">Sélectionnez une faculté</option>
+                      {faculties.map(faculty => (
+                        <option key={faculty.id} value={faculty.id}>
+                          {faculty.name_fr} {faculty.acronym && `(${faculty.acronym})`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Département
+                    </label>
+                    <select
+                      name="department_id"
+                      value={formData.department_id}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={!formData.faculty_id}
+                    >
+                      <option value="">Sélectionnez un département</option>
+                      {departments.map(department => (
+                        <option key={department.id} value={department.id}>
+                          {department.name_fr} {department.acronym && `(${department.acronym})`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       Diplôme *
                     </label>
                     <select
@@ -568,7 +727,21 @@ export default function AdminThesisPage() {
                 </div>
 
                 {/* Additional Details */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Numéro de thèse
+                    </label>
+                    <input
+                      type="text"
+                      name="thesis_number"
+                      value={formData.thesis_number}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="ex: TH-2024-001"
+                    />
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Date de soutenance *
@@ -580,9 +753,12 @@ export default function AdminThesisPage() {
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       required
+                      max={new Date().toISOString().split('T')[0]}
                     />
                   </div>
+                </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Langue principale *
@@ -770,6 +946,48 @@ export default function AdminThesisPage() {
                   </div>
                 </div>
 
+                {/* Categories */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Catégories
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowCategoryModal(true)}
+                      className="flex items-center space-x-1 text-green-600 hover:text-green-800 text-sm"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Nouvelle catégorie</span>
+                    </button>
+                  </div>
+                  
+                  <div className="border border-gray-300 rounded-lg p-3 max-h-40 overflow-y-auto">
+                    <div className="space-y-2">
+                      {categories.map(category => (
+                        <label key={category.id} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedCategories.includes(category.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedCategories(prev => [...prev, category.id]);
+                              } else {
+                                setSelectedCategories(prev => prev.filter(id => id !== category.id));
+                              }
+                            }}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-900">{category.name_fr}</span>
+                          {category.name_en && (
+                            <span className="text-sm text-gray-500">({category.name_en})</span>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Abstracts */}
                 <div className="space-y-4">
                   <div>
@@ -866,34 +1084,35 @@ export default function AdminThesisPage() {
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Prénom *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Prénom (Français) *</label>
                   <input
                     type="text"
-                    value={newPersonData.first_name}
-                    onChange={(e) => setNewPersonData(prev => ({ ...prev, first_name: e.target.value }))}
+                    value={newPersonData.first_name_fr}
+                    onChange={(e) => setNewPersonData(prev => ({ ...prev, first_name_fr: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     required
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Nom *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Nom (Français) *</label>
                   <input
                     type="text"
-                    value={newPersonData.last_name}
-                    onChange={(e) => setNewPersonData(prev => ({ ...prev, last_name: e.target.value }))}
+                    value={newPersonData.last_name_fr}
+                    onChange={(e) => setNewPersonData(prev => ({ ...prev, last_name_fr: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     required
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Nom complet (Français)</label>
                   <input
-                    type="email"
-                    value={newPersonData.email}
-                    onChange={(e) => setNewPersonData(prev => ({ ...prev, email: e.target.value }))}
+                    type="text"
+                    value={newPersonData.complete_name_fr}
+                    onChange={(e) => setNewPersonData(prev => ({ ...prev, complete_name_fr: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Laissez vide pour générer automatiquement"
                   />
                 </div>
                 
@@ -906,6 +1125,22 @@ export default function AdminThesisPage() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     placeholder="Dr., Prof., etc."
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Université</label>
+                  <select
+                    value={newPersonData.university_id}
+                    onChange={(e) => setNewPersonData(prev => ({ ...prev, university_id: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Sélectionnez une université</option>
+                    {universities.map(university => (
+                      <option key={university.id} value={university.id}>
+                        {university.name_fr} {university.acronym && `(${university.acronym})`}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
               
@@ -946,8 +1181,8 @@ export default function AdminThesisPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Mot-clé (Français) *</label>
                   <input
                     type="text"
-                    value={newKeywordData.word_fr}
-                    onChange={(e) => setNewKeywordData(prev => ({ ...prev, word_fr: e.target.value }))}
+                    value={newKeywordData.keyword_fr}
+                    onChange={(e) => setNewKeywordData(prev => ({ ...prev, keyword_fr: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     required
                   />
@@ -957,8 +1192,8 @@ export default function AdminThesisPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Mot-clé (Anglais)</label>
                   <input
                     type="text"
-                    value={newKeywordData.word_en}
-                    onChange={(e) => setNewKeywordData(prev => ({ ...prev, word_en: e.target.value }))}
+                    value={newKeywordData.keyword_en}
+                    onChange={(e) => setNewKeywordData(prev => ({ ...prev, keyword_en: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -967,8 +1202,8 @@ export default function AdminThesisPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Mot-clé (Arabe)</label>
                   <input
                     type="text"
-                    value={newKeywordData.word_ar}
-                    onChange={(e) => setNewKeywordData(prev => ({ ...prev, word_ar: e.target.value }))}
+                    value={newKeywordData.keyword_ar}
+                    onChange={(e) => setNewKeywordData(prev => ({ ...prev, keyword_ar: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     dir="rtl"
                   />
@@ -984,6 +1219,96 @@ export default function AdminThesisPage() {
                 </button>
                 <button
                   onClick={createNewKeyword}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Créer
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* New Category Modal */}
+        {showCategoryModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Nouvelle Catégorie</h3>
+                <button
+                  onClick={() => setShowCategoryModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Code *</label>
+                  <input
+                    type="text"
+                    value={newCategoryData.code}
+                    onChange={(e) => setNewCategoryData(prev => ({ ...prev, code: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                    placeholder="ex: CS, MATH, etc."
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Nom (Français) *</label>
+                  <input
+                    type="text"
+                    value={newCategoryData.name_fr}
+                    onChange={(e) => setNewCategoryData(prev => ({ ...prev, name_fr: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Nom (Anglais)</label>
+                  <input
+                    type="text"
+                    value={newCategoryData.name_en}
+                    onChange={(e) => setNewCategoryData(prev => ({ ...prev, name_en: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Nom (Arabe)</label>
+                  <input
+                    type="text"
+                    value={newCategoryData.name_ar}
+                    onChange={(e) => setNewCategoryData(prev => ({ ...prev, name_ar: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    dir="rtl"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Niveau</label>
+                  <input
+                    type="number"
+                    value={newCategoryData.level}
+                    onChange={(e) => setNewCategoryData(prev => ({ ...prev, level: parseInt(e.target.value) || 0 }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    min="0"
+                    max="10"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={() => setShowCategoryModal(false)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={createNewCategory}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   Créer

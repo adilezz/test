@@ -7086,7 +7086,7 @@ async def create_thesis_manual(
             published_file_url,
             f"{thesis_data.file_id}.pdf",
             extraction_job_id,
-            thesis_data.status.value,
+            thesis_data.status.value if hasattr(thesis_data.status, 'value') else str(thesis_data.status),
             admin_user["id"],
             datetime.utcnow(),
             datetime.utcnow(),
