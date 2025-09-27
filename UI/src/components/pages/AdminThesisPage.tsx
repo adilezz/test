@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Upload, 
-  FileText, 
-  Check, 
-  AlertCircle, 
+  Upload,
+  Check,
   X,
-  ChevronRight,
   Plus,
   Minus,
   Eye,
@@ -13,18 +10,6 @@ import {
   Save,
   ArrowLeft,
   RefreshCw,
-  Download,
-  Trash2,
-  CheckSquare,
-  Square,
-  Search,
-  User,
-  Building2,
-  Calendar,
-  Tag,
-  Globe,
-  BookOpen,
-  Edit,
   UserPlus
 } from 'lucide-react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
@@ -35,9 +20,9 @@ import { TreeNode as UITreeNode } from '../../types/tree';
 import { 
   ThesisCreate,
   ThesisUpdate, 
-  FileUploadResponse,
   UniversityResponse,
   FacultyResponse,
+  DepartmentResponse,
   DegreeResponse,
   LanguageResponse,
   CategoryResponse,
@@ -46,7 +31,6 @@ import {
   PaginatedResponse,
   ThesisStatus,
   AcademicRole,
-  ThesisResponse,
   ThesisAcademicPersonCreate,
   ThesisCategoryCreate,
   ThesisKeywordCreate
@@ -61,14 +45,7 @@ interface AcademicPersonAssignment {
   external_institution_name?: string;
 }
 
-interface ThesisItem {
-  id: string;
-  filename: string;
-  status: 'loading' | 'extracting' | 'ready' | 'error';
-  progress: number;
-  extractedData?: Partial<ThesisCreate>;
-  file_id?: string;
-}
+ 
 
 export default function AdminThesisPage() {
   const { id } = useParams();
@@ -82,7 +59,7 @@ export default function AdminThesisPage() {
   const [showPdfViewer, setShowPdfViewer] = useState(true);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string>('');
-  const [fileUploadResponse, setFileUploadResponse] = useState<FileUploadResponse | null>(null);
+  
   
   // Reference data
   const [universities, setUniversities] = useState<UniversityResponse[]>([]);
@@ -90,7 +67,7 @@ export default function AdminThesisPage() {
   const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
   const [degrees, setDegrees] = useState<DegreeResponse[]>([]);
   const [languages, setLanguages] = useState<LanguageResponse[]>([]);
-  const [categories, setCategories] = useState<CategoryResponse[]>([]);
+  
   const [keywords, setKeywords] = useState<KeywordResponse[]>([]);
   const [academicPersons, setAcademicPersons] = useState<AcademicPersonResponse[]>([]);
   const [geographicEntities, setGeographicEntities] = useState<any[]>([]);
@@ -189,8 +166,6 @@ export default function AdminThesisPage() {
       const roots = Array.isArray((ref as any).categories_tree) ? (ref as any).categories_tree : [];
       setCategoryNodes(roots.map((n: any) => mapNode(n, 0)));
       setCategoryLabelById(labelMap);
-      // keep flat categories list empty (not used when tree selector present)
-      setCategories([]);
       // load keywords via existing endpoint (not included in form)
       const [keywordsRes, academicPersonsRes, geoRes] = await Promise.all([
         apiService.adminList<PaginatedResponse>('keywords', { load_all: 'true' }),
@@ -236,19 +211,6 @@ export default function AdminThesisPage() {
     } catch (error) {
       console.error('Error loading faculties:', error);
       setFaculties([]);
-    }
-  };
-
-  const loadDepartments = async (facultyId: string) => {
-    try {
-      const response = await apiService.adminList<PaginatedResponse>('departments', { 
-        faculty_id: facultyId,
-        load_all: 'true' 
-      });
-      setDepartments(response.data);
-    } catch (error) {
-      console.error('Error loading departments:', error);
-      setDepartments([]);
     }
   };
 
@@ -309,7 +271,6 @@ export default function AdminThesisPage() {
         setUploadProgress(progress);
       });
       
-      setFileUploadResponse(response);
       setFormData(prev => ({ ...prev, file_id: response.file_id }));
       
       // Create object URL for preview
@@ -363,9 +324,6 @@ export default function AdminThesisPage() {
       loadDepartments(facultyId);
     } else {
       setDepartments([]);
-    setDepartments([]);
-    if (facultyId) {
-      loadDepartments(facultyId);
     }
   };
 
@@ -430,7 +388,6 @@ export default function AdminThesisPage() {
   const createNewCategory = async () => {
     try {
       const newCategory = await apiService.adminCreate<CategoryResponse>('categories', newCategoryData);
-      setCategories(prev => [...prev, newCategory]);
       setSelectedCategories(prev => [...prev, newCategory.id]);
       setNewCategoryData({ 
         code: '', 
@@ -816,47 +773,7 @@ export default function AdminThesisPage() {
                   </div>
                 </div>
 
-                {/* Faculty and Department */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Faculté
-                    </label>
-                    <select
-                      name="faculty_id"
-                      value={formData.faculty_id}
-                      onChange={(e) => handleFacultyChange(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Sélectionnez une faculté</option>
-                      {faculties.map(faculty => (
-                        <option key={faculty.id} value={faculty.id}>
-                          {faculty.name_fr}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Département
-                    </label>
-                    <select
-                      name="department_id"
-                      value={formData.department_id}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      disabled={!formData.faculty_id}
-                    >
-                      <option value="">Sélectionnez un département</option>
-                      {departments.map((dept: any) => (
-                        <option key={dept.id} value={dept.id}>
-                          {dept.name_fr}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                
 
                 {/* Additional Details */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1104,47 +1021,7 @@ export default function AdminThesisPage() {
                   </div>
                 </div>
 
-                {/* Categories */}
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Catégories
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowCategoryModal(true)}
-                      className="flex items-center space-x-1 text-green-600 hover:text-green-800 text-sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Nouvelle catégorie</span>
-                    </button>
-                  </div>
-                  
-                  <div className="border border-gray-300 rounded-lg p-3 max-h-40 overflow-y-auto">
-                    <div className="space-y-2">
-                      {categories.map(category => (
-                        <label key={category.id} className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            checked={selectedCategories.includes(category.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedCategories(prev => [...prev, category.id]);
-                              } else {
-                                setSelectedCategories(prev => prev.filter(id => id !== category.id));
-                              }
-                            }}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="text-sm text-gray-900">{category.name_fr}</span>
-                          {category.name_en && (
-                            <span className="text-sm text-gray-500">({category.name_en})</span>
-                          )}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                
 
                 {/* Abstracts */}
                 <div className="space-y-4">
@@ -1338,7 +1215,7 @@ export default function AdminThesisPage() {
               </div>
               <TreeView
                 nodes={categoryNodes}
-                onNodeSelect={(node, opts) => {
+                onNodeSelect={(node, _opts) => {
                   // If nothing selected yet, set primary; else toggle in secondary list
                   if (!primaryCategoryId) {
                     setPrimaryCategoryId(node.id);
