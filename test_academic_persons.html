@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Academic Persons API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        pre { background-color: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        button { padding: 10px 15px; margin: 5px; background-color: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>Academic Persons API Test</h1>
+    <p>Testing the fixed API endpoints for academic persons CRUD operations.</p>
+
+    <div class="test-section">
+        <h2>Test 1: GET /admin/academic-persons</h2>
+        <button onclick="testGetAcademicPersons()">Test GET Request</button>
+        <div id="get-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: POST /admin/academic-persons</h2>
+        <button onclick="testCreateAcademicPerson()">Test POST Request</button>
+        <div id="post-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: PUT /admin/academic-persons/{id}</h2>
+        <button onclick="testUpdateAcademicPerson()">Test PUT Request</button>
+        <div id="put-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 4: DELETE /admin/academic-persons/{id}</h2>
+        <button onclick="testDeleteAcademicPerson()">Test DELETE Request</button>
+        <div id="delete-result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let testPersonId = null;
+
+        async function makeRequest(url, options = {}) {
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+                
+                const data = await response.json();
+                return { success: response.ok, status: response.status, data };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+
+        async function testGetAcademicPersons() {
+            const result = await makeRequest(`${API_BASE}/admin/academic-persons?limit=5&page=1`);
+            const resultDiv = document.getElementById('get-result');
+            
+            if (result.success) {
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h3>✅ GET Request Successful</h3>
+                        <p><strong>Status:</strong> ${result.status}</p>
+                        <p><strong>Data Count:</strong> ${result.data.data ? result.data.data.length : 0}</p>
+                        <pre>${JSON.stringify(result.data, null, 2)}</pre>
+                    </div>
+                `;
+                // Store the first person's ID for other tests
+                if (result.data.data && result.data.data.length > 0) {
+                    testPersonId = result.data.data[0].id;
+                }
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h3>❌ GET Request Failed</h3>
+                        <p><strong>Error:</strong> ${result.error || 'Unknown error'}</p>
+                        <pre>${JSON.stringify(result, null, 2)}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        async function testCreateAcademicPerson() {
+            const newPerson = {
+                complete_name_fr: "Test Person",
+                first_name_fr: "Test",
+                last_name_fr: "Person",
+                title: "Dr",
+                university_id: "550e8400-e29b-41d4-a716-446655440010"
+            };
+
+            const result = await makeRequest(`${API_BASE}/admin/academic-persons`, {
+                method: 'POST',
+                body: JSON.stringify(newPerson)
+            });
+            
+            const resultDiv = document.getElementById('post-result');
+            
+            if (result.success) {
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h3>✅ POST Request Successful</h3>
+                        <p><strong>Status:</strong> ${result.status}</p>
+                        <p><strong>Created Person ID:</strong> ${result.data.id}</p>
+                        <pre>${JSON.stringify(result.data, null, 2)}</pre>
+                    </div>
+                `;
+                testPersonId = result.data.id;
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h3>❌ POST Request Failed</h3>
+                        <p><strong>Error:</strong> ${result.error || 'Unknown error'}</p>
+                        <pre>${JSON.stringify(result, null, 2)}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        async function testUpdateAcademicPerson() {
+            if (!testPersonId) {
+                document.getElementById('put-result').innerHTML = `
+                    <div class="error">
+                        <h3>❌ No Person ID Available</h3>
+                        <p>Please run the GET or POST test first to get a person ID.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const updateData = {
+                title: "Prof",
+                complete_name_fr: "Updated Test Person"
+            };
+
+            const result = await makeRequest(`${API_BASE}/admin/academic-persons/${testPersonId}`, {
+                method: 'PUT',
+                body: JSON.stringify(updateData)
+            });
+            
+            const resultDiv = document.getElementById('put-result');
+            
+            if (result.success) {
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h3>✅ PUT Request Successful</h3>
+                        <p><strong>Status:</strong> ${result.status}</p>
+                        <p><strong>Updated Person ID:</strong> ${result.data.id}</p>
+                        <pre>${JSON.stringify(result.data, null, 2)}</pre>
+                    </div>
+                `;
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h3>❌ PUT Request Failed</h3>
+                        <p><strong>Error:</strong> ${result.error || 'Unknown error'}</p>
+                        <pre>${JSON.stringify(result, null, 2)}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        async function testDeleteAcademicPerson() {
+            if (!testPersonId) {
+                document.getElementById('delete-result').innerHTML = `
+                    <div class="error">
+                        <h3>❌ No Person ID Available</h3>
+                        <p>Please run the GET or POST test first to get a person ID.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const result = await makeRequest(`${API_BASE}/admin/academic-persons/${testPersonId}`, {
+                method: 'DELETE'
+            });
+            
+            const resultDiv = document.getElementById('delete-result');
+            
+            if (result.success) {
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h3>✅ DELETE Request Successful</h3>
+                        <p><strong>Status:</strong> ${result.status}</p>
+                        <pre>${JSON.stringify(result.data, null, 2)}</pre>
+                    </div>
+                `;
+                testPersonId = null; // Reset for next test
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h3>❌ DELETE Request Failed</h3>
+                        <p><strong>Error:</strong> ${result.error || 'Unknown error'}</p>
+                        <pre>${JSON.stringify(result, null, 2)}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        // Auto-run the GET test on page load
+        window.onload = function() {
+            testGetAcademicPersons();
+        };
+    </script>
+</body>
+</html>

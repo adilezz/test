@@ -60,7 +60,7 @@ class ApiService {
     departments: '/admin/departments',
     categories: '/admin/categories',
     keywords: '/admin/keywords',
-    academic_persons: '/admin/academic-persons',
+    'academic-persons': '/admin/academic-persons',
     degrees: '/admin/degrees',
     languages: '/admin/languages',
     geographic_entities: '/admin/geographic-entities',
