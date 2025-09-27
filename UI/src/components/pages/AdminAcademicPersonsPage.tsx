@@ -306,14 +306,14 @@ export default function AdminAcademicPersonsPage() {
           params.limit = 20;
           params.page = page;
         } else {
-          params.load_all = true;
+          params.load_all = 'true';
         }
       } else {
-        params.load_all = true;
+        params.load_all = 'true';
       }
       
       console.log('Loading academic persons with params:', params);
-      const response = await apiService.adminList<PaginatedResponse>('academic-persons', params);
+      const response = await apiService.adminList<PaginatedResponse>('academic_persons', params);
       console.log('Academic persons response:', response);
       
       const persons = response.data || [];
@@ -376,7 +376,7 @@ export default function AdminAcademicPersonsPage() {
     if (!validateForm()) return;
     
     try {
-      await apiService.adminCreate('academic-persons', formData);
+      await apiService.adminCreate('academic_persons', formData);
       setModal({ isOpen: false, mode: 'create' });
       resetForm();
       loadData();
@@ -395,7 +395,7 @@ export default function AdminAcademicPersonsPage() {
     if (!validateForm()) return;
     
     try {
-      await apiService.adminUpdate('academic-persons', modal.item.id, formData);
+      await apiService.adminUpdate('academic_persons', modal.item.id, formData);
       setModal({ isOpen: false, mode: 'edit' });
       loadData();
     } catch (error) {
@@ -410,7 +410,7 @@ export default function AdminAcademicPersonsPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      await apiService.adminDelete('academic-persons', id);
+      await apiService.adminDelete('academic_persons', id);
       loadData();
     } catch (error) {
       console.error('Error deleting academic person:', error);
@@ -471,11 +471,11 @@ export default function AdminAcademicPersonsPage() {
       id: node.id,
       label: node.name_fr,
       children: node.children ? node.children.map(convertToUITreeNode) : undefined,
-      expanded: node.expanded,
+      isExpanded: node.expanded,
       icon: node.type === 'university' ? Building2 : 
             node.type === 'faculty' ? GraduationCap :
             node.type === 'school' ? School : Users
-    };
+    } as unknown as UITreeNode;
   };
 
   const handleTreeNodeClick = (nodeId: string) => {
