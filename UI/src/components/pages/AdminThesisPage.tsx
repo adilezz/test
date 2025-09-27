@@ -46,7 +46,10 @@ import {
   PaginatedResponse,
   ThesisStatus,
   AcademicRole,
-  ThesisResponse
+  ThesisResponse,
+  ThesisAcademicPersonCreate,
+  ThesisCategoryCreate,
+  ThesisKeywordCreate
 } from '../../types/api';
 
 interface AcademicPersonAssignment {
@@ -84,6 +87,7 @@ export default function AdminThesisPage() {
   // Reference data
   const [universities, setUniversities] = useState<UniversityResponse[]>([]);
   const [faculties, setFaculties] = useState<FacultyResponse[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
   const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
   const [degrees, setDegrees] = useState<DegreeResponse[]>([]);
   const [languages, setLanguages] = useState<LanguageResponse[]>([]);
@@ -94,6 +98,9 @@ export default function AdminThesisPage() {
   const [geoModalOpen, setGeoModalOpen] = useState(false);
   const [geoNodes, setGeoNodes] = useState<UITreeNode[]>([]);
   const [selectedGeoLabel, setSelectedGeoLabel] = useState<string>('');
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [categoryNodes, setCategoryNodes] = useState<UITreeNode[]>([]);
+  const [categoryLabelById, setCategoryLabelById] = useState<Record<string, string>>({});
 
   // Form data
   const [formData, setFormData] = useState<ThesisCreate>({
@@ -120,6 +127,7 @@ export default function AdminThesisPage() {
 
   const [academicPersonAssignments, setAcademicPersonAssignments] = useState<AcademicPersonAssignment[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [primaryCategoryId, setPrimaryCategoryId] = useState<string>('');
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [newCategoryData, setNewCategoryData] = useState({ 
@@ -160,28 +168,36 @@ export default function AdminThesisPage() {
 
   const loadReferenceData = async () => {
     try {
-      const [
-        universitiesRes,
-        degreesRes,
-        languagesRes,
-        categoriesRes,
-        keywordsRes,
-        academicPersonsRes,
-        geoRes
-      ] = await Promise.all([
-        apiService.adminList<PaginatedResponse>('universities', { load_all: 'true' }),
-        apiService.adminList<PaginatedResponse>('degrees', { load_all: 'true' }),
-        apiService.adminList<PaginatedResponse>('languages', { load_all: 'true' }),
-        apiService.adminList<PaginatedResponse>('categories', { load_all: 'true' }),
+      const form = await apiService.getThesisFormStructure();
+      const ref = form.reference_data;
+      setUniversities(ref.universities as any);
+      setDegrees(ref.degrees as any);
+      // languages with is_active already filtered
+      setLanguages((ref.languages as any).map((l: any) => ({ id: l.id, code: l.code, name: l.name, native_name: '', rtl: false, is_active: true, display_order: 0, created_at: '', updated_at: '' })).slice());
+      // categories tree mapping for tree selector
+      const labelMap: Record<string, string> = {};
+      const mapNode = (n: any, level: number = 0): UITreeNode => {
+        labelMap[n.id] = n.name_fr;
+        return {
+          id: n.id,
+          label: n.name_fr,
+          type: 'category',
+          level,
+          count: 0,
+          children: Array.isArray(n.children) ? n.children.map((c: any) => mapNode(c, level + 1)) : []
+        };
+      };
+      const roots = Array.isArray((ref as any).categories_tree) ? (ref as any).categories_tree : [];
+      setCategoryNodes(roots.map((n: any) => mapNode(n, 0)));
+      setCategoryLabelById(labelMap);
+      // keep flat categories list empty (not used when tree selector present)
+      setCategories([]);
+      // load keywords via existing endpoint (not included in form)
+      const [keywordsRes, academicPersonsRes, geoRes] = await Promise.all([
         apiService.adminList<PaginatedResponse>('keywords', { load_all: 'true' }),
         apiService.adminList<PaginatedResponse>('academic_persons', { load_all: 'true' }),
         apiService.adminList<PaginatedResponse>('geographic_entities', { load_all: 'true' })
       ]);
-
-      setUniversities(universitiesRes.data);
-      setDegrees(degreesRes.data);
-      setLanguages(languagesRes.data);
-      setCategories(categoriesRes.data);
       setKeywords(keywordsRes.data);
       setAcademicPersons(academicPersonsRes.data);
       setGeographicEntities(geoRes.data);
@@ -217,6 +233,7 @@ export default function AdminThesisPage() {
     try {
       const response = await apiService.adminGetUniversityFaculties(universityId);
       setFaculties(response);
+      setDepartments([]);
     } catch (error) {
       console.error('Error loading faculties:', error);
       setFaculties([]);
@@ -236,36 +253,48 @@ export default function AdminThesisPage() {
     }
   };
 
+  const loadDepartments = async (facultyId: string) => {
+    try {
+      const response = await apiService.adminGetFacultyDepartments(facultyId);
+      setDepartments(response);
+    } catch (error) {
+      console.error('Error loading departments:', error);
+    }
+  };
+
   const loadThesis = async () => {
     if (!id) return;
     
     setLoading(true);
     try {
-      const thesis = await apiService.getThesis(id);
+      const details = await apiService.getThesis(id);
       setFormData({
-        title_fr: thesis.title_fr,
-        title_en: thesis.title_en || '',
-        title_ar: thesis.title_ar || '',
-        abstract_fr: thesis.abstract_fr,
-        abstract_en: thesis.abstract_en || '',
-        abstract_ar: thesis.abstract_ar || '',
-        university_id: thesis.university_id || '',
-        faculty_id: thesis.faculty_id || '',
-        school_id: thesis.school_id || '',
-        department_id: thesis.department_id || '',
-        degree_id: thesis.degree_id || '',
-        thesis_number: thesis.thesis_number || '',
-        study_location_id: thesis.study_location_id || '',
-        defense_date: thesis.defense_date,
-        language_id: thesis.language_id,
-        secondary_language_ids: thesis.secondary_language_ids || [],
-        page_count: thesis.page_count || 0,
-        status: thesis.status,
-        file_id: '' // File already uploaded
+        title_fr: details.thesis.title_fr,
+        title_en: details.thesis.title_en || '',
+        title_ar: details.thesis.title_ar || '',
+        abstract_fr: details.thesis.abstract_fr,
+        abstract_en: details.thesis.abstract_en || '',
+        abstract_ar: details.thesis.abstract_ar || '',
+        university_id: (details.institution.university.id as string) || '',
+        faculty_id: (details.institution.faculty.id as string) || '',
+        school_id: (details.institution.school.id as string) || '',
+        department_id: (details.institution.department.id as string) || '',
+        degree_id: (details.academic.degree.id as string) || '',
+        thesis_number: details.thesis.thesis_number || '',
+        study_location_id: '',
+        defense_date: details.thesis.defense_date || '',
+        language_id: details.academic.language.id,
+        secondary_language_ids: [],
+        page_count: details.thesis.page_count || 0,
+        status: details.thesis.status,
+        file_id: ''
       });
-      
-      if (thesis.file_url) {
-        setPdfUrl(thesis.file_url);
+      if (details.thesis.file_url) {
+        setPdfUrl(details.thesis.file_url);
+      }
+      // Preload related selections
+      if (Array.isArray(details.keywords)) {
+        setSelectedKeywords(details.keywords.map(k => k.keyword_id));
       }
     } catch (error) {
       console.error('Error loading thesis:', error);
@@ -331,6 +360,10 @@ export default function AdminThesisPage() {
       faculty_id: facultyId,
       department_id: ''
     }));
+    if (facultyId) {
+      loadDepartments(facultyId);
+    } else {
+      setDepartments([]);
     setDepartments([]);
     if (facultyId) {
       loadDepartments(facultyId);
@@ -443,6 +476,23 @@ export default function AdminThesisPage() {
       return;
     }
 
+    // Basic constraints
+    if (!formData.title_fr || !formData.abstract_fr || !formData.defense_date || !formData.language_id) {
+      alert('Veuillez remplir les champs obligatoires.');
+      return;
+    }
+    if (!isEditMode) {
+      const hasAuthor = academicPersonAssignments.some(a => a.role === AcademicRole.AUTHOR && a.person_id);
+      const hasDirector = academicPersonAssignments.some(a => a.role === AcademicRole.DIRECTOR && a.person_id);
+      if (!hasAuthor || !hasDirector) {
+        alert('Auteur et Directeur sont requis.');
+        return;
+      }
+      if (!primaryCategoryId) {
+        alert('Veuillez sélectionner une catégorie primaire.');
+        return;
+      }
+    }
     // Validate defense date is not in the future
     const defenseDate = new Date(formData.defense_date);
     const today = new Date();
@@ -456,7 +506,48 @@ export default function AdminThesisPage() {
       if (isEditMode) {
         await apiService.updateThesis(id!, formData as ThesisUpdate);
       } else {
-        await apiService.createThesis(formData);
+        const created = await apiService.createThesis(formData);
+        const thesisId = created.id;
+        // Save academic persons
+        for (const a of academicPersonAssignments) {
+          if (!a.person_id) continue;
+          const payload: ThesisAcademicPersonCreate = {
+            thesis_id: thesisId,
+            person_id: a.person_id,
+            role: a.role,
+            faculty_id: formData.faculty_id || undefined,
+            is_external: a.is_external,
+            external_institution_name: a.external_institution_name || undefined
+          } as any;
+          await apiService.addThesisAcademicPerson(thesisId, payload);
+        }
+        // Save categories (primary + secondary)
+        if (primaryCategoryId) {
+          const payload: ThesisCategoryCreate = {
+            thesis_id: thesisId,
+            category_id: primaryCategoryId,
+            is_primary: true
+          } as any;
+          await apiService.addThesisCategory(thesisId, payload);
+        }
+        for (const cid of selectedCategories.filter(cid => cid !== primaryCategoryId)) {
+          const payload: ThesisCategoryCreate = {
+            thesis_id: thesisId,
+            category_id: cid,
+            is_primary: false
+          } as any;
+          await apiService.addThesisCategory(thesisId, payload);
+        }
+        // Save keywords
+        for (let i = 0; i < selectedKeywords.length; i++) {
+          const kid = selectedKeywords[i];
+          const payload: ThesisKeywordCreate = {
+            thesis_id: thesisId,
+            keyword_id: kid,
+            keyword_position: i + 1
+          } as any;
+          await apiService.addThesisKeyword(thesisId, payload);
+        }
       }
       
       navigate('/admin/theses');
@@ -726,6 +817,48 @@ export default function AdminThesisPage() {
                   </div>
                 </div>
 
+                {/* Faculty and Department */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Faculté
+                    </label>
+                    <select
+                      name="faculty_id"
+                      value={formData.faculty_id}
+                      onChange={(e) => handleFacultyChange(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Sélectionnez une faculté</option>
+                      {faculties.map(faculty => (
+                        <option key={faculty.id} value={faculty.id}>
+                          {faculty.name_fr}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Département
+                    </label>
+                    <select
+                      name="department_id"
+                      value={formData.department_id}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={!formData.faculty_id}
+                    >
+                      <option value="">Sélectionnez un département</option>
+                      {departments.map((dept: any) => (
+                        <option key={dept.id} value={dept.id}>
+                          {dept.name_fr}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 {/* Additional Details */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -894,13 +1027,39 @@ export default function AdminThesisPage() {
                               <option value={AcademicRole.DIRECTOR}>Directeur</option>
                               <option value={AcademicRole.CO_DIRECTOR}>Co-directeur</option>
                               <option value={AcademicRole.JURY_PRESIDENT}>Président du jury</option>
-                              <option value={AcademicRole.JURY_MEMBER}>Membre du jury</option>
-                              <option value={AcademicRole.RAPPORTEUR}>Rapporteur</option>
+                              <option value={AcademicRole.JURY_EXAMINER}>Examinateur</option>
+                              <option value={AcademicRole.JURY_REPORTER}>Rapporteur</option>
+                              <option value={AcademicRole.EXTERNAL_EXAMINER}>Examinateur externe</option>
                             </select>
                           </div>
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                {/* Categories */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Catégories
+                  </label>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-gray-600">Catégorie primaire *</div>
+                      <button
+                        type="button"
+                        onClick={() => setCategoryModalOpen(true)}
+                        className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 text-sm"
+                      >
+                        Parcourir…
+                      </button>
+                    </div>
+                    {primaryCategoryId && (
+                      <div className="text-sm text-gray-800">Sélectionné: {categoryLabelById[primaryCategoryId] || primaryCategoryId}</div>
+                    )}
+                    {selectedCategories.length > 0 && (
+                      <div className="text-xs text-gray-600">Secondaires: {selectedCategories.map(id => categoryLabelById[id] || id).join(', ')}</div>
+                    )}
                   </div>
                 </div>
 
@@ -1156,6 +1315,53 @@ export default function AdminThesisPage() {
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   Créer
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Category Tree Modal */}
+        {categoryModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-3xl mx-4 max-h-[80vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Sélectionner des catégories</h2>
+                <button
+                  onClick={() => setCategoryModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="mb-4 text-sm text-gray-600">
+                Choisissez une catégorie primaire et des catégories secondaires (facultatif)
+              </div>
+              <TreeView
+                nodes={categoryNodes}
+                onNodeSelect={(node, opts) => {
+                  // If nothing selected yet, set primary; else toggle in secondary list
+                  if (!primaryCategoryId) {
+                    setPrimaryCategoryId(node.id);
+                  } else if (node.id === primaryCategoryId) {
+                    // toggle off primary
+                    setPrimaryCategoryId('');
+                  } else {
+                    setSelectedCategories(prev => prev.includes(node.id) ? prev.filter(id => id !== node.id) : [...prev, node.id]);
+                  }
+                }}
+                multiSelect={true}
+                searchable={true}
+                maxHeight="500px"
+                showCounts={false}
+                showIcons={true}
+              />
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={() => setCategoryModalOpen(false)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                >
+                  Fermer
                 </button>
               </div>
             </div>

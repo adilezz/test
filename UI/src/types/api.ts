@@ -35,9 +35,10 @@ export enum AcademicRole {
   AUTHOR = 'author',
   DIRECTOR = 'director',
   CO_DIRECTOR = 'co_director',
-  JURY_MEMBER = 'jury_member',
   JURY_PRESIDENT = 'jury_president',
-  RAPPORTEUR = 'rapporteur'
+  JURY_EXAMINER = 'jury_examiner',
+  JURY_REPORTER = 'jury_reporter',
+  EXTERNAL_EXAMINER = 'external_examiner'
 }
 
 export enum SortField {
@@ -510,6 +511,81 @@ export interface ThesisResponse extends ThesisBase {
   updated_at: string;
 }
 
+// Admin list item shape (backend augments with joined names)
+export interface AdminThesisListItem {
+  id: string;
+  title_fr: string;
+  title_en?: string;
+  title_ar?: string;
+  defense_date?: string;
+  status: ThesisStatus;
+  file_url?: string;
+  created_at?: string;
+  updated_at?: string;
+  university_name?: string;
+  faculty_name?: string;
+  degree_name?: string;
+  language_name?: string;
+  author_name?: string;
+}
+
+// Thesis details shape from /admin/theses/{id}
+export interface ThesisDetailsResponse {
+  thesis: {
+    id: string;
+    title_fr: string;
+    title_en?: string;
+    title_ar?: string;
+    abstract_fr: string;
+    abstract_en?: string;
+    abstract_ar?: string;
+    thesis_number?: string;
+    defense_date?: string;
+    page_count?: number;
+    status: ThesisStatus;
+    file_url: string;
+    file_name: string;
+  };
+  institution: {
+    university: { id?: string | null; name?: string | null };
+    faculty: { id?: string | null; name?: string | null };
+    school: { id?: string | null; name?: string | null };
+    department: { id?: string | null; name?: string | null };
+  };
+  academic: {
+    degree: { id?: string | null; name?: string | null };
+    language: { id: string; name?: string | null };
+  };
+  persons: Array<{
+    id: string;
+    person_id: string;
+    role: AcademicRole | string;
+    name?: string;
+    title?: string;
+    is_external?: boolean;
+    institution?: string;
+  }>;
+  categories: Array<{
+    id: string;
+    category_id: string;
+    code?: string;
+    name_fr?: string;
+    is_primary: boolean;
+  }>;
+  keywords: Array<{
+    id: string;
+    keyword_id: string;
+    keyword_fr?: string;
+    position?: number;
+  }>;
+  metadata: {
+    created_at?: string;
+    updated_at?: string;
+    submitted_by?: string;
+    submitted_at?: string;
+  };
+}
+
 // Thesis Relationship Types
 export interface ThesisAcademicPersonBase {
   thesis_id: string;
@@ -618,4 +694,22 @@ export interface TreeNodeData {
   thesis_count?: number;
   theses?: any[];
   children?: TreeNodeData[];
+}
+
+// Admin Thesis Form structure (reference data) types
+export interface ThesisFormReferenceData {
+  universities: Array<{ id: string; name_fr: string; acronym?: string }>;
+  faculties: Array<{ id: string; university_id: string; name_fr: string }>;
+  schools: Array<{ id: string; parent_university_id?: string | null; parent_school_id?: string | null; name_fr: string }>;
+  departments: Array<{ id: string; faculty_id?: string | null; school_id?: string | null; name_fr: string }>;
+  degrees: Array<{ id: string; name_fr: string; abbreviation?: string; type?: string }>;
+  languages: Array<{ id: string; code: string; name: string }>;
+  categories_tree: any[];
+  academic_roles: Array<{ value: string; label: string }>;
+}
+
+export interface ThesisFormStructureResponse {
+  thesis_fields: any;
+  related_entities: any;
+  reference_data: ThesisFormReferenceData;
 }
