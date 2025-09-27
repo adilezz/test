@@ -1,0 +1,24 @@
+{
+  "name": "theses-ma-testing",
+  "version": "1.0.0",
+  "description": "Frontend testing suite for theses.ma",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:ui": "playwright test --ui",
+    "test:report": "playwright show-report",
+    "test:codegen": "playwright codegen",
+    "test:install": "playwright install",
+    "test:specific": "playwright test --grep"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.40.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
