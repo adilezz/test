@@ -251,6 +251,49 @@ export default function AdminSchoolsPage() {
     }
   };
 
+  // Context Menu Handlers
+  const handleNodeView = (node: UITreeNode) => {
+    const school = flatList.find(s => s.id === node.id);
+    if (school) {
+      setModal({ isOpen: true, mode: 'view', item: school });
+    }
+  };
+
+  const handleNodeAdd = (node: UITreeNode) => {
+    // Add a new department under this school
+    setFormData({
+      name_fr: '',
+      name_en: '',
+      name_ar: '',
+      acronym: '',
+      parent_university_id: node.type === 'university' ? node.id : undefined,
+      parent_school_id: node.type === 'school' ? node.id : undefined
+    });
+    setModal({ isOpen: true, mode: 'create' });
+  };
+
+  const handleNodeEdit = (node: UITreeNode) => {
+    const school = flatList.find(s => s.id === node.id);
+    if (school) {
+      setFormData({
+        name_fr: school.name_fr,
+        name_en: school.name_en || '',
+        name_ar: school.name_ar || '',
+        acronym: school.acronym || '',
+        parent_university_id: school.parent_university_id || undefined,
+        parent_school_id: school.parent_school_id || undefined
+      });
+      setModal({ isOpen: true, mode: 'edit', item: school });
+    }
+  };
+
+  const handleNodeDelete = (node: UITreeNode) => {
+    const school = flatList.find(s => s.id === node.id);
+    if (school) {
+      setModal({ isOpen: true, mode: 'delete', item: school });
+    }
+  };
+
   const openModal = (mode: ModalState['mode'], item?: SchoolResponse) => {
     setModal({ isOpen: true, mode, item });
     if (mode === 'edit' && item) {
@@ -635,7 +678,18 @@ export default function AdminSchoolsPage() {
                 Structure Hiérarchique des Écoles
               </h2>
               {treeData.length > 0 ? (
-                <TreeView nodes={treeData} searchable showCounts showIcons maxHeight="500px" />
+                <TreeView 
+                  nodes={treeData} 
+                  searchable 
+                  showCounts 
+                  showIcons 
+                  maxHeight="500px"
+                  showContextMenu={true}
+                  onNodeView={handleNodeView}
+                  onNodeAdd={handleNodeAdd}
+                  onNodeEdit={handleNodeEdit}
+                  onNodeDelete={handleNodeDelete}
+                />
               ) : (
                 <div className="space-y-1" />
               )}

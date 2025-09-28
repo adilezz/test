@@ -267,6 +267,47 @@ export default function AdminUniversitiesPage() {
     }
   };
 
+  // Context Menu Handlers
+  const handleNodeView = (node: UITreeNode) => {
+    const university = flatList.find(u => u.id === node.id);
+    if (university) {
+      setModal({ isOpen: true, mode: 'view', item: university });
+    }
+  };
+
+  const handleNodeAdd = (node: UITreeNode) => {
+    // Add a new faculty under this university
+    setFormData({
+      name_fr: '',
+      name_en: '',
+      name_ar: '',
+      acronym: '',
+      geographic_entities_id: node.id === 'root' ? '' : node.id
+    });
+    setModal({ isOpen: true, mode: 'create' });
+  };
+
+  const handleNodeEdit = (node: UITreeNode) => {
+    const university = flatList.find(u => u.id === node.id);
+    if (university) {
+      setFormData({
+        name_fr: university.name_fr,
+        name_en: university.name_en || '',
+        name_ar: university.name_ar || '',
+        acronym: university.acronym || '',
+        geographic_entities_id: university.geographic_entities_id || ''
+      });
+      setModal({ isOpen: true, mode: 'edit', item: university });
+    }
+  };
+
+  const handleNodeDelete = (node: UITreeNode) => {
+    const university = flatList.find(u => u.id === node.id);
+    if (university) {
+      setModal({ isOpen: true, mode: 'delete', item: university });
+    }
+  };
+
   const openModal = (mode: ModalState['mode'], item?: UniversityResponse) => {
     setModal({ isOpen: true, mode, item });
     if (mode === 'edit' && item) {
@@ -698,7 +739,18 @@ export default function AdminUniversitiesPage() {
                 Structure Hiérarchique
               </h2>
               {treeData.length > 0 ? (
-                <TreeView nodes={treeData} searchable showCounts showIcons maxHeight="500px" />
+                <TreeView 
+                  nodes={treeData} 
+                  searchable 
+                  showCounts 
+                  showIcons 
+                  maxHeight="500px"
+                  showContextMenu={true}
+                  onNodeView={handleNodeView}
+                  onNodeAdd={handleNodeAdd}
+                  onNodeEdit={handleNodeEdit}
+                  onNodeDelete={handleNodeDelete}
+                />
               ) : (
                 <div className="flex items-center justify-center h-64 text-gray-500">
                   <div className="text-center">

@@ -349,6 +349,49 @@ export default function AdminDepartmentsPage() {
     }
   };
 
+  // Context Menu Handlers
+  const handleNodeView = (node: UITreeNode) => {
+    const department = departments.find(d => d.id === node.id);
+    if (department) {
+      setModal({ isOpen: true, mode: 'view', item: department });
+    }
+  };
+
+  const handleNodeAdd = (node: UITreeNode) => {
+    // Add a new department under this faculty or school
+    setFormData({
+      name_fr: '',
+      name_en: '',
+      name_ar: '',
+      acronym: '',
+      faculty_id: node.type === 'faculty' ? node.id : undefined,
+      school_id: node.type === 'school' ? node.id : undefined
+    });
+    setModal({ isOpen: true, mode: 'create' });
+  };
+
+  const handleNodeEdit = (node: UITreeNode) => {
+    const department = departments.find(d => d.id === node.id);
+    if (department) {
+      setFormData({
+        name_fr: department.name_fr,
+        name_en: department.name_en || '',
+        name_ar: department.name_ar || '',
+        acronym: department.acronym || '',
+        faculty_id: department.faculty_id || undefined,
+        school_id: department.school_id || undefined
+      });
+      setModal({ isOpen: true, mode: 'edit', item: department });
+    }
+  };
+
+  const handleNodeDelete = (node: UITreeNode) => {
+    const department = departments.find(d => d.id === node.id);
+    if (department) {
+      setModal({ isOpen: true, mode: 'delete', item: department });
+    }
+  };
+
   const openModal = (mode: ModalState['mode'], item?: DepartmentResponse) => {
     setError(null);
     setModal({ isOpen: true, mode, item });
@@ -843,7 +886,18 @@ export default function AdminDepartmentsPage() {
                 Structure Hiérarchique des Départements
               </h2>
               {treeData.length > 0 ? (
-                <TreeView nodes={treeData} searchable showCounts showIcons maxHeight="500px" />
+                <TreeView 
+                  nodes={treeData} 
+                  searchable 
+                  showCounts 
+                  showIcons 
+                  maxHeight="500px"
+                  showContextMenu={true}
+                  onNodeView={handleNodeView}
+                  onNodeAdd={handleNodeAdd}
+                  onNodeEdit={handleNodeEdit}
+                  onNodeDelete={handleNodeDelete}
+                />
               ) : (
                 <div className="text-center py-8 text-gray-500">
                   <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />

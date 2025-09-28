@@ -224,6 +224,47 @@ export default function AdminFacultiesPage() {
     }
   };
 
+  // Context Menu Handlers
+  const handleNodeView = (node: UITreeNode) => {
+    const faculty = faculties.find(f => f.id === node.id);
+    if (faculty) {
+      setModal({ isOpen: true, mode: 'view', item: faculty });
+    }
+  };
+
+  const handleNodeAdd = (node: UITreeNode) => {
+    // Add a new department under this faculty
+    setFormData({
+      name_fr: '',
+      name_en: '',
+      name_ar: '',
+      acronym: '',
+      university_id: node.id
+    });
+    setModal({ isOpen: true, mode: 'create' });
+  };
+
+  const handleNodeEdit = (node: UITreeNode) => {
+    const faculty = faculties.find(f => f.id === node.id);
+    if (faculty) {
+      setFormData({
+        name_fr: faculty.name_fr,
+        name_en: faculty.name_en || '',
+        name_ar: faculty.name_ar || '',
+        acronym: faculty.acronym || '',
+        university_id: faculty.university_id
+      });
+      setModal({ isOpen: true, mode: 'edit', item: faculty });
+    }
+  };
+
+  const handleNodeDelete = (node: UITreeNode) => {
+    const faculty = faculties.find(f => f.id === node.id);
+    if (faculty) {
+      setModal({ isOpen: true, mode: 'delete', item: faculty });
+    }
+  };
+
   const openModal = (mode: ModalState['mode'], item?: FacultyResponse) => {
     setError(null);
     setModal({ isOpen: true, mode, item });
@@ -663,7 +704,18 @@ export default function AdminFacultiesPage() {
                 Structure Hiérarchique des Facultés
               </h2>
               {treeData.length > 0 ? (
-                <TreeView nodes={treeData} searchable showCounts showIcons maxHeight="500px" />
+                <TreeView 
+                  nodes={treeData} 
+                  searchable 
+                  showCounts 
+                  showIcons 
+                  maxHeight="500px"
+                  showContextMenu={true}
+                  onNodeView={handleNodeView}
+                  onNodeAdd={handleNodeAdd}
+                  onNodeEdit={handleNodeEdit}
+                  onNodeDelete={handleNodeDelete}
+                />
               ) : (
                 <div className="text-center py-8 text-gray-500">
                   <GraduationCap className="w-12 h-12 mx-auto mb-4 text-gray-300" />
