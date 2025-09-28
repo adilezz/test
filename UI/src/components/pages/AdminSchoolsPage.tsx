@@ -46,7 +46,7 @@ interface ModalState {
 
 export default function AdminSchoolsPage() {
   const [treeData, setTreeData] = useState<UITreeNode[]>([]);
-  const [flatList, setFlatList] = useState<SchoolResponse[]>([]);
+  const [data, setData] = useState<SchoolResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
   const [startLevel, setStartLevel] = useState<'school' | 'department'>('school');
@@ -161,7 +161,7 @@ export default function AdminSchoolsPage() {
           params.limit = 20; // Show limited results initially
         }
         const listResponse = await apiService.adminList<PaginatedResponse>('schools', params);
-        setFlatList(listResponse.data || []);
+        setData(listResponse.data || []);
       }
     } catch (error) {
       console.error('Error loading schools:', error);
@@ -248,6 +248,49 @@ export default function AdminSchoolsPage() {
       loadSchoolsList();
     } catch (error) {
       console.error('Error deleting school:', error);
+    }
+  };
+
+  // Context Menu Handlers
+  const handleNodeView = (node: UITreeNode) => {
+    const school = data.find(s => s.id === node.id);
+    if (school) {
+      setModal({ isOpen: true, mode: 'view', item: school });
+    }
+  };
+
+  const handleNodeAdd = (node: UITreeNode) => {
+    // Add a new department under this school
+    setFormData({
+      name_fr: '',
+      name_en: '',
+      name_ar: '',
+      acronym: '',
+      parent_university_id: node.type === 'university' ? node.id : undefined,
+      parent_school_id: node.type === 'school' ? node.id : undefined
+    });
+    setModal({ isOpen: true, mode: 'create' });
+  };
+
+  const handleNodeEdit = (node: UITreeNode) => {
+    const school = data.find(s => s.id === node.id);
+    if (school) {
+      setFormData({
+        name_fr: school.name_fr,
+        name_en: school.name_en || '',
+        name_ar: school.name_ar || '',
+        acronym: school.acronym || '',
+        parent_university_id: school.parent_university_id || undefined,
+        parent_school_id: school.parent_school_id || undefined
+      });
+      setModal({ isOpen: true, mode: 'edit', item: school });
+    }
+  };
+
+  const handleNodeDelete = (node: UITreeNode) => {
+    const school = data.find(s => s.id === node.id);
+    if (school) {
+      setModal({ isOpen: true, mode: 'delete', item: school });
     }
   };
 
@@ -635,7 +678,18 @@ export default function AdminSchoolsPage() {
                 Structure Hiérarchique des Écoles
               </h2>
               {treeData.length > 0 ? (
-                <TreeView nodes={treeData} searchable showCounts showIcons maxHeight="500px" />
+                <TreeView 
+                  nodes={treeData} 
+                  searchable 
+                  showCounts 
+                  showIcons 
+                  maxHeight="500px"
+                  showContextMenu={true}
+                  onNodeView={handleNodeView}
+                  onNodeAdd={handleNodeAdd}
+                  onNodeEdit={handleNodeEdit}
+                  onNodeDelete={handleNodeDelete}
+                />
               ) : (
                 <div className="space-y-1" />
               )}
@@ -663,7 +717,7 @@ export default function AdminSchoolsPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {flatList.map((school) => (
+                  {data.map((school) => (
                     <tr key={school.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
@@ -722,7 +776,7 @@ export default function AdminSchoolsPage() {
               </table>
 
               {/* Show All Button for List View */}
-              {viewMode === 'list' && !showAllSchools && flatList.length >= 20 && (
+              {viewMode === 'list' && !showAllSchools && data.length >= 20 && (
                 <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
                   <div className="text-center">
                     <button

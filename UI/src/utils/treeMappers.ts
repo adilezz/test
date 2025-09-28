@@ -59,3 +59,9 @@ export const geographicHierarchyResolver = (
 	return 'location';
 };
 
+export const keywordsHierarchyResolver = (
+	level: number
+): UITreeNode['type'] => {
+	return 'keyword';
+};
+

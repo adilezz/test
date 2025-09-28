@@ -20,6 +20,7 @@ import {
 import { apiService } from '../../services/api';
 import AdminHeader from '../layout/AdminHeader';
 import TreeView from '../ui/TreeView/TreeView';
+import { TreeNode as UITreeNode } from '../../types/tree';
 import { 
   mapApiTreeToUiNodes, 
   geographicHierarchyResolver 
@@ -58,7 +59,7 @@ interface ModalState {
 export default function AdminGeographicEntitiesPage() {
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
   const [treeNodes, setTreeNodes] = useState<any[]>([]);
-  const [flatList, setFlatList] = useState<GeographicEntityResponse[]>([]);
+  const [data, setData] = useState<GeographicEntityResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
   const [startLevel, setStartLevel] = useState<'country' | 'region' | 'province' | 'city'>('country');
@@ -129,7 +130,7 @@ export default function AdminGeographicEntitiesPage() {
           params.limit = 20; // Show limited results initially
         }
         const listResponse = await apiService.adminList<PaginatedResponse>('geographic_entities', params);
-        setFlatList(listResponse.data);
+        setData(listResponse.data);
       }
     } catch (error) {
       console.error('Error loading geographic entities:', error);
@@ -213,6 +214,62 @@ export default function AdminGeographicEntitiesPage() {
       loadData();
     } catch (error) {
       console.error('Error deleting geographic entity:', error);
+    }
+  };
+
+  // Context Menu Handlers
+  const handleNodeView = (node: UITreeNode) => {
+    const entity = data.find((e: GeographicEntityResponse) => e.id === node.id);
+    if (entity) {
+      setModal({ isOpen: true, mode: 'view', item: entity });
+    }
+  };
+
+  const handleNodeAdd = (node: UITreeNode) => {
+    // Add a new geographic entity under this parent
+    setFormData({
+      name_fr: '',
+      name_en: '',
+      name_ar: '',
+      level: node.id === 'root' ? GeographicLevel.COUNTRY : getNextLevel(GeographicLevel.COUNTRY),
+      parent_id: node.id === 'root' ? undefined : node.id,
+      code: '',
+      latitude: undefined,
+      longitude: undefined
+    });
+    setModal({ isOpen: true, mode: 'create' });
+  };
+
+  const handleNodeEdit = (node: UITreeNode) => {
+    const entity = data.find((e: GeographicEntityResponse) => e.id === node.id);
+    if (entity) {
+      setFormData({
+        name_fr: entity.name_fr,
+        name_en: entity.name_en || '',
+        name_ar: entity.name_ar || '',
+        level: entity.level,
+        parent_id: entity.parent_id || undefined,
+        code: entity.code || '',
+        latitude: entity.latitude || undefined,
+        longitude: entity.longitude || undefined
+      });
+      setModal({ isOpen: true, mode: 'edit', item: entity });
+    }
+  };
+
+  const handleNodeDelete = (node: UITreeNode) => {
+    const entity = data.find((e: GeographicEntityResponse) => e.id === node.id);
+    if (entity) {
+      setModal({ isOpen: true, mode: 'delete', item: entity });
+    }
+  };
+
+  const getNextLevel = (currentLevel: GeographicLevel): GeographicLevel => {
+    switch (currentLevel) {
+      case GeographicLevel.COUNTRY: return GeographicLevel.REGION;
+      case GeographicLevel.REGION: return GeographicLevel.PROVINCE;
+      case GeographicLevel.PROVINCE: return GeographicLevel.CITY;
+      default: return GeographicLevel.CITY;
     }
   };
 
@@ -658,7 +715,12 @@ export default function AdminGeographicEntitiesPage() {
                 searchable 
                 showCounts 
                 showIcons 
-                maxHeight="500px" 
+                maxHeight="500px"
+                showContextMenu={true}
+                onNodeView={handleNodeView}
+                onNodeAdd={handleNodeAdd}
+                onNodeEdit={handleNodeEdit}
+                onNodeDelete={handleNodeDelete}
               />
             </div>
           ) : (
@@ -687,7 +749,7 @@ export default function AdminGeographicEntitiesPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {flatList.map((entity) => (
+                  {data.map((entity) => (
                     <tr key={entity.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
@@ -753,7 +815,7 @@ export default function AdminGeographicEntitiesPage() {
               </table>
 
               {/* Show All Button for List View */}
-              {viewMode === 'list' && !showAllEntities && flatList.length >= 20 && (
+              {viewMode === 'list' && !showAllEntities && data.length >= 20 && (
                 <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
                   <div className="text-center">
                     <button

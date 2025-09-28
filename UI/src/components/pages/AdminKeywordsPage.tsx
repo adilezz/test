@@ -16,6 +16,9 @@ import {
 } from 'lucide-react';
 import { apiService } from '../../services/api';
 import AdminHeader from '../layout/AdminHeader';
+import TreeView from '../ui/TreeView/TreeView';
+import { TreeNode as UITreeNode } from '../../types/tree';
+import { mapApiTreeToUiNodes, keywordsHierarchyResolver } from '../../utils/treeMappers';
 import { 
   KeywordResponse,
   PaginatedResponse,
@@ -37,6 +40,8 @@ export default function AdminKeywordsPage() {
   const [categories, setCategories] = useState<CategoryResponse[]>([]);
   const [categoriesTree, setCategoriesTree] = useState<any[]>([]);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
+  const [viewMode, setViewMode] = useState<'tree' | 'list'>('list');
+  const [treeData, setTreeData] = useState<UITreeNode[]>([]);
   const [formData, setFormData] = useState<KeywordCreate>({
     parent_keyword_id: undefined,
     keyword_fr: '',
@@ -55,11 +60,76 @@ export default function AdminKeywordsPage() {
     try {
       const response = await apiService.adminList<PaginatedResponse>('keywords', { limit: 1000 });
       setData(response.data);
+      buildTreeData(response.data);
     } catch (error) {
       console.error('Error loading keywords:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const buildTreeData = (keywords: KeywordResponse[]) => {
+    // Build hierarchical tree structure from flat data
+    const keywordMap = new Map<string, any>();
+    const rootKeywords: any[] = [];
+
+    // First pass: create nodes with proper structure
+    keywords.forEach(keyword => {
+      const node = {
+        id: keyword.id,
+        label: keyword.keyword_fr,
+        label_en: keyword.keyword_en,
+        label_ar: keyword.keyword_ar,
+        type: keywordsHierarchyResolver(0), // Use standardized resolver
+        level: 0,
+        count: 0,
+        children: [],
+        parentId: keyword.parent_keyword_id,
+        metadata: {
+          category_id: keyword.category_id
+        }
+      };
+      keywordMap.set(keyword.id, node);
+    });
+
+    // Second pass: build hierarchy with proper level calculation
+    keywords.forEach(keyword => {
+      const node = keywordMap.get(keyword.id)!;
+      if (node.parentId) {
+        const parent = keywordMap.get(node.parentId);
+        if (parent) {
+          parent.children!.push(node);
+          node.level = parent.level + 1;
+          node.type = keywordsHierarchyResolver(node.level);
+        } else {
+          // Parent not found, treat as root
+          rootKeywords.push(node);
+        }
+      } else {
+        rootKeywords.push(node);
+      }
+    });
+
+    // Recursive function to convert nodes to UITreeNode format (consistent with mapApiTreeToUiNodes)
+    const convertToUITreeNode = (node: any): UITreeNode => ({
+      id: node.id,
+      label: node.label,
+      label_en: node.label_en,
+      label_ar: node.label_ar,
+      type: node.type,
+      level: node.level,
+      count: node.count,
+      parentId: node.parentId,
+      metadata: node.metadata,
+      children: node.children && node.children.length > 0 
+        ? node.children.map(convertToUITreeNode) 
+        : undefined
+    });
+
+    // Convert to UITreeNode format with proper recursion
+    const treeNodes = rootKeywords.map(convertToUITreeNode);
+
+    setTreeData(treeNodes);
   };
 
   const loadCategories = async () => {
@@ -123,6 +193,47 @@ export default function AdminKeywordsPage() {
       loadData();
     } catch (error) {
       console.error('Error deleting keyword:', error);
+    }
+  };
+
+  // Context Menu Handlers
+  const handleNodeView = (node: UITreeNode) => {
+    const keyword = data.find(k => k.id === node.id);
+    if (keyword) {
+      setModal({ isOpen: true, mode: 'view', item: keyword });
+    }
+  };
+
+  const handleNodeAdd = (node: UITreeNode) => {
+    // Add a new keyword under this parent keyword
+    setFormData({
+      keyword_fr: '',
+      keyword_en: '',
+      keyword_ar: '',
+      parent_keyword_id: node.id === 'root' ? undefined : node.id,
+      category_id: undefined
+    });
+    setModal({ isOpen: true, mode: 'create' });
+  };
+
+  const handleNodeEdit = (node: UITreeNode) => {
+    const keyword = data.find(k => k.id === node.id);
+    if (keyword) {
+      setFormData({
+        keyword_fr: keyword.keyword_fr,
+        keyword_en: keyword.keyword_en || '',
+        keyword_ar: keyword.keyword_ar || '',
+        parent_keyword_id: keyword.parent_keyword_id || undefined,
+        category_id: keyword.category_id || undefined
+      });
+      setModal({ isOpen: true, mode: 'edit', item: keyword });
+    }
+  };
+
+  const handleNodeDelete = (node: UITreeNode) => {
+    const keyword = data.find(k => k.id === node.id);
+    if (keyword) {
+      setModal({ isOpen: true, mode: 'delete', item: keyword });
     }
   };
 
@@ -509,15 +620,68 @@ export default function AdminKeywordsPage() {
               </button>
             </div>
 
-            <div className="text-sm text-gray-600">
-              {filteredData.length} mot{filteredData.length !== 1 ? 's' : ''}-clé{filteredData.length !== 1 ? 's' : ''}
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    viewMode === 'list' 
+                      ? 'bg-white text-gray-900 shadow-sm' 
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <Hash className="w-4 h-4 inline mr-1" />
+                  Liste
+                </button>
+                <button
+                  onClick={() => setViewMode('tree')}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    viewMode === 'tree' 
+                      ? 'bg-white text-gray-900 shadow-sm' 
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <Tags className="w-4 h-4 inline mr-1" />
+                  Arbre
+                </button>
+              </div>
+              <div className="text-sm text-gray-600">
+                {filteredData.length} mot{filteredData.length !== 1 ? 's' : ''}-clé{filteredData.length !== 1 ? 's' : ''}
+              </div>
             </div>
           </div>
         </div>
 
         {/* Content */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
+          {viewMode === 'tree' ? (
+            <div className="p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                Structure Hiérarchique des Mots-clés
+              </h2>
+              {treeData.length > 0 ? (
+                <TreeView 
+                  nodes={treeData} 
+                  searchable 
+                  showCounts 
+                  showIcons 
+                  maxHeight="500px"
+                  showContextMenu={true}
+                  onNodeView={handleNodeView}
+                  onNodeAdd={handleNodeAdd}
+                  onNodeEdit={handleNodeEdit}
+                  onNodeDelete={handleNodeDelete}
+                />
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Tags className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p className="text-lg font-medium">Aucun mot-clé trouvé</p>
+                  <p className="text-sm">Aucune donnée disponible</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -627,7 +791,8 @@ export default function AdminKeywordsPage() {
                 </p>
               </div>
             )}
-          </div>
+            </div>
+          )}
         </div>
 
         {renderModal()}

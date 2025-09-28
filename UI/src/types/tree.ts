@@ -4,7 +4,7 @@ export interface TreeNode {
   label_ar?: string;
   label_en?: string;
   count: number;
-  type: 'university' | 'faculty' | 'school' | 'department' | 'discipline' | 'subdiscipline' | 'specialty' | 'category' | 'location';
+  type: 'university' | 'faculty' | 'school' | 'department' | 'discipline' | 'subdiscipline' | 'specialty' | 'category' | 'location' | 'keyword' | 'person' | 'geographic';
   level: number;
   parentId?: string;
   children?: TreeNode[];
@@ -39,6 +39,12 @@ export interface TreeViewProps {
   selectedNodeIds?: Set<string>;
   loadingNodeIds?: Set<string>;
   onLazyLoad?: (node: TreeNode) => Promise<TreeNode[]>;
+  // Context Menu Props
+  showContextMenu?: boolean;
+  onNodeView?: (node: TreeNode) => void;
+  onNodeAdd?: (node: TreeNode) => void;
+  onNodeEdit?: (node: TreeNode) => void;
+  onNodeDelete?: (node: TreeNode) => void;
 }
 
 export interface TreeContextType {
@@ -60,4 +66,20 @@ export interface TreeSearchOptions {
   threshold: number;
   includeChildren: boolean;
   caseSensitive: boolean;
+}
+
+export interface ContextMenuState {
+  isVisible: boolean;
+  x: number;
+  y: number;
+  node: TreeNode | null;
+}
+
+export interface ContextMenuAction {
+  id: string;
+  label: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  onClick: () => void;
+  disabled?: boolean;
+  separator?: boolean;
 }

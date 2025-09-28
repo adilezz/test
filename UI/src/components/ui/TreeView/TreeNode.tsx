@@ -28,6 +28,9 @@ interface TreeNodeProps {
   showIcons: boolean;
   multiSelect: boolean;
   searchQuery?: string;
+  // Context Menu Props
+  showContextMenu?: boolean;
+  onContextMenu?: (node: TreeNodeType, event: React.MouseEvent) => void;
 }
 
 const getNodeIcon = (type: TreeNodeType['type']) => {
@@ -60,7 +63,9 @@ const TreeNode: React.FC<TreeNodeProps> = memo(({
   showCounts,
   showIcons,
   multiSelect,
-  searchQuery
+  searchQuery,
+  showContextMenu = false,
+  onContextMenu
 }) => {
   const IconComponent = getNodeIcon(node.type);
   const indentation = level * 20;
@@ -83,6 +88,14 @@ const TreeNode: React.FC<TreeNodeProps> = memo(({
     const isMultiSelect = e.ctrlKey || e.metaKey || multiSelect;
     onToggleSelected(node.id, isMultiSelect);
   }, [node.id, onToggleSelected, multiSelect]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    if (showContextMenu && onContextMenu) {
+      e.preventDefault();
+      e.stopPropagation();
+      onContextMenu(node, e);
+    }
+  }, [showContextMenu, onContextMenu, node]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     switch (e.key) {
@@ -147,6 +160,7 @@ const TreeNode: React.FC<TreeNodeProps> = memo(({
         `}
         style={{ paddingLeft: `${indentation + 8}px` }}
         onClick={handleNodeClick}
+        onContextMenu={handleContextMenu}
         onKeyDown={handleKeyDown}
         tabIndex={0}
         role="treeitem"
@@ -252,6 +266,8 @@ const TreeNode: React.FC<TreeNodeProps> = memo(({
                 showIcons={showIcons}
                 multiSelect={multiSelect}
                 searchQuery={searchQuery}
+                showContextMenu={showContextMenu}
+                onContextMenu={onContextMenu}
               />
             ))}
           </motion.div>

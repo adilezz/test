@@ -210,7 +210,7 @@ export default function AdminAcademicPersonsPage() {
         children: [],
         person_count: 0,
         expanded: false,
-        parent_id: school.faculty_id || school.university_id
+        parent_id: school.parent_university_id
       });
     });
 
@@ -419,6 +419,63 @@ export default function AdminAcademicPersonsPage() {
       } else {
         setError('Erreur inconnue lors de la suppression');
       }
+    }
+  };
+
+  // Context Menu Handlers
+  const handleNodeView = (node: UITreeNode) => {
+    const person = data.find((p: AcademicPersonResponse) => p.id === node.id);
+    if (person) {
+      setModal({ isOpen: true, mode: 'view', item: person });
+    }
+  };
+
+  const handleNodeAdd = (node: UITreeNode) => {
+    // Add a new academic person under this institution
+    setFormData({
+      complete_name_fr: '',
+      complete_name_ar: '',
+      first_name_fr: '',
+      last_name_fr: '',
+      first_name_ar: '',
+      last_name_ar: '',
+      title: '',
+      university_id: node.type === 'university' ? node.id : undefined,
+      school_id: node.type === 'school' ? node.id : undefined,
+      external_institution_name: '',
+      external_institution_country: '',
+      external_institution_type: '',
+      user_id: undefined
+    });
+    setModal({ isOpen: true, mode: 'create' });
+  };
+
+  const handleNodeEdit = (node: UITreeNode) => {
+    const person = data.find((p: AcademicPersonResponse) => p.id === node.id);
+    if (person) {
+      setFormData({
+        complete_name_fr: person.complete_name_fr || '',
+        complete_name_ar: person.complete_name_ar || '',
+        first_name_fr: person.first_name_fr || '',
+        last_name_fr: person.last_name_fr || '',
+        first_name_ar: person.first_name_ar || '',
+        last_name_ar: person.last_name_ar || '',
+        title: person.title || '',
+        university_id: person.university_id || undefined,
+        school_id: person.school_id || undefined,
+        external_institution_name: person.external_institution_name || '',
+        external_institution_country: person.external_institution_country || '',
+        external_institution_type: person.external_institution_type || '',
+        user_id: person.user_id || undefined
+      });
+      setModal({ isOpen: true, mode: 'edit', item: person });
+    }
+  };
+
+  const handleNodeDelete = (node: UITreeNode) => {
+    const person = data.find((p: AcademicPersonResponse) => p.id === node.id);
+    if (person) {
+      setModal({ isOpen: true, mode: 'delete', item: person });
     }
   };
 
@@ -1162,6 +1219,11 @@ export default function AdminAcademicPersonsPage() {
                   showCounts={false}
                   showIcons
                   maxHeight="500px"
+                  showContextMenu={true}
+                  onNodeView={handleNodeView}
+                  onNodeAdd={handleNodeAdd}
+                  onNodeEdit={handleNodeEdit}
+                  onNodeDelete={handleNodeDelete}
                 />
               ) : (
                 <div className="text-center py-8 text-gray-500">

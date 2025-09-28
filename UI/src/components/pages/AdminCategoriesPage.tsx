@@ -19,6 +19,7 @@ import {
 import { apiService } from '../../services/api';
 import AdminHeader from '../layout/AdminHeader';
 import TreeView from '../ui/TreeView/TreeView';
+import { TreeNode as UITreeNode } from '../../types/tree';
 import { 
   mapApiTreeToUiNodes, 
   categoriesHierarchyResolver 
@@ -55,7 +56,7 @@ interface ModalState {
 export default function AdminCategoriesPage() {
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
   const [treeNodes, setTreeNodes] = useState<any[]>([]);
-  const [flatList, setFlatList] = useState<CategoryResponse[]>([]);
+  const [data, setData] = useState<CategoryResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
   const [startLevel, setStartLevel] = useState<'domain' | 'discipline' | 'specialty' | 'subdiscipline'>('domain');
@@ -102,7 +103,7 @@ export default function AdminCategoriesPage() {
       } else {
         const allCategories = await apiService.getAllCategories();
         const hierarchicalList = buildHierarchicalList(allCategories);
-        setFlatList(hierarchicalList);
+        setData(hierarchicalList);
       }
     } catch (error) {
       console.error('Error loading categories:', error);
@@ -178,7 +179,7 @@ export default function AdminCategoriesPage() {
     return result;
   };
 
-  const filteredCategories = flatList.filter(category => {
+  const filteredCategories = data.filter(category => {
     if (!searchTerm) return true;
     const searchLower = searchTerm.toLowerCase();
     return (
@@ -231,6 +232,51 @@ export default function AdminCategoriesPage() {
       loadData();
     } catch (error) {
       console.error('Error deleting category:', error);
+    }
+  };
+
+  // Context Menu Handlers
+  const handleNodeView = (node: UITreeNode) => {
+    const category = data.find((c: CategoryResponse) => c.id === node.id);
+    if (category) {
+      setModal({ isOpen: true, mode: 'view', item: category });
+    }
+  };
+
+  const handleNodeAdd = (node: UITreeNode) => {
+    // Add a new category under this parent category
+    setFormData({
+      name_fr: '',
+      name_en: '',
+      name_ar: '',
+      code: '',
+      description: '',
+      parent_id: node.id === 'root' ? undefined : node.id,
+      level: node.id === 'root' ? 1 : (node.level + 1)
+    });
+    setModal({ isOpen: true, mode: 'create' });
+  };
+
+  const handleNodeEdit = (node: UITreeNode) => {
+    const category = data.find((c: CategoryResponse) => c.id === node.id);
+    if (category) {
+      setFormData({
+        name_fr: category.name_fr,
+        name_en: category.name_en || '',
+        name_ar: category.name_ar || '',
+        code: category.code,
+        description: category.description || '',
+        parent_id: category.parent_id || undefined,
+        level: category.level
+      });
+      setModal({ isOpen: true, mode: 'edit', item: category });
+    }
+  };
+
+  const handleNodeDelete = (node: UITreeNode) => {
+    const category = data.find((c: CategoryResponse) => c.id === node.id);
+    if (category) {
+      setModal({ isOpen: true, mode: 'delete', item: category });
     }
   };
 
@@ -618,7 +664,12 @@ export default function AdminCategoriesPage() {
                 searchable 
                 showCounts 
                 showIcons 
-                maxHeight="500px" 
+                maxHeight="500px"
+                showContextMenu={true}
+                onNodeView={handleNodeView}
+                onNodeAdd={handleNodeAdd}
+                onNodeEdit={handleNodeEdit}
+                onNodeDelete={handleNodeDelete}
               />
             </div>
           ) : (

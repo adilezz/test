@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X, ChevronUp, ChevronDown, MoreHorizontal, Check, Square } from 'lucide-react';
 import { FixedSizeList as List } from 'react-window';
 import Fuse from 'fuse.js';
-import { TreeNode as TreeNodeType, TreeViewProps } from '../../../types/tree';
+import { TreeNode as TreeNodeType, TreeViewProps, ContextMenuState } from '../../../types/tree';
 import TreeNode from './TreeNode';
+import ContextMenu from './ContextMenu';
 
 const TreeView: React.FC<TreeViewProps> = ({
   nodes,
@@ -22,13 +23,25 @@ const TreeView: React.FC<TreeViewProps> = ({
   expandedNodeIds = new Set(),
   selectedNodeIds = new Set(),
   loadingNodeIds = new Set(),
-  onLazyLoad
+  onLazyLoad,
+  // Context Menu Props
+  showContextMenu = false,
+  onNodeView,
+  onNodeAdd,
+  onNodeEdit,
+  onNodeDelete
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(expandedNodeIds);
   const [selectedNodes, setSelectedNodes] = useState<Set<string>>(selectedNodeIds);
   const [loadingNodes, setLoadingNodes] = useState<Set<string>>(loadingNodeIds);
   const [showActions, setShowActions] = useState(false);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({
+    isVisible: false,
+    x: 0,
+    y: 0,
+    node: null
+  });
   const searchInputRef = useRef<HTMLInputElement>(null);
   const treeContainerRef = useRef<HTMLDivElement>(null);
 
@@ -206,6 +219,27 @@ const TreeView: React.FC<TreeViewProps> = ({
     setSelectedNodes(new Set());
   }, []);
 
+  // Context Menu Handlers
+  const handleContextMenu = useCallback((node: TreeNodeType, event: React.MouseEvent) => {
+    if (!showContextMenu) return;
+
+    event.preventDefault();
+    setContextMenu({
+      isVisible: true,
+      x: event.clientX,
+      y: event.clientY,
+      node
+    });
+  }, [showContextMenu]);
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(prev => ({
+      ...prev,
+      isVisible: false,
+      node: null
+    }));
+  }, []);
+
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -250,6 +284,8 @@ const TreeView: React.FC<TreeViewProps> = ({
           showIcons={showIcons}
           multiSelect={multiSelect}
           searchQuery={searchQuery}
+          showContextMenu={showContextMenu}
+          onContextMenu={handleContextMenu}
         />
       </div>
     );
@@ -387,11 +423,23 @@ const TreeView: React.FC<TreeViewProps> = ({
                 showIcons={showIcons}
                 multiSelect={multiSelect}
                 searchQuery={searchQuery}
+                showContextMenu={showContextMenu}
+                onContextMenu={handleContextMenu}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* Context Menu */}
+      <ContextMenu
+        contextMenu={contextMenu}
+        onClose={closeContextMenu}
+        onNodeView={onNodeView}
+        onNodeAdd={onNodeAdd}
+        onNodeEdit={onNodeEdit}
+        onNodeDelete={onNodeDelete}
+      />
     </div>
   );
 };

@@ -46,7 +46,7 @@ interface ModalState {
 
 export default function AdminUniversitiesPage() {
   const [treeData, setTreeData] = useState<UITreeNode[]>([]);
-  const [flatList, setFlatList] = useState<UniversityResponse[]>([]);
+  const [data, setData] = useState<UniversityResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
   const [startLevel, setStartLevel] = useState<'university' | 'faculty' | 'department'>('university');
@@ -194,7 +194,7 @@ export default function AdminUniversitiesPage() {
           params.limit = 20; // Show limited results initially
         }
         const listResponse = await apiService.adminList<PaginatedResponse>('universities', params);
-        setFlatList(listResponse.data || []);
+        setData(listResponse.data || []);
       }
     } catch (error) {
       console.error('Error loading universities:', error);
@@ -202,7 +202,7 @@ export default function AdminUniversitiesPage() {
       if (viewMode === 'tree') {
         setTreeData([]);
       } else {
-        setFlatList([]);
+        setData([]);
       }
     } finally {
       setLoading(false);
@@ -264,6 +264,47 @@ export default function AdminUniversitiesPage() {
       loadData();
     } catch (error) {
       console.error('Error deleting university:', error);
+    }
+  };
+
+  // Context Menu Handlers
+  const handleNodeView = (node: UITreeNode) => {
+    const university = data.find(u => u.id === node.id);
+    if (university) {
+      setModal({ isOpen: true, mode: 'view', item: university });
+    }
+  };
+
+  const handleNodeAdd = (node: UITreeNode) => {
+    // Add a new faculty under this university
+    setFormData({
+      name_fr: '',
+      name_en: '',
+      name_ar: '',
+      acronym: '',
+      geographic_entities_id: node.id === 'root' ? '' : node.id
+    });
+    setModal({ isOpen: true, mode: 'create' });
+  };
+
+  const handleNodeEdit = (node: UITreeNode) => {
+    const university = data.find(u => u.id === node.id);
+    if (university) {
+      setFormData({
+        name_fr: university.name_fr,
+        name_en: university.name_en || '',
+        name_ar: university.name_ar || '',
+        acronym: university.acronym || '',
+        geographic_entities_id: university.geographic_entities_id || ''
+      });
+      setModal({ isOpen: true, mode: 'edit', item: university });
+    }
+  };
+
+  const handleNodeDelete = (node: UITreeNode) => {
+    const university = data.find(u => u.id === node.id);
+    if (university) {
+      setModal({ isOpen: true, mode: 'delete', item: university });
     }
   };
 
@@ -698,7 +739,18 @@ export default function AdminUniversitiesPage() {
                 Structure Hiérarchique
               </h2>
               {treeData.length > 0 ? (
-                <TreeView nodes={treeData} searchable showCounts showIcons maxHeight="500px" />
+                <TreeView 
+                  nodes={treeData} 
+                  searchable 
+                  showCounts 
+                  showIcons 
+                  maxHeight="500px"
+                  showContextMenu={true}
+                  onNodeView={handleNodeView}
+                  onNodeAdd={handleNodeAdd}
+                  onNodeEdit={handleNodeEdit}
+                  onNodeDelete={handleNodeDelete}
+                />
               ) : (
                 <div className="flex items-center justify-center h-64 text-gray-500">
                   <div className="text-center">
@@ -731,8 +783,8 @@ export default function AdminUniversitiesPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {flatList.length > 0 ? (
-                    flatList.map((university) => (
+                  {data.length > 0 ? (
+                    data.map((university) => (
                       <tr key={university.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div>
@@ -809,7 +861,7 @@ export default function AdminUniversitiesPage() {
               </table>
 
               {/* Show All Button for List View */}
-              {viewMode === 'list' && !showAllUniversities && flatList.length >= 20 && (
+              {viewMode === 'list' && !showAllUniversities && data.length >= 20 && (
                 <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
                   <div className="text-center">
                     <button

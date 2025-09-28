@@ -43,7 +43,7 @@ interface ModalState {
 
 export default function AdminFacultiesPage() {
   const [searchParams] = useSearchParams();
-  const [faculties, setFaculties] = useState<FacultyResponse[]>([]);
+  const [data, setData] = useState<FacultyResponse[]>([]);
   const [treeData, setTreeData] = useState<UITreeNode[]>([]);
   const [universities, setUniversities] = useState<UniversityResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -146,7 +146,7 @@ export default function AdminFacultiesPage() {
         }
 
         const response = await apiService.adminList<PaginatedResponse>('faculties', params);
-        setFaculties(response.data || []);
+        setData(response.data || []);
         
         if (response.meta) {
           setTotalPages(response.meta.pages);
@@ -221,6 +221,47 @@ export default function AdminFacultiesPage() {
     } catch (error: any) {
       console.error('Error deleting faculty:', error);
       setError(error.message || 'Erreur lors de la suppression de la faculté');
+    }
+  };
+
+  // Context Menu Handlers
+  const handleNodeView = (node: UITreeNode) => {
+    const faculty = data.find(f => f.id === node.id);
+    if (faculty) {
+      setModal({ isOpen: true, mode: 'view', item: faculty });
+    }
+  };
+
+  const handleNodeAdd = (node: UITreeNode) => {
+    // Add a new department under this faculty
+    setFormData({
+      name_fr: '',
+      name_en: '',
+      name_ar: '',
+      acronym: '',
+      university_id: node.id
+    });
+    setModal({ isOpen: true, mode: 'create' });
+  };
+
+  const handleNodeEdit = (node: UITreeNode) => {
+    const faculty = data.find(f => f.id === node.id);
+    if (faculty) {
+      setFormData({
+        name_fr: faculty.name_fr,
+        name_en: faculty.name_en || '',
+        name_ar: faculty.name_ar || '',
+        acronym: faculty.acronym || '',
+        university_id: faculty.university_id
+      });
+      setModal({ isOpen: true, mode: 'edit', item: faculty });
+    }
+  };
+
+  const handleNodeDelete = (node: UITreeNode) => {
+    const faculty = data.find(f => f.id === node.id);
+    if (faculty) {
+      setModal({ isOpen: true, mode: 'delete', item: faculty });
     }
   };
 
@@ -422,7 +463,7 @@ export default function AdminFacultiesPage() {
     );
   };
 
-  if (loading && faculties.length === 0) {
+  if (loading && data.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -663,7 +704,18 @@ export default function AdminFacultiesPage() {
                 Structure Hiérarchique des Facultés
               </h2>
               {treeData.length > 0 ? (
-                <TreeView nodes={treeData} searchable showCounts showIcons maxHeight="500px" />
+                <TreeView 
+                  nodes={treeData} 
+                  searchable 
+                  showCounts 
+                  showIcons 
+                  maxHeight="500px"
+                  showContextMenu={true}
+                  onNodeView={handleNodeView}
+                  onNodeAdd={handleNodeAdd}
+                  onNodeEdit={handleNodeEdit}
+                  onNodeDelete={handleNodeDelete}
+                />
               ) : (
                 <div className="text-center py-8 text-gray-500">
                   <GraduationCap className="w-12 h-12 mx-auto mb-4 text-gray-300" />
@@ -695,7 +747,7 @@ export default function AdminFacultiesPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {faculties.map((faculty) => (
+                {data.map((faculty) => (
                   <tr key={faculty.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
@@ -762,7 +814,7 @@ export default function AdminFacultiesPage() {
               </table>
 
               {/* Show All Button for List View */}
-              {viewMode === 'list' && !showAllFaculties && faculties.length >= 20 && (
+              {viewMode === 'list' && !showAllFaculties && data.length >= 20 && (
                 <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
                   <div className="text-center">
                     <button
@@ -790,7 +842,7 @@ export default function AdminFacultiesPage() {
                 </div>
               )}
               
-              {faculties.length === 0 && !loading && (
+              {data.length === 0 && !loading && (
                 <div className="px-6 py-12 text-center">
                   <GraduationCap className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune faculté trouvée</h3>
