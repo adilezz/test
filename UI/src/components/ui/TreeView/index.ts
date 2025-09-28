@@ -1,3 +1,4 @@
 export { default as TreeView } from './TreeView';
 export { default as TreeNode } from './TreeNode';
-export type { TreeNode as TreeNodeType, TreeViewProps, TreeContextType } from '../../../types/tree';
+export { default as ContextMenu } from './ContextMenu';
+export type { TreeNode as TreeNodeType, TreeViewProps, TreeContextType, ContextMenuState, ContextMenuAction } from '../../../types/tree';
