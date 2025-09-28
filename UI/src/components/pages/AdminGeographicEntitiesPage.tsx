@@ -654,11 +654,42 @@ export default function AdminGeographicEntitiesPage() {
                 Structure Hiérarchique des Entités Géographiques
               </h2>
               <TreeView 
-                nodes={treeNodes} 
-                searchable 
-                showCounts 
-                showIcons 
-                maxHeight="500px" 
+                data={treeNodes} 
+                onNodeSelect={(node) => {
+                  const entity = entities.find(e => e.id === node.id);
+                  if (entity) {
+                    setSelectedEntity(entity);
+                    setShowModal(true);
+                  }
+                }}
+                showContextMenu={true}
+                onNodeView={(node) => {
+                  const entity = entities.find(e => e.id === node.id);
+                  if (entity) {
+                    setSelectedEntity(entity);
+                    setShowModal(true);
+                  }
+                }}
+                onNodeAdd={(node) => {
+                  const entity = entities.find(e => e.id === node.id);
+                  if (entity) {
+                    setSelectedEntity(entity);
+                    setShowModal(true);
+                  }
+                }}
+                onNodeEdit={(node) => {
+                  const entity = entities.find(e => e.id === node.id);
+                  if (entity) {
+                    setSelectedEntity(entity);
+                    setShowModal(true);
+                  }
+                }}
+                onNodeDelete={(node) => {
+                  const entity = entities.find(e => e.id === node.id);
+                  if (entity) {
+                    handleDelete(entity.id);
+                  }
+                }}
               />
             </div>
           ) : (

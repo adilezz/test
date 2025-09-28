@@ -282,10 +282,10 @@ export default function AdminSchoolsPage() {
         <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-900">
-              {modal.mode === 'create' && 'Nouvelle École'}
-              {modal.mode === 'edit' && 'Modifier École'}
-              {modal.mode === 'view' && 'Détails École'}
-              {modal.mode === 'delete' && 'Supprimer École'}
+              {modal.mode === 'create' && 'Nouvel Établissement Non-Universitaire'}
+              {modal.mode === 'edit' && 'Modifier Établissement Non-Universitaire'}
+              {modal.mode === 'view' && 'Détails Établissement Non-Universitaire'}
+              {modal.mode === 'delete' && 'Supprimer Établissement Non-Universitaire'}
             </h2>
             <button
               onClick={() => setModal({ isOpen: false, mode: 'create' })}
@@ -481,9 +481,9 @@ export default function AdminSchoolsPage() {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Écoles</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Établissements Non-Universitaires</h1>
               <p className="text-gray-600 mt-2">
-                Gérer les écoles et leurs hiérarchies
+                Gérer les écoles, instituts, académies, Jamia et centres publics non-universitaires
               </p>
             </div>
             <button
@@ -491,7 +491,7 @@ export default function AdminSchoolsPage() {
               className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
             >
               <Plus className="w-4 h-4" />
-              <span>Nouvelle École</span>
+              <span>Nouvel Établissement</span>
             </button>
           </div>
         </div>
@@ -646,7 +646,7 @@ export default function AdminSchoolsPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      École
+                      Établissement
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Acronyme

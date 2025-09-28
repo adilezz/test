@@ -16,6 +16,7 @@ import AdminUniversitiesPage from './components/pages/AdminUniversitiesPage';
 import AdminSchoolsPage from './components/pages/AdminSchoolsPage';
 import AdminFacultiesPage from './components/pages/AdminFacultiesPage';
 import AdminDepartmentsPage from './components/pages/AdminDepartmentsPage';
+import AdminEtablissementsUniversitairesPage from './components/pages/AdminEtablissementsUniversitairesPage';
 import AdminCategoriesPage from './components/pages/AdminCategoriesPage';
 import AdminAcademicPersonsPage from './components/pages/AdminAcademicPersonsPage';
 import AdminKeywordsPage from './components/pages/AdminKeywordsPage';
@@ -139,6 +140,13 @@ function App() {
               <ProtectedRoute>
                 <AdminRoute>
                   <AdminUniversitiesPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/etablissements-universitaires" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminEtablissementsUniversitairesPage />
                 </AdminRoute>
               </ProtectedRoute>
             } />

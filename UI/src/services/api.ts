@@ -69,6 +69,7 @@ class ApiService {
     degrees: '/admin/degrees',
     languages: '/admin/languages',
     geographic_entities: '/admin/geographic-entities',
+    private_institutions: '/admin/private-institutions',
   };
 
   async adminList<T = PaginatedResponse>(entity: keyof ApiService['adminPaths'], params: Record<string, string | number> = {}): Promise<T> {
@@ -278,41 +279,53 @@ class ApiService {
     Object.entries(params).forEach(([k, v]) => {
       if (v !== undefined && v !== null) qs.append(k, String(v));
     });
-    return this.request<any[]>(`/references/tree?${qs.toString()}`);
+    return this.request<any[]>(`/admin/references/tree?${qs.toString()}`);
   }
 
   async getUniversitiesTree(
     includeTheses: boolean = false,
     thesesPerDepartment: number = 3
   ): Promise<TreeNodeData[]> {
-    const params = new URLSearchParams({
-      include_counts: 'true',
-      include_theses: includeTheses.toString(),
-      theses_per_department: thesesPerDepartment.toString(),
+    return this.getAdminReferencesTree({
+      ref_type: 'universities',
+      start_level: 'university',
+      stop_level: 'department',
+      include_counts: true,
+      include_theses: includeTheses,
+      theses_per_node: thesesPerDepartment
     });
-    
-    return this.request<TreeNodeData[]>(`/universities/tree?${params}`);
   }
 
   async getSchoolsTree(
     includeTheses: boolean = false,
     thesesPerDepartment: number = 3
   ): Promise<TreeNodeData[]> {
-    const params = new URLSearchParams({
-      include_counts: 'true',
-      include_theses: includeTheses.toString(),
-      theses_per_department: thesesPerDepartment.toString(),
+    return this.getAdminReferencesTree({
+      ref_type: 'schools',
+      start_level: 'university',
+      stop_level: 'school',
+      include_counts: true,
+      include_theses: includeTheses,
+      theses_per_node: thesesPerDepartment
     });
-    
-    return this.request<TreeNodeData[]>(`/schools/tree?${params}`);
   }
 
   async getCategoriesTree(): Promise<TreeNodeData[]> {
-    return this.request<TreeNodeData[]>('/categories/tree');
+    return this.getAdminReferencesTree({
+      ref_type: 'categories',
+      start_level: 'domain',
+      stop_level: 'subdiscipline',
+      include_counts: true
+    });
   }
 
   async getGeographicEntitiesTree(): Promise<TreeNodeData[]> {
-    return this.request<TreeNodeData[]>('/geographic-entities/tree');
+    return this.getAdminReferencesTree({
+      ref_type: 'geographic',
+      start_level: 'country',
+      stop_level: 'city',
+      include_counts: true
+    });
   }
 
   // Public List endpoints

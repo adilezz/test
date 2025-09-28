@@ -618,7 +618,25 @@ export default function AdminCategoriesPage() {
                 searchable 
                 showCounts 
                 showIcons 
-                maxHeight="500px" 
+                maxHeight="500px"
+                showContextMenu={true}
+                onNodeView={(node) => {
+                  const category = flatList.find(c => c.id === node.id);
+                  if (category) openModal('view', category);
+                }}
+                onNodeAdd={(node) => {
+                  openModal('create', undefined, node);
+                }}
+                onNodeEdit={(node) => {
+                  const category = flatList.find(c => c.id === node.id);
+                  if (category) openModal('edit', category);
+                }}
+                onNodeDelete={(node) => {
+                  const category = flatList.find(c => c.id === node.id);
+                  if (category && confirm('Êtes-vous sûr de vouloir supprimer cette catégorie ?')) {
+                    handleDelete(category.id);
+                  }
+                }}
               />
             </div>
           ) : (

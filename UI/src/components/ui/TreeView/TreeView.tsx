@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, ChevronUp, ChevronDown, MoreHorizontal, Check, Square } from 'lucide-react';
+import { Search, X, ChevronUp, ChevronDown, MoreHorizontal, Check, Square, Eye, Plus, Edit, Trash2 } from 'lucide-react';
 import { FixedSizeList as List } from 'react-window';
 import Fuse from 'fuse.js';
 import { TreeNode as TreeNodeType, TreeViewProps } from '../../../types/tree';
@@ -22,13 +22,30 @@ const TreeView: React.FC<TreeViewProps> = ({
   expandedNodeIds = new Set(),
   selectedNodeIds = new Set(),
   loadingNodeIds = new Set(),
-  onLazyLoad
+  onLazyLoad,
+  // Context menu support
+  showContextMenu = false,
+  onNodeView,
+  onNodeAdd,
+  onNodeEdit,
+  onNodeDelete,
+  // Select box support
+  selectMode = false,
+  onSelectionChange,
+  maxSelections = 1,
+  placeholder = "Sélectionner un élément..."
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(expandedNodeIds);
   const [selectedNodes, setSelectedNodes] = useState<Set<string>>(selectedNodeIds);
   const [loadingNodes, setLoadingNodes] = useState<Set<string>>(loadingNodeIds);
   const [showActions, setShowActions] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    node: TreeNodeType | null;
+  }>({ visible: false, x: 0, y: 0, node: null });
   const searchInputRef = useRef<HTMLInputElement>(null);
   const treeContainerRef = useRef<HTMLDivElement>(null);
 
@@ -138,10 +155,14 @@ const TreeView: React.FC<TreeViewProps> = ({
   const handleToggleSelected = useCallback((nodeId: string, isMultiSelect: boolean = false) => {
     const newSelectedNodes = new Set(selectedNodes);
     
-    if (isMultiSelect || multiSelect) {
+    if (isMultiSelect || multiSelect || selectMode) {
       if (selectedNodes.has(nodeId)) {
         newSelectedNodes.delete(nodeId);
       } else {
+        // Check max selections limit
+        if (maxSelections > 0 && newSelectedNodes.size >= maxSelections && !selectedNodes.has(nodeId)) {
+          return; // Don't add if we've reached the limit
+        }
         newSelectedNodes.add(nodeId);
       }
     } else {
@@ -154,8 +175,16 @@ const TreeView: React.FC<TreeViewProps> = ({
     const selectedNode = nodes.find(n => n.id === nodeId);
     if (selectedNode) {
       onNodeSelect?.(selectedNode, isMultiSelect);
+      
+      // Notify selection change for select mode
+      if (selectMode && onSelectionChange) {
+        const selectedNodesList = Array.from(newSelectedNodes)
+          .map(id => nodes.find(n => n.id === id))
+          .filter(Boolean) as TreeNodeType[];
+        onSelectionChange(selectedNodesList);
+      }
     }
-  }, [selectedNodes, multiSelect, nodes, onNodeSelect]);
+  }, [selectedNodes, multiSelect, selectMode, maxSelections, nodes, onNodeSelect, onSelectionChange]);
 
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value;
@@ -206,6 +235,46 @@ const TreeView: React.FC<TreeViewProps> = ({
     setSelectedNodes(new Set());
   }, []);
 
+  // Context menu handlers
+  const handleContextMenu = useCallback((e: React.MouseEvent, node: TreeNodeType) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (showContextMenu) {
+      setContextMenu({
+        visible: true,
+        x: e.clientX,
+        y: e.clientY,
+        node
+      });
+    }
+  }, [showContextMenu]);
+
+  const handleContextMenuAction = useCallback((action: 'view' | 'add' | 'edit' | 'delete') => {
+    if (!contextMenu.node) return;
+    
+    switch (action) {
+      case 'view':
+        onNodeView?.(contextMenu.node);
+        break;
+      case 'add':
+        onNodeAdd?.(contextMenu.node);
+        break;
+      case 'edit':
+        onNodeEdit?.(contextMenu.node);
+        break;
+      case 'delete':
+        onNodeDelete?.(contextMenu.node);
+        break;
+    }
+    
+    setContextMenu({ visible: false, x: 0, y: 0, node: null });
+  }, [contextMenu.node, onNodeView, onNodeAdd, onNodeEdit, onNodeDelete]);
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu({ visible: false, x: 0, y: 0, node: null });
+  }, []);
+
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -229,6 +298,18 @@ const TreeView: React.FC<TreeViewProps> = ({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [multiSelect, selectAll]);
 
+  // Close context menu on outside click
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (contextMenu.visible) {
+        closeContextMenu();
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [contextMenu.visible, closeContextMenu]);
+
   // Virtual list item renderer
   const VirtualizedItem = ({ index, style }: { index: number; style: React.CSSProperties }) => {
     const node = flattenedNodes[index];
@@ -248,8 +329,9 @@ const TreeView: React.FC<TreeViewProps> = ({
           onLazyLoad={onLazyLoad}
           showCounts={showCounts}
           showIcons={showIcons}
-          multiSelect={multiSelect}
+          multiSelect={multiSelect || selectMode}
           searchQuery={searchQuery}
+          onContextMenu={showContextMenu ? (e) => handleContextMenu(e, node) : undefined}
         />
       </div>
     );
@@ -260,12 +342,12 @@ const TreeView: React.FC<TreeViewProps> = ({
 
   return (
     <div className={`bg-white border border-gray-200 rounded-lg ${className}`}>
-      {/* Header */}
-      <div className="p-4 border-b border-gray-200">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold text-gray-900">
-            Navigation hiérarchique
-          </h3>
+        {/* Header */}
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-gray-900">
+              {selectMode ? placeholder : "Navigation hiérarchique"}
+            </h3>
           
           {/* Action Buttons */}
           <div className="flex items-center space-x-2">
@@ -286,10 +368,10 @@ const TreeView: React.FC<TreeViewProps> = ({
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="Rechercher dans la hiérarchie..."
+              placeholder={selectMode ? "Rechercher..." : "Rechercher dans la hiérarchie..."}
               value={searchQuery}
               onChange={handleSearchChange}
-              className="input-field pl-10 pr-10"
+              className="w-full px-3 py-2 pl-10 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {searchQuery && (
               <button
@@ -385,13 +467,63 @@ const TreeView: React.FC<TreeViewProps> = ({
                 onLazyLoad={onLazyLoad}
                 showCounts={showCounts}
                 showIcons={showIcons}
-                multiSelect={multiSelect}
+                multiSelect={multiSelect || selectMode}
                 searchQuery={searchQuery}
+                onContextMenu={showContextMenu ? (e) => handleContextMenu(e, node) : undefined}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* Context Menu */}
+      {contextMenu.visible && (
+        <div
+          className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[160px]"
+          style={{
+            left: contextMenu.x,
+            top: contextMenu.y,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {onNodeView && (
+            <button
+              onClick={() => handleContextMenuAction('view')}
+              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+            >
+              <Eye className="w-4 h-4" />
+              <span>Voir</span>
+            </button>
+          )}
+          {onNodeAdd && (
+            <button
+              onClick={() => handleContextMenuAction('add')}
+              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Ajouter</span>
+            </button>
+          )}
+          {onNodeEdit && (
+            <button
+              onClick={() => handleContextMenuAction('edit')}
+              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+            >
+              <Edit className="w-4 h-4" />
+              <span>Modifier</span>
+            </button>
+          )}
+          {onNodeDelete && (
+            <button
+              onClick={() => handleContextMenuAction('delete')}
+              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Supprimer</span>
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 };

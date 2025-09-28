@@ -698,7 +698,33 @@ export default function AdminUniversitiesPage() {
                 Structure Hiérarchique
               </h2>
               {treeData.length > 0 ? (
-                <TreeView nodes={treeData} searchable showCounts showIcons maxHeight="500px" />
+                <TreeView 
+                  nodes={treeData} 
+                  searchable 
+                  showCounts 
+                  showIcons 
+                  maxHeight="500px"
+                  showContextMenu={true}
+                  onNodeView={(node) => {
+                    const university = flatList.find(u => u.id === node.id);
+                    if (university) openModal('view', university);
+                  }}
+                  onNodeAdd={(node) => {
+                    if (node.type === 'university') {
+                      openModal('create');
+                    }
+                  }}
+                  onNodeEdit={(node) => {
+                    const university = flatList.find(u => u.id === node.id);
+                    if (university) openModal('edit', university);
+                  }}
+                  onNodeDelete={(node) => {
+                    const university = flatList.find(u => u.id === node.id);
+                    if (university && confirm('Êtes-vous sûr de vouloir supprimer cette université ?')) {
+                      handleDelete(university.id);
+                    }
+                  }}
+                />
               ) : (
                 <div className="flex items-center justify-center h-64 text-gray-500">
                   <div className="text-center">

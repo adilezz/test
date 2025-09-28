@@ -39,6 +39,17 @@ export interface TreeViewProps {
   selectedNodeIds?: Set<string>;
   loadingNodeIds?: Set<string>;
   onLazyLoad?: (node: TreeNode) => Promise<TreeNode[]>;
+  // Context menu support
+  showContextMenu?: boolean;
+  onNodeView?: (node: TreeNode) => void;
+  onNodeAdd?: (node: TreeNode) => void;
+  onNodeEdit?: (node: TreeNode) => void;
+  onNodeDelete?: (node: TreeNode) => void;
+  // Select box support
+  selectMode?: boolean;
+  onSelectionChange?: (selectedNodes: TreeNode[]) => void;
+  maxSelections?: number;
+  placeholder?: string;
 }
 
 export interface TreeContextType {

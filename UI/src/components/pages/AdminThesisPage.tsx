@@ -16,7 +16,9 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { apiService } from '../../services/api';
 import AdminHeader from '../layout/AdminHeader';
 import TreeView from '../ui/TreeView/TreeView';
+import TreeSelect from '../ui/TreeSelect/TreeSelect';
 import { TreeNode as UITreeNode } from '../../types/tree';
+import { buildUnifiedInstitutionTree } from '../../utils/institutionTreeBuilder';
 import { 
   ThesisCreate,
   ThesisUpdate, 
@@ -33,7 +35,8 @@ import {
   AcademicRole,
   ThesisAcademicPersonCreate,
   ThesisCategoryCreate,
-  ThesisKeywordCreate
+  ThesisKeywordCreate,
+  PrivateInstitutionResponse
 } from '../../types/api';
 
 interface AcademicPersonAssignment {
@@ -65,6 +68,8 @@ export default function AdminThesisPage() {
   const [universities, setUniversities] = useState<UniversityResponse[]>([]);
   const [faculties, setFaculties] = useState<FacultyResponse[]>([]);
   const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
+  const [privateInstitutions, setPrivateInstitutions] = useState<PrivateInstitutionResponse[]>([]);
+  const [unifiedInstitutionTree, setUnifiedInstitutionTree] = useState<UITreeNode[]>([]);
   const [degrees, setDegrees] = useState<DegreeResponse[]>([]);
   const [languages, setLanguages] = useState<LanguageResponse[]>([]);
   
@@ -136,6 +141,12 @@ export default function AdminThesisPage() {
   }, [id]);
 
   useEffect(() => {
+    if (universities.length > 0 || faculties.length > 0 || privateInstitutions.length > 0) {
+      buildUnifiedTree();
+    }
+  }, [universities, faculties, privateInstitutions]);
+
+  useEffect(() => {
     if (geographicEntities && formData.study_location_id) {
       const sel = geographicEntities.find((e) => e.id === formData.study_location_id);
       setSelectedGeoLabel(sel ? sel.name_fr : '');
@@ -167,16 +178,33 @@ export default function AdminThesisPage() {
       setCategoryNodes(roots.map((n: any) => mapNode(n, 0)));
       setCategoryLabelById(labelMap);
       // load keywords via existing endpoint (not included in form)
-      const [keywordsRes, academicPersonsRes, geoRes] = await Promise.all([
+      const [keywordsRes, academicPersonsRes, geoRes, privateInstRes] = await Promise.all([
         apiService.adminList<PaginatedResponse>('keywords', { load_all: 'true' }),
         apiService.adminList<PaginatedResponse>('academic_persons', { load_all: 'true' }),
-        apiService.adminList<PaginatedResponse>('geographic_entities', { load_all: 'true' })
+        apiService.adminList<PaginatedResponse>('geographic_entities', { load_all: 'true' }),
+        apiService.adminList<PaginatedResponse>('private_institutions', { load_all: 'true' })
       ]);
       setKeywords(keywordsRes.data);
       setAcademicPersons(academicPersonsRes.data);
       setGeographicEntities(geoRes.data);
+      setPrivateInstitutions(privateInstRes.data);
     } catch (error) {
       console.error('Error loading reference data:', error);
+    }
+  };
+
+  const buildUnifiedTree = () => {
+    try {
+      const departments: any[] = []; // We'll need to load departments if needed
+      const unifiedTree = buildUnifiedInstitutionTree(
+        universities,
+        faculties,
+        departments,
+        privateInstitutions
+      );
+      setUnifiedInstitutionTree(unifiedTree);
+    } catch (error) {
+      console.error('Error building unified institution tree:', error);
     }
   };
 

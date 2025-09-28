@@ -262,6 +262,41 @@ export interface SchoolResponse extends SchoolBase {
   updated_at: string;
 }
 
+export interface PrivateInstitutionBase {
+  name_fr: string;
+  name_en?: string;
+  name_ar?: string;
+  acronym?: string;
+  institution_type: 'university' | 'school' | 'institute' | 'academy' | 'center';
+  level: 'primary' | 'secondary' | 'higher' | 'professional';
+  geographic_entities_id?: string;
+  parent_institution_id?: string;
+  website?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  established_year?: number;
+  accreditation_status?: 'pending' | 'accredited' | 'suspended' | 'revoked';
+  accreditation_body?: string;
+  accreditation_date?: string;
+  license_number?: string;
+  is_active?: boolean;
+}
+
+export interface PrivateInstitutionCreate extends PrivateInstitutionBase {
+  name_fr: string;
+  institution_type: 'university' | 'school' | 'institute' | 'academy' | 'center';
+  level: 'primary' | 'secondary' | 'higher' | 'professional';
+}
+
+export interface PrivateInstitutionUpdate extends Partial<PrivateInstitutionBase> {}
+
+export interface PrivateInstitutionResponse extends PrivateInstitutionBase {
+  id: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // Department Types
 export interface DepartmentBase {
   faculty_id?: string;

@@ -82,6 +82,12 @@ const AdminHeader: React.FC = () => {
       description: 'Rapports détaillés'
     },
     { 
+      label: 'Établissements Universitaires', 
+      href: '/admin/etablissements-universitaires', 
+      icon: <Database className="w-4 h-4" />,
+      description: 'Universités, facultés et départements'
+    },
+    { 
       label: 'Site Web', 
       href: '/', 
       icon: <BookOpen className="w-4 h-4" />,

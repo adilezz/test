@@ -32,8 +32,11 @@ import {
   AcademicPersonUpdate,
   UniversityResponse,
   FacultyResponse,
-  SchoolResponse
+  SchoolResponse,
+  PrivateInstitutionResponse
 } from '../../types/api';
+import { buildUnifiedInstitutionTree } from '../../utils/institutionTreeBuilder';
+import TreeSelect from '../ui/TreeSelect/TreeSelect';
 
 interface TreeNode {
   id: string;
@@ -62,6 +65,8 @@ export default function AdminAcademicPersonsPage() {
   const [universities, setUniversities] = useState<UniversityResponse[]>([]);
   const [faculties, setFaculties] = useState<FacultyResponse[]>([]);
   const [schools, setSchools] = useState<SchoolResponse[]>([]);
+  const [privateInstitutions, setPrivateInstitutions] = useState<PrivateInstitutionResponse[]>([]);
+  const [unifiedInstitutionTree, setUnifiedInstitutionTree] = useState<UITreeNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -107,6 +112,7 @@ export default function AdminAcademicPersonsPage() {
     loadUniversities();
     loadFaculties();
     loadSchools();
+    loadPrivateInstitutions();
     
     // Check if filters are provided in URL params
     const universityId = searchParams.get('university_id');
@@ -122,6 +128,12 @@ export default function AdminAcademicPersonsPage() {
       }));
     }
   }, []);
+
+  useEffect(() => {
+    if (universities.length > 0 || schools.length > 0 || privateInstitutions.length > 0) {
+      buildUnifiedTree();
+    }
+  }, [universities, schools, privateInstitutions]);
 
   // Debounced search effect
   useEffect(() => {
@@ -162,6 +174,31 @@ export default function AdminAcademicPersonsPage() {
       setSchools(response.data || []);
     } catch (error) {
       console.error('Error loading schools:', error);
+    }
+  };
+
+  const loadPrivateInstitutions = async () => {
+    try {
+      const response = await apiService.adminList<PaginatedResponse>('private_institutions', { load_all: 'true' });
+      setPrivateInstitutions(response.data || []);
+    } catch (error) {
+      console.error('Error loading private institutions:', error);
+    }
+  };
+
+  const buildUnifiedTree = () => {
+    try {
+      const departments: any[] = []; // We'll need to load departments if needed
+      const unifiedTree = buildUnifiedInstitutionTree(
+        universities,
+        faculties,
+        schools,
+        departments,
+        privateInstitutions
+      );
+      setUnifiedInstitutionTree(unifiedTree);
+    } catch (error) {
+      console.error('Error building unified institution tree:', error);
     }
   };
 
@@ -675,57 +712,54 @@ export default function AdminAcademicPersonsPage() {
               {/* Institutional Affiliation */}
               <div className="space-y-4">
                 <h3 className="text-lg font-medium text-gray-900">Affiliation Institutionnelle</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Université
-                    </label>
-                    <select
-                      value={formData.university_id || ''}
-                      onChange={(e) => setFormData({ ...formData, university_id: e.target.value || undefined })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Sélectionner une université</option>
-                      {universities.map((university) => (
-                        <option key={university.id} value={university.id}>
-                          {university.name_fr}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Faculté
-                    </label>
-                    <select
-                      value={formData.faculty_id || ''}
-                      onChange={(e) => setFormData({ ...formData, faculty_id: e.target.value || undefined })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Sélectionner une faculté</option>
-                      {faculties.map((faculty) => (
-                        <option key={faculty.id} value={faculty.id}>
-                          {faculty.name_fr}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      École
-                    </label>
-                    <select
-                      value={formData.school_id || ''}
-                      onChange={(e) => setFormData({ ...formData, school_id: e.target.value || undefined })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Sélectionner une école</option>
-                      {schools.map((school) => (
-                        <option key={school.id} value={school.id}>
-                          {school.name_fr}
-                        </option>
-                      ))}
-                    </select>
+                    <TreeSelect
+                      nodes={unifiedInstitutionTree}
+                      selectedNodes={[]}
+                      onSelectionChange={(selectedNodes) => {
+                        if (selectedNodes.length > 0) {
+                          const selectedNode = selectedNodes[0];
+                          // Determine the type of institution and set the appropriate field
+                          if (selectedNode.type === 'university') {
+                            setFormData({ 
+                              ...formData, 
+                              university_id: selectedNode.id,
+                              faculty_id: undefined,
+                              school_id: undefined
+                            });
+                          } else if (selectedNode.type === 'faculty') {
+                            setFormData({ 
+                              ...formData, 
+                              faculty_id: selectedNode.id,
+                              university_id: undefined,
+                              school_id: undefined
+                            });
+                          } else if (selectedNode.type === 'school') {
+                            setFormData({ 
+                              ...formData, 
+                              school_id: selectedNode.id,
+                              university_id: undefined,
+                              faculty_id: undefined
+                            });
+                          }
+                        } else {
+                          setFormData({ 
+                            ...formData, 
+                            university_id: undefined,
+                            faculty_id: undefined,
+                            school_id: undefined
+                          });
+                        }
+                      }}
+                      placeholder="Sélectionner une institution..."
+                      multiSelect={false}
+                      label="Institution"
+                      searchable={true}
+                      showCounts={true}
+                      showIcons={true}
+                      maxHeight="300px"
+                    />
                   </div>
                 </div>
               </div>

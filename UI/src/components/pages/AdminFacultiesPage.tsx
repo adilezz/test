@@ -663,7 +663,33 @@ export default function AdminFacultiesPage() {
                 Structure Hiérarchique des Facultés
               </h2>
               {treeData.length > 0 ? (
-                <TreeView nodes={treeData} searchable showCounts showIcons maxHeight="500px" />
+                <TreeView 
+                  nodes={treeData} 
+                  searchable 
+                  showCounts 
+                  showIcons 
+                  maxHeight="500px"
+                  showContextMenu={true}
+                  onNodeView={(node) => {
+                    const faculty = faculties.find(f => f.id === node.id);
+                    if (faculty) openModal('view', faculty);
+                  }}
+                  onNodeAdd={(node) => {
+                    if (node.type === 'university') {
+                      openModal('create');
+                    }
+                  }}
+                  onNodeEdit={(node) => {
+                    const faculty = faculties.find(f => f.id === node.id);
+                    if (faculty) openModal('edit', faculty);
+                  }}
+                  onNodeDelete={(node) => {
+                    const faculty = faculties.find(f => f.id === node.id);
+                    if (faculty && confirm('Êtes-vous sûr de vouloir supprimer cette faculté ?')) {
+                      handleDelete(faculty.id);
+                    }
+                  }}
+                />
               ) : (
                 <div className="text-center py-8 text-gray-500">
                   <GraduationCap className="w-12 h-12 mx-auto mb-4 text-gray-300" />

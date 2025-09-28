@@ -16,6 +16,9 @@ import {
 } from 'lucide-react';
 import { apiService } from '../../services/api';
 import AdminHeader from '../layout/AdminHeader';
+import TreeView from '../ui/TreeView/TreeView';
+import TreeSelect from '../ui/TreeSelect/TreeSelect';
+import { TreeNode as UITreeNode } from '../../types/tree';
 import { 
   KeywordResponse,
   PaginatedResponse,
@@ -36,6 +39,8 @@ export default function AdminKeywordsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [categories, setCategories] = useState<CategoryResponse[]>([]);
   const [categoriesTree, setCategoriesTree] = useState<any[]>([]);
+  const [keywordsTree, setKeywordsTree] = useState<UITreeNode[]>([]);
+  const [viewMode, setViewMode] = useState<'tree' | 'list'>('list');
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'create' });
   const [formData, setFormData] = useState<KeywordCreate>({
     parent_keyword_id: undefined,
@@ -55,11 +60,48 @@ export default function AdminKeywordsPage() {
     try {
       const response = await apiService.adminList<PaginatedResponse>('keywords', { limit: 1000 });
       setData(response.data);
+      buildKeywordsTree(response.data);
     } catch (error) {
       console.error('Error loading keywords:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const buildKeywordsTree = (keywords: KeywordResponse[]) => {
+    const keywordMap = new Map<string, UITreeNode>();
+    const rootKeywords: UITreeNode[] = [];
+
+    // Create nodes for all keywords
+    keywords.forEach(keyword => {
+      const node: UITreeNode = {
+        id: keyword.id,
+        label: keyword.keyword_fr,
+        label_en: keyword.keyword_en,
+        label_ar: keyword.keyword_ar,
+        type: 'category',
+        level: 0,
+        count: 0,
+        children: []
+      };
+      keywordMap.set(keyword.id, node);
+    });
+
+    // Build hierarchy
+    keywords.forEach(keyword => {
+      const node = keywordMap.get(keyword.id)!;
+      if (keyword.parent_keyword_id) {
+        const parent = keywordMap.get(keyword.parent_keyword_id);
+        if (parent) {
+          parent.children!.push(node);
+          node.level = parent.level + 1;
+        }
+      } else {
+        rootKeywords.push(node);
+      }
+    });
+
+    setKeywordsTree(rootKeywords);
   };
 
   const loadCategories = async () => {
@@ -434,13 +476,37 @@ export default function AdminKeywordsPage() {
                 Gérer le vocabulaire contrôlé pour l'indexation des thèses
               </p>
             </div>
-            <button
-              onClick={() => openModal('create')}
-              className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Nouveau Mot-clé</span>
-            </button>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`px-3 py-2 rounded-lg transition-colors ${
+                    viewMode === 'list' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  <ListBulletIcon className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => setViewMode('tree')}
+                  className={`px-3 py-2 rounded-lg transition-colors ${
+                    viewMode === 'tree' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  <TreeIcon className="w-5 h-5" />
+                </button>
+              </div>
+              <button
+                onClick={() => openModal('create')}
+                className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Nouveau Mot-clé</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -489,6 +555,49 @@ export default function AdminKeywordsPage() {
           </div>
         </div>
 
+        {/* Tree View */}
+        {viewMode === 'tree' && (
+          <div className="bg-white rounded-lg shadow mb-8">
+            <div className="p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Vue hiérarchique des mots-clés</h2>
+              <TreeView
+                data={keywordsTree}
+                onNodeSelect={(node) => {
+                  const keyword = keywords.find(k => k.id === node.id);
+                  if (keyword) {
+                    openModal('view', keyword);
+                  }
+                }}
+                showContextMenu={true}
+                onNodeView={(node) => {
+                  const keyword = keywords.find(k => k.id === node.id);
+                  if (keyword) {
+                    openModal('view', keyword);
+                  }
+                }}
+                onNodeAdd={(node) => {
+                  const keyword = keywords.find(k => k.id === node.id);
+                  if (keyword) {
+                    openModal('create', keyword);
+                  }
+                }}
+                onNodeEdit={(node) => {
+                  const keyword = keywords.find(k => k.id === node.id);
+                  if (keyword) {
+                    openModal('edit', keyword);
+                  }
+                }}
+                onNodeDelete={(node) => {
+                  const keyword = keywords.find(k => k.id === node.id);
+                  if (keyword) {
+                    handleDelete(keyword.id);
+                  }
+                }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Controls */}
         <div className="bg-white rounded-lg shadow p-4 mb-6">
           <div className="flex items-center justify-between">
@@ -516,7 +625,8 @@ export default function AdminKeywordsPage() {
         </div>
 
         {/* Content */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        {viewMode === 'list' && (
+          <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -629,6 +739,7 @@ export default function AdminKeywordsPage() {
             )}
           </div>
         </div>
+        )}
 
         {renderModal()}
       </div>

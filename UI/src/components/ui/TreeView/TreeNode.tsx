@@ -28,6 +28,7 @@ interface TreeNodeProps {
   showIcons: boolean;
   multiSelect: boolean;
   searchQuery?: string;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
 const getNodeIcon = (type: TreeNodeType['type']) => {
@@ -60,7 +61,8 @@ const TreeNode: React.FC<TreeNodeProps> = memo(({
   showCounts,
   showIcons,
   multiSelect,
-  searchQuery
+  searchQuery,
+  onContextMenu
 }) => {
   const IconComponent = getNodeIcon(node.type);
   const indentation = level * 20;
@@ -148,6 +150,7 @@ const TreeNode: React.FC<TreeNodeProps> = memo(({
         style={{ paddingLeft: `${indentation + 8}px` }}
         onClick={handleNodeClick}
         onKeyDown={handleKeyDown}
+        onContextMenu={onContextMenu}
         tabIndex={0}
         role="treeitem"
         aria-expanded={hasChildren ? isExpanded : undefined}
@@ -252,6 +255,7 @@ const TreeNode: React.FC<TreeNodeProps> = memo(({
                 showIcons={showIcons}
                 multiSelect={multiSelect}
                 searchQuery={searchQuery}
+                onContextMenu={onContextMenu}
               />
             ))}
           </motion.div>
