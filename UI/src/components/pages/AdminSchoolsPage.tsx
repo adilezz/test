@@ -635,7 +635,38 @@ export default function AdminSchoolsPage() {
                 Structure Hiérarchique des Écoles
               </h2>
               {treeData.length > 0 ? (
-                <TreeView nodes={treeData} searchable showCounts showIcons maxHeight="500px" />
+                <TreeView 
+                  nodes={treeData} 
+                  searchable 
+                  showCounts 
+                  showIcons 
+                  maxHeight="500px" 
+                  showContextMenu={true}
+                  onNodeView={(node) => {
+                    const school = schools.find(s => s.name_fr === node.label);
+                    if (school) {
+                      openModal('view', school);
+                    }
+                  }}
+                  onNodeAdd={(node) => {
+                    // For schools, add a new department or sub-school
+                    if (node.type === 'school') {
+                      console.log('Add department to school:', node.label);
+                    }
+                  }}
+                  onNodeEdit={(node) => {
+                    const school = schools.find(s => s.name_fr === node.label);
+                    if (school) {
+                      openModal('edit', school);
+                    }
+                  }}
+                  onNodeDelete={(node) => {
+                    const school = schools.find(s => s.name_fr === node.label);
+                    if (school && confirm(`Êtes-vous sûr de vouloir supprimer "${node.label}" ?`)) {
+                      handleDelete(school.id);
+                    }
+                  }}
+                />
               ) : (
                 <div className="space-y-1" />
               )}

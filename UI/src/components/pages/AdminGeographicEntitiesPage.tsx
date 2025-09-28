@@ -659,6 +659,37 @@ export default function AdminGeographicEntitiesPage() {
                 showCounts 
                 showIcons 
                 maxHeight="500px" 
+                showContextMenu={true}
+                onNodeView={(node) => {
+                  const entity = flatList.find(e => e.name_fr === node.label);
+                  if (entity) {
+                    openModal('view', entity);
+                  }
+                }}
+                onNodeAdd={(node) => {
+                  // For geographic entities, add a child entity
+                  const parentEntity = flatList.find(e => e.name_fr === node.label);
+                  if (parentEntity) {
+                    const parentTreeNode = {
+                      id: parentEntity.id,
+                      name_fr: parentEntity.name_fr,
+                      level: parentEntity.level
+                    };
+                    openModal('create', undefined, parentTreeNode);
+                  }
+                }}
+                onNodeEdit={(node) => {
+                  const entity = flatList.find(e => e.name_fr === node.label);
+                  if (entity) {
+                    openModal('edit', entity);
+                  }
+                }}
+                onNodeDelete={(node) => {
+                  const entity = flatList.find(e => e.name_fr === node.label);
+                  if (entity && confirm(`Êtes-vous sûr de vouloir supprimer "${node.label}" ?`)) {
+                    handleDelete(entity.id);
+                  }
+                }}
               />
             </div>
           ) : (

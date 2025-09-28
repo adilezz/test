@@ -1162,6 +1162,38 @@ export default function AdminAcademicPersonsPage() {
                   showCounts={false}
                   showIcons
                   maxHeight="500px"
+                  showContextMenu={true}
+                  onNodeView={(node) => {
+                    const person = data.find(p => 
+                      (p.complete_name_fr === node.label) ||
+                      (p.first_name_fr && p.last_name_fr && `${p.first_name_fr} ${p.last_name_fr}` === node.label)
+                    );
+                    if (person) {
+                      openModal('view', person);
+                    }
+                  }}
+                  onNodeAdd={(node) => {
+                    // For academic persons, we could add to the parent institution
+                    console.log('Add person to:', node.label);
+                  }}
+                  onNodeEdit={(node) => {
+                    const person = data.find(p => 
+                      (p.complete_name_fr === node.label) ||
+                      (p.first_name_fr && p.last_name_fr && `${p.first_name_fr} ${p.last_name_fr}` === node.label)
+                    );
+                    if (person) {
+                      openModal('edit', person);
+                    }
+                  }}
+                  onNodeDelete={(node) => {
+                    const person = data.find(p => 
+                      (p.complete_name_fr === node.label) ||
+                      (p.first_name_fr && p.last_name_fr && `${p.first_name_fr} ${p.last_name_fr}` === node.label)
+                    );
+                    if (person && confirm(`Êtes-vous sûr de vouloir supprimer "${node.label}" ?`)) {
+                      handleDelete(person.id);
+                    }
+                  }}
                 />
               ) : (
                 <div className="text-center py-8 text-gray-500">

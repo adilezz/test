@@ -843,7 +843,32 @@ export default function AdminDepartmentsPage() {
                 Structure Hiérarchique des Départements
               </h2>
               {treeData.length > 0 ? (
-                <TreeView nodes={treeData} searchable showCounts showIcons maxHeight="500px" />
+                <TreeView 
+                  nodes={treeData} 
+                  searchable 
+                  showCounts 
+                  showIcons 
+                  maxHeight="500px" 
+                  showContextMenu={true}
+                  onNodeView={(node) => {
+                    const department = departments.find(d => d.name_fr === node.label);
+                    if (department) {
+                      openModal('view', department);
+                    }
+                  }}
+                  onNodeEdit={(node) => {
+                    const department = departments.find(d => d.name_fr === node.label);
+                    if (department) {
+                      openModal('edit', department);
+                    }
+                  }}
+                  onNodeDelete={(node) => {
+                    const department = departments.find(d => d.name_fr === node.label);
+                    if (department && confirm(`Êtes-vous sûr de vouloir supprimer "${node.label}" ?`)) {
+                      handleDelete(department.id);
+                    }
+                  }}
+                />
               ) : (
                 <div className="text-center py-8 text-gray-500">
                   <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
