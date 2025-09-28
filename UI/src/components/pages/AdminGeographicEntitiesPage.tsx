@@ -216,6 +216,62 @@ export default function AdminGeographicEntitiesPage() {
     }
   };
 
+  // Context Menu Handlers
+  const handleNodeView = (node: any) => {
+    const entity = flatList.find((e: GeographicEntityResponse) => e.id === node.id);
+    if (entity) {
+      setModal({ isOpen: true, mode: 'view', item: entity });
+    }
+  };
+
+  const handleNodeAdd = (node: any) => {
+    // Add a new geographic entity under this parent
+    setFormData({
+      name_fr: '',
+      name_en: '',
+      name_ar: '',
+      level: node.id === 'root' ? GeographicLevel.COUNTRY : getNextLevel(node.level),
+      parent_id: node.id === 'root' ? undefined : node.id,
+      code: '',
+      latitude: undefined,
+      longitude: undefined
+    });
+    setModal({ isOpen: true, mode: 'create' });
+  };
+
+  const handleNodeEdit = (node: any) => {
+    const entity = flatList.find((e: GeographicEntityResponse) => e.id === node.id);
+    if (entity) {
+      setFormData({
+        name_fr: entity.name_fr,
+        name_en: entity.name_en || '',
+        name_ar: entity.name_ar || '',
+        level: entity.level,
+        parent_id: entity.parent_id || undefined,
+        code: entity.code || '',
+        latitude: entity.latitude || undefined,
+        longitude: entity.longitude || undefined
+      });
+      setModal({ isOpen: true, mode: 'edit', item: entity });
+    }
+  };
+
+  const handleNodeDelete = (node: any) => {
+    const entity = flatList.find((e: GeographicEntityResponse) => e.id === node.id);
+    if (entity) {
+      setModal({ isOpen: true, mode: 'delete', item: entity });
+    }
+  };
+
+  const getNextLevel = (currentLevel: GeographicLevel): GeographicLevel => {
+    switch (currentLevel) {
+      case GeographicLevel.COUNTRY: return GeographicLevel.REGION;
+      case GeographicLevel.REGION: return GeographicLevel.PROVINCE;
+      case GeographicLevel.PROVINCE: return GeographicLevel.CITY;
+      default: return GeographicLevel.CITY;
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       name_fr: '',
@@ -658,7 +714,12 @@ export default function AdminGeographicEntitiesPage() {
                 searchable 
                 showCounts 
                 showIcons 
-                maxHeight="500px" 
+                maxHeight="500px"
+                showContextMenu={true}
+                onNodeView={handleNodeView}
+                onNodeAdd={handleNodeAdd}
+                onNodeEdit={handleNodeEdit}
+                onNodeDelete={handleNodeDelete}
               />
             </div>
           ) : (

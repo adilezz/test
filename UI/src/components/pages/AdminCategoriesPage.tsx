@@ -234,6 +234,51 @@ export default function AdminCategoriesPage() {
     }
   };
 
+  // Context Menu Handlers
+  const handleNodeView = (node: any) => {
+    const category = flatList.find((c: CategoryResponse) => c.id === node.id);
+    if (category) {
+      setModal({ isOpen: true, mode: 'view', item: category });
+    }
+  };
+
+  const handleNodeAdd = (node: any) => {
+    // Add a new category under this parent category
+    setFormData({
+      name_fr: '',
+      name_en: '',
+      name_ar: '',
+      code: '',
+      description: '',
+      parent_id: node.id === 'root' ? undefined : node.id,
+      level: node.id === 'root' ? 1 : (node.level + 1)
+    });
+    setModal({ isOpen: true, mode: 'create' });
+  };
+
+  const handleNodeEdit = (node: any) => {
+    const category = flatList.find((c: CategoryResponse) => c.id === node.id);
+    if (category) {
+      setFormData({
+        name_fr: category.name_fr,
+        name_en: category.name_en || '',
+        name_ar: category.name_ar || '',
+        code: category.code,
+        description: category.description || '',
+        parent_id: category.parent_id || undefined,
+        level: category.level
+      });
+      setModal({ isOpen: true, mode: 'edit', item: category });
+    }
+  };
+
+  const handleNodeDelete = (node: any) => {
+    const category = flatList.find((c: CategoryResponse) => c.id === node.id);
+    if (category) {
+      setModal({ isOpen: true, mode: 'delete', item: category });
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       code: '',
@@ -618,7 +663,12 @@ export default function AdminCategoriesPage() {
                 searchable 
                 showCounts 
                 showIcons 
-                maxHeight="500px" 
+                maxHeight="500px"
+                showContextMenu={true}
+                onNodeView={handleNodeView}
+                onNodeAdd={handleNodeAdd}
+                onNodeEdit={handleNodeEdit}
+                onNodeDelete={handleNodeDelete}
               />
             </div>
           ) : (
