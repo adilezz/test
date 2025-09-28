@@ -619,6 +619,40 @@ export default function AdminCategoriesPage() {
                 showCounts 
                 showIcons 
                 maxHeight="500px" 
+                showContextMenu={true}
+                onNodeView={(node) => {
+                  // Find the corresponding category data
+                  const category = flatList.find(c => c.name_fr === node.label);
+                  if (category) {
+                    openModal('view', category);
+                  }
+                }}
+                onNodeAdd={(node) => {
+                  // Find the corresponding category data to use as parent
+                  const parentCategory = flatList.find(c => c.name_fr === node.label);
+                  if (parentCategory) {
+                    const parentTreeNode = {
+                      id: parentCategory.id,
+                      name_fr: parentCategory.name_fr,
+                      level: parentCategory.level
+                    };
+                    openModal('create', undefined, parentTreeNode);
+                  }
+                }}
+                onNodeEdit={(node) => {
+                  // Find the corresponding category data
+                  const category = flatList.find(c => c.name_fr === node.label);
+                  if (category) {
+                    openModal('edit', category);
+                  }
+                }}
+                onNodeDelete={(node) => {
+                  // Find the corresponding category data
+                  const category = flatList.find(c => c.name_fr === node.label);
+                  if (category && confirm(`Êtes-vous sûr de vouloir supprimer "${node.label}" ?`)) {
+                    handleDelete(category.id);
+                  }
+                }}
               />
             </div>
           ) : (

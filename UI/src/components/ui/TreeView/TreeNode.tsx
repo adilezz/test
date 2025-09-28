@@ -12,7 +12,7 @@ import {
   Check,
   Minus
 } from 'lucide-react';
-import { TreeNode as TreeNodeType } from '../../../types/tree';
+import { TreeNode as TreeNodeType, TreeContextMenuAction } from '../../../types/tree';
 
 interface TreeNodeProps {
   node: TreeNodeType;
@@ -28,6 +28,10 @@ interface TreeNodeProps {
   showIcons: boolean;
   multiSelect: boolean;
   searchQuery?: string;
+  // Context Menu Props
+  showContextMenu?: boolean;
+  contextMenuActions?: TreeContextMenuAction[];
+  onContextMenu?: (node: TreeNodeType, position: { x: number; y: number }) => void;
 }
 
 const getNodeIcon = (type: TreeNodeType['type']) => {
@@ -60,7 +64,10 @@ const TreeNode: React.FC<TreeNodeProps> = memo(({
   showCounts,
   showIcons,
   multiSelect,
-  searchQuery
+  searchQuery,
+  showContextMenu,
+  contextMenuActions,
+  onContextMenu
 }) => {
   const IconComponent = getNodeIcon(node.type);
   const indentation = level * 20;
@@ -84,6 +91,20 @@ const TreeNode: React.FC<TreeNodeProps> = memo(({
     onToggleSelected(node.id, isMultiSelect);
   }, [node.id, onToggleSelected, multiSelect]);
 
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    if (!showContextMenu || !onContextMenu || !contextMenuActions?.length) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const position = {
+      x: e.clientX,
+      y: e.clientY
+    };
+    
+    onContextMenu(node, position);
+  }, [showContextMenu, onContextMenu, contextMenuActions, node]);
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     switch (e.key) {
       case 'Enter':
@@ -103,8 +124,40 @@ const TreeNode: React.FC<TreeNodeProps> = memo(({
           handleExpandClick(e as any);
         }
         break;
+      case 'F10':
+        if (e.shiftKey && showContextMenu && onContextMenu && contextMenuActions?.length) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Get the element's position for context menu positioning
+          const element = e.currentTarget as HTMLElement;
+          const rect = element.getBoundingClientRect();
+          const position = {
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2
+          };
+          
+          onContextMenu(node, position);
+        }
+        break;
+      case 'ContextMenu':
+        if (showContextMenu && onContextMenu && contextMenuActions?.length) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Get the element's position for context menu positioning
+          const element = e.currentTarget as HTMLElement;
+          const rect = element.getBoundingClientRect();
+          const position = {
+            x: rect.right - 10,
+            y: rect.top + rect.height / 2
+          };
+          
+          onContextMenu(node, position);
+        }
+        break;
     }
-  }, [handleNodeClick, handleExpandClick, hasChildren, isExpanded]);
+  }, [handleNodeClick, handleExpandClick, hasChildren, isExpanded, showContextMenu, onContextMenu, contextMenuActions, node]);
 
   const highlightText = (text: string, query?: string) => {
     if (!query) return text;
@@ -147,6 +200,7 @@ const TreeNode: React.FC<TreeNodeProps> = memo(({
         `}
         style={{ paddingLeft: `${indentation + 8}px` }}
         onClick={handleNodeClick}
+        onContextMenu={handleContextMenu}
         onKeyDown={handleKeyDown}
         tabIndex={0}
         role="treeitem"
@@ -252,6 +306,9 @@ const TreeNode: React.FC<TreeNodeProps> = memo(({
                 showIcons={showIcons}
                 multiSelect={multiSelect}
                 searchQuery={searchQuery}
+                showContextMenu={showContextMenu}
+                contextMenuActions={contextMenuActions}
+                onContextMenu={onContextMenu}
               />
             ))}
           </motion.div>

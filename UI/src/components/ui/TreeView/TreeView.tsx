@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, ChevronUp, ChevronDown, MoreHorizontal, Check, Square } from 'lucide-react';
+import { Search, X, ChevronUp, ChevronDown, MoreHorizontal, Check, Square, Eye, Plus, Edit, Trash2 } from 'lucide-react';
 import { FixedSizeList as List } from 'react-window';
 import Fuse from 'fuse.js';
-import { TreeNode as TreeNodeType, TreeViewProps } from '../../../types/tree';
+import { TreeNode as TreeNodeType, TreeViewProps, TreeContextMenuAction } from '../../../types/tree';
 import TreeNode from './TreeNode';
+import TreeContextMenu from './TreeContextMenu';
 
 const TreeView: React.FC<TreeViewProps> = ({
   nodes,
@@ -22,13 +23,24 @@ const TreeView: React.FC<TreeViewProps> = ({
   expandedNodeIds = new Set(),
   selectedNodeIds = new Set(),
   loadingNodeIds = new Set(),
-  onLazyLoad
+  onLazyLoad,
+  // Context Menu Props
+  showContextMenu = false,
+  onNodeView,
+  onNodeAdd,
+  onNodeEdit,
+  onNodeDelete,
+  contextMenuActions
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(expandedNodeIds);
   const [selectedNodes, setSelectedNodes] = useState<Set<string>>(selectedNodeIds);
   const [loadingNodes, setLoadingNodes] = useState<Set<string>>(loadingNodeIds);
   const [showActions, setShowActions] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{
+    node: TreeNodeType;
+    position: { x: number; y: number };
+  } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const treeContainerRef = useRef<HTMLDivElement>(null);
 
@@ -206,6 +218,79 @@ const TreeView: React.FC<TreeViewProps> = ({
     setSelectedNodes(new Set());
   }, []);
 
+  // Context Menu Handlers
+  const handleContextMenu = useCallback((node: TreeNodeType, position: { x: number; y: number }) => {
+    if (!showContextMenu) return;
+    setContextMenu({ node, position });
+  }, [showContextMenu]);
+
+  const handleContextMenuClose = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
+  const handleContextMenuAction = useCallback((actionKey: string, node: TreeNodeType) => {
+    switch (actionKey) {
+      case 'view':
+        onNodeView?.(node);
+        break;
+      case 'add':
+        onNodeAdd?.(node);
+        break;
+      case 'edit':
+        onNodeEdit?.(node);
+        break;
+      case 'delete':
+        onNodeDelete?.(node);
+        break;
+      default:
+        // Handle custom actions if provided
+        break;
+    }
+    setContextMenu(null);
+  }, [onNodeView, onNodeAdd, onNodeEdit, onNodeDelete]);
+
+  // Default context menu actions
+  const defaultContextMenuActions: TreeContextMenuAction[] = useMemo(() => {
+    const actions: TreeContextMenuAction[] = [];
+    
+    if (onNodeView) {
+      actions.push({
+        key: 'view',
+        label: 'Voir les détails',
+        icon: Eye
+      });
+    }
+    
+    if (onNodeAdd) {
+      actions.push({
+        key: 'add',
+        label: 'Ajouter un élément',
+        icon: Plus
+      });
+    }
+    
+    if (onNodeEdit) {
+      actions.push({
+        key: 'edit',
+        label: 'Modifier',
+        icon: Edit
+      });
+    }
+    
+    if (onNodeDelete) {
+      actions.push({
+        key: 'delete',
+        label: 'Supprimer',
+        icon: Trash2,
+        divider: true
+      });
+    }
+    
+    return actions;
+  }, [onNodeView, onNodeAdd, onNodeEdit, onNodeDelete]);
+
+  const effectiveContextMenuActions = contextMenuActions || defaultContextMenuActions;
+
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -250,6 +335,9 @@ const TreeView: React.FC<TreeViewProps> = ({
           showIcons={showIcons}
           multiSelect={multiSelect}
           searchQuery={searchQuery}
+          showContextMenu={showContextMenu}
+          contextMenuActions={effectiveContextMenuActions}
+          onContextMenu={handleContextMenu}
         />
       </div>
     );
@@ -387,11 +475,25 @@ const TreeView: React.FC<TreeViewProps> = ({
                 showIcons={showIcons}
                 multiSelect={multiSelect}
                 searchQuery={searchQuery}
+                showContextMenu={showContextMenu}
+                contextMenuActions={effectiveContextMenuActions}
+                onContextMenu={handleContextMenu}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <TreeContextMenu
+          node={contextMenu.node}
+          position={contextMenu.position}
+          actions={effectiveContextMenuActions}
+          onAction={handleContextMenuAction}
+          onClose={handleContextMenuClose}
+        />
+      )}
     </div>
   );
 };

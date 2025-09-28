@@ -698,7 +698,42 @@ export default function AdminUniversitiesPage() {
                 Structure Hiérarchique
               </h2>
               {treeData.length > 0 ? (
-                <TreeView nodes={treeData} searchable showCounts showIcons maxHeight="500px" />
+                <TreeView 
+                  nodes={treeData} 
+                  searchable 
+                  showCounts 
+                  showIcons 
+                  maxHeight="500px" 
+                  showContextMenu={true}
+                  onNodeView={(node) => {
+                    // Find the corresponding university data
+                    const university = flatList.find(u => u.name_fr === node.label);
+                    if (university) {
+                      openModal('view', university);
+                    }
+                  }}
+                  onNodeAdd={(node) => {
+                    // For universities, add a new faculty or school
+                    if (node.type === 'university') {
+                      // Navigate to faculties page with university pre-selected
+                      console.log('Add faculty to university:', node.label);
+                    }
+                  }}
+                  onNodeEdit={(node) => {
+                    // Find the corresponding university data
+                    const university = flatList.find(u => u.name_fr === node.label);
+                    if (university) {
+                      openModal('edit', university);
+                    }
+                  }}
+                  onNodeDelete={(node) => {
+                    // Find the corresponding university data
+                    const university = flatList.find(u => u.name_fr === node.label);
+                    if (university && confirm(`Êtes-vous sûr de vouloir supprimer "${node.label}" ?`)) {
+                      handleDelete(university.id);
+                    }
+                  }}
+                />
               ) : (
                 <div className="flex items-center justify-center h-64 text-gray-500">
                   <div className="text-center">

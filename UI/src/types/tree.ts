@@ -22,6 +22,22 @@ export interface TreeNode {
   };
 }
 
+export interface TreeContextMenuAction {
+  key: string;
+  label: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  disabled?: boolean;
+  divider?: boolean;
+}
+
+export interface TreeContextMenuProps {
+  node: TreeNode;
+  position: { x: number; y: number };
+  actions: TreeContextMenuAction[];
+  onAction: (actionKey: string, node: TreeNode) => void;
+  onClose: () => void;
+}
+
 export interface TreeViewProps {
   nodes: TreeNode[];
   onNodeSelect?: (node: TreeNode, isMultiSelect?: boolean) => void;
@@ -39,6 +55,13 @@ export interface TreeViewProps {
   selectedNodeIds?: Set<string>;
   loadingNodeIds?: Set<string>;
   onLazyLoad?: (node: TreeNode) => Promise<TreeNode[]>;
+  // Context Menu Props
+  showContextMenu?: boolean;
+  onNodeView?: (node: TreeNode) => void;
+  onNodeAdd?: (node: TreeNode) => void;
+  onNodeEdit?: (node: TreeNode) => void;
+  onNodeDelete?: (node: TreeNode) => void;
+  contextMenuActions?: TreeContextMenuAction[];
 }
 
 export interface TreeContextType {
