@@ -16,6 +16,7 @@ export function mapApiTreeToUiNodes(
 		label_en: node.name_en,
 		count: node.thesis_count || 0,
 		type: typeResolver(level, node, parent),
+		level,
 		children: Array.isArray(node.children)
 			? node.children.map((child) => build(child, level + 1, node))
 			: undefined
