@@ -9,8 +9,6 @@ import {
   Globe,
   ChevronDown,
   ChevronRight,
-  Folder,
-  FolderOpen,
   X,
   Check,
   AlertCircle,
@@ -21,6 +19,11 @@ import {
 } from 'lucide-react';
 import { apiService } from '../../services/api';
 import AdminHeader from '../layout/AdminHeader';
+import TreeView from '../ui/TreeView/TreeView';
+import { 
+  mapApiTreeToUiNodes, 
+  geographicHierarchyResolver 
+} from '../../utils/treeMappers';
 import { 
   GeographicEntityResponse, 
   TreeNodeData,
@@ -54,6 +57,7 @@ interface ModalState {
 
 export default function AdminGeographicEntitiesPage() {
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
+  const [treeNodes, setTreeNodes] = useState<any[]>([]);
   const [flatList, setFlatList] = useState<GeographicEntityResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
@@ -113,6 +117,8 @@ export default function AdminGeographicEntitiesPage() {
           stop_level: stopLevel,
           include_counts: true
         });
+        const nodes = mapApiTreeToUiNodes(treeResponse, geographicHierarchyResolver);
+        setTreeNodes(nodes);
         setTreeData(transformToTreeNodesFromNested(treeResponse));
       } else {
         const params: Record<string, string | number> = {};
@@ -164,43 +170,7 @@ export default function AdminGeographicEntitiesPage() {
     return data.map(n => build(n, 0));
   };
 
-  const filterTreeData = (nodes: TreeNode[], searchTerm: string): TreeNode[] => {
-    if (!searchTerm.trim()) return nodes;
-    
-    return nodes.filter(node => {
-      const matchesSearch = node.name_fr.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           (node.name_en && node.name_en.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                           (node.code && node.code.toLowerCase().includes(searchTerm.toLowerCase()));
-      
-      const hasMatchingChildren = node.children && filterTreeData(node.children, searchTerm).length > 0;
-      
-      if (matchesSearch || hasMatchingChildren) {
-        return {
-          ...node,
-          children: node.children ? filterTreeData(node.children, searchTerm) : undefined,
-          expanded: hasMatchingChildren ? true : node.expanded
-        };
-      }
-      
-      return false;
-    }).map(node => node as TreeNode);
-  };
 
-  const toggleNode = (nodeId: string) => {
-    const updateNode = (nodes: TreeNode[]): TreeNode[] => {
-      return nodes.map(node => {
-        if (node.id === nodeId) {
-          return { ...node, expanded: !node.expanded };
-        }
-        if (node.children) {
-          return { ...node, children: updateNode(node.children) };
-        }
-        return node;
-      });
-    };
-
-    setTreeData(updateNode(treeData));
-  };
 
   const handleCreate = async () => {
     try {
@@ -331,128 +301,6 @@ export default function AdminGeographicEntitiesPage() {
     }
   };
 
-  const renderTreeNode = (node: TreeNode, depth: number = 0) => {
-    const hasChildren = node.children && node.children.length > 0;
-    const isExpanded = node.expanded;
-
-    return (
-      <div key={node.id} className="select-none">
-        <div
-          className="flex items-center space-x-2 py-2 px-3 hover:bg-gray-50 rounded-lg group"
-          style={{ marginLeft: `${depth * 20}px` }}
-        >
-          {hasChildren ? (
-            <button
-              onClick={() => toggleNode(node.id)}
-              className="p-1 hover:bg-gray-200 rounded"
-            >
-              {isExpanded ? (
-                <ChevronDown className="w-4 h-4 text-gray-600" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-gray-600" />
-              )}
-            </button>
-          ) : (
-            <div className="w-6 h-6" />
-          )}
-
-          <div className="flex items-center space-x-2 flex-1">
-            {hasChildren ? (
-              isExpanded ? (
-                <FolderOpen className="w-4 h-4 text-blue-600" />
-              ) : (
-                <Folder className="w-4 h-4 text-blue-600" />
-              )
-            ) : (
-              <MapPin className="w-4 h-4 text-gray-500" />
-            )}
-            
-            <div className="flex-1">
-              <div className="flex items-center space-x-2">
-                <span className="font-medium text-gray-900">{node.name_fr}</span>
-                <span className={`text-xs px-2 py-1 rounded-full ${getLevelColor(node.level)}`}>
-                  {getLevelLabel(node.level)}
-                </span>
-                {node.code && (
-                  <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
-                    {node.code}
-                  </span>
-                )}
-              </div>
-              
-              {(node.name_en || node.name_ar) && (
-                <div className="text-sm text-gray-600">
-                  {node.name_en && <span>{node.name_en}</span>}
-                  {node.name_en && node.name_ar && <span> • </span>}
-                  {node.name_ar && <span>{node.name_ar}</span>}
-                </div>
-              )}
-              
-              {(node.latitude && node.longitude) && (
-                <div className="text-sm text-gray-500">
-                  📍 {node.latitude.toFixed(4)}, {node.longitude.toFixed(4)}
-                </div>
-              )}
-            </div>
-
-            {node.thesis_count !== undefined && node.thesis_count > 0 && (
-              <span className="text-sm bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                {node.thesis_count} thèses
-              </span>
-            )}
-
-            <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openModal('create', undefined, node);
-                }}
-                className="p-1 text-gray-400 hover:text-green-600"
-                title="Ajouter une sous-entité"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openModal('view', node as any);
-                }}
-                className="p-1 text-gray-400 hover:text-gray-600"
-              >
-                <Eye className="w-4 h-4" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openModal('edit', node as any);
-                }}
-                className="p-1 text-gray-400 hover:text-blue-600"
-              >
-                <Edit className="w-4 h-4" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (confirm('Êtes-vous sûr de vouloir supprimer cette entité géographique ?')) {
-                    handleDelete(node.id);
-                  }
-                }}
-                className="p-1 text-gray-400 hover:text-red-600"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {hasChildren && isExpanded && (
-          <div>
-            {node.children!.map((child) => renderTreeNode(child, depth + 1))}
-          </div>
-        )}
-      </div>
-    );
-  };
 
   const renderModal = () => {
     if (!modal.isOpen) return null;
@@ -805,16 +653,13 @@ export default function AdminGeographicEntitiesPage() {
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 Structure Hiérarchique des Entités Géographiques
               </h2>
-              <div className="space-y-1">
-                {filterTreeData(treeData, searchTerm).length > 0 ? (
-                  filterTreeData(treeData, searchTerm).map((node) => renderTreeNode(node))
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <Globe className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>Aucune entité géographique trouvée</p>
-                  </div>
-                )}
-              </div>
+              <TreeView 
+                nodes={treeNodes} 
+                searchable 
+                showCounts 
+                showIcons 
+                maxHeight="500px" 
+              />
             </div>
           ) : (
             <div className="overflow-x-auto">

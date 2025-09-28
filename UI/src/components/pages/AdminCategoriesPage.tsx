@@ -9,8 +9,6 @@ import {
   Tags,
   ChevronDown,
   ChevronRight,
-  Folder,
-  FolderOpen,
   X,
   Check,
   AlertCircle,
@@ -20,6 +18,11 @@ import {
 } from 'lucide-react';
 import { apiService } from '../../services/api';
 import AdminHeader from '../layout/AdminHeader';
+import TreeView from '../ui/TreeView/TreeView';
+import { 
+  mapApiTreeToUiNodes, 
+  categoriesHierarchyResolver 
+} from '../../utils/treeMappers';
 import { 
   CategoryResponse, 
   TreeNodeData,
@@ -51,6 +54,7 @@ interface ModalState {
 
 export default function AdminCategoriesPage() {
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
+  const [treeNodes, setTreeNodes] = useState<any[]>([]);
   const [flatList, setFlatList] = useState<CategoryResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
@@ -92,6 +96,8 @@ export default function AdminCategoriesPage() {
           stop_level: stopLevel,
           include_counts: true
         });
+        const nodes = mapApiTreeToUiNodes(treeResponse, categoriesHierarchyResolver);
+        setTreeNodes(nodes);
         setTreeData(transformToTreeNodesFromNested(treeResponse));
       } else {
         const allCategories = await apiService.getAllCategories();
@@ -184,54 +190,11 @@ export default function AdminCategoriesPage() {
     );
   });
 
-  // Filter tree data for search
-  const filterTreeData = (nodes: TreeNode[], searchTerm: string): TreeNode[] => {
-    if (!searchTerm.trim()) return nodes;
-    
-    const lowerSearch = searchTerm.toLowerCase();
-    
-    return nodes.filter(node => {
-      const matchesNode = 
-        node.name_fr.toLowerCase().includes(lowerSearch) ||
-        node.code?.toLowerCase().includes(lowerSearch) ||
-        node.name_en?.toLowerCase().includes(lowerSearch) ||
-        node.name_ar?.toLowerCase().includes(lowerSearch) ||
-        node.description?.toLowerCase().includes(lowerSearch);
-      
-      const hasMatchingChildren = node.children && 
-        filterTreeData(node.children, searchTerm).length > 0;
-      
-      if (matchesNode || hasMatchingChildren) {
-        return {
-          ...node,
-          children: node.children ? filterTreeData(node.children, searchTerm) : undefined,
-          expanded: hasMatchingChildren ? true : node.expanded
-        };
-      }
-      
-      return false;
-    }).map(node => typeof node === 'object' ? node : nodes.find(n => n === node)!);
-  };
 
   const displayedCategories = viewMode === 'list' && !showAllCategories 
     ? filteredCategories.slice(0, 50) 
     : filteredCategories;
 
-  const toggleNode = (nodeId: string) => {
-    const updateNode = (nodes: TreeNode[]): TreeNode[] => {
-      return nodes.map(node => {
-        if (node.id === nodeId) {
-          return { ...node, expanded: !node.expanded };
-        }
-        if (node.children) {
-          return { ...node, children: updateNode(node.children) };
-        }
-        return node;
-      });
-    };
-
-    setTreeData(updateNode(treeData));
-  };
 
   const handleCreate = async () => {
     try {
@@ -323,123 +286,6 @@ export default function AdminCategoriesPage() {
     return colors[level] || 'text-gray-600 bg-gray-100';
   };
 
-  const renderTreeNode = (node: TreeNode, depth: number = 0) => {
-    const hasChildren = node.children && node.children.length > 0;
-    const isExpanded = node.expanded;
-
-    return (
-      <div key={node.id} className="select-none">
-        <div
-          className="flex items-center space-x-2 py-2 px-3 hover:bg-gray-50 rounded-lg group"
-          style={{ marginLeft: `${depth * 20}px` }}
-        >
-          {hasChildren ? (
-            <button
-              onClick={() => toggleNode(node.id)}
-              className="p-1 hover:bg-gray-200 rounded"
-            >
-              {isExpanded ? (
-                <ChevronDown className="w-4 h-4 text-gray-600" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-gray-600" />
-              )}
-            </button>
-          ) : (
-            <div className="w-6 h-6" />
-          )}
-
-          <div className="flex items-center space-x-2 flex-1">
-            {hasChildren ? (
-              isExpanded ? (
-                <FolderOpen className="w-4 h-4 text-blue-600" />
-              ) : (
-                <Folder className="w-4 h-4 text-blue-600" />
-              )
-            ) : (
-              <Tags className="w-4 h-4 text-gray-500" />
-            )}
-            
-            <div className="flex-1">
-              <div className="flex items-center space-x-2">
-                <span className="font-medium text-gray-900">{node.name_fr}</span>
-                <span className={`text-xs px-2 py-1 rounded-full ${getLevelColor(node.level)}`}>
-                  {getLevelLabel(node.level)}
-                </span>
-              </div>
-              
-              {(node.name_en || node.name_ar) && (
-                <div className="text-sm text-gray-600">
-                  {node.name_en && <span>{node.name_en}</span>}
-                  {node.name_en && node.name_ar && <span> • </span>}
-                  {node.name_ar && <span>{node.name_ar}</span>}
-                </div>
-              )}
-              
-              {node.description && (
-                <div className="text-sm text-gray-500 truncate max-w-md">
-                  {node.description}
-                </div>
-              )}
-            </div>
-
-            {node.thesis_count !== undefined && node.thesis_count > 0 && (
-              <span className="text-sm bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                {node.thesis_count} thèses
-              </span>
-            )}
-
-            <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openModal('create', undefined, node);
-                }}
-                className="p-1 text-gray-400 hover:text-green-600"
-                title="Ajouter une sous-catégorie"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openModal('view', node as any);
-                }}
-                className="p-1 text-gray-400 hover:text-gray-600"
-              >
-                <Eye className="w-4 h-4" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openModal('edit', node as any);
-                }}
-                className="p-1 text-gray-400 hover:text-blue-600"
-              >
-                <Edit className="w-4 h-4" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (confirm('Êtes-vous sûr de vouloir supprimer cette catégorie ?')) {
-                    handleDelete(node.id);
-                  }
-                }}
-                className="p-1 text-gray-400 hover:text-red-600"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {hasChildren && isExpanded && (
-          <div>
-            {node.children!.map((child) => renderTreeNode(child, depth + 1))}
-          </div>
-        )}
-      </div>
-    );
-  };
 
   const renderModal = () => {
     if (!modal.isOpen) return null;
@@ -767,19 +613,13 @@ export default function AdminCategoriesPage() {
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 Structure Hiérarchique des Catégories
               </h2>
-              <div className="space-y-1">
-                {filterTreeData(treeData, searchTerm).length > 0 ? (
-                  filterTreeData(treeData, searchTerm).map((node) => renderTreeNode(node))
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <Tags className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p className="text-lg font-medium">Aucune catégorie trouvée</p>
-                    <p className="text-sm">
-                      {searchTerm ? 'Aucun résultat pour votre recherche' : 'Aucune donnée disponible'}
-                    </p>
-                  </div>
-                )}
-              </div>
+              <TreeView 
+                nodes={treeNodes} 
+                searchable 
+                showCounts 
+                showIcons 
+                maxHeight="500px" 
+              />
             </div>
           ) : (
             <div className="overflow-x-auto">
