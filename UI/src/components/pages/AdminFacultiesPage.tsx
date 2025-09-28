@@ -22,6 +22,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { apiService } from '../../services/api';
 import TreeView from '../ui/TreeView/TreeView';
 import { TreeNode as UITreeNode } from '../../types/tree';
+import { mapApiTreeToUiNodes, universitiesHierarchyResolver, schoolsHierarchyResolver } from '../../utils/treeMappers';
 import AdminHeader from '../layout/AdminHeader';
 import { 
   UniversityResponse, 
@@ -32,18 +33,7 @@ import {
   FacultyUpdate
 } from '../../types/api';
 
-interface TreeNode {
-  id: string;
-  name_fr: string;
-  name_en?: string;
-  name_ar?: string;
-  acronym?: string;
-  type: 'university' | 'faculty' | 'department';
-  children?: TreeNode[];
-  thesis_count?: number;
-  expanded?: boolean;
-  parent_id?: string;
-}
+//
 
 interface ModalState {
   isOpen: boolean;
@@ -54,7 +44,7 @@ interface ModalState {
 export default function AdminFacultiesPage() {
   const [searchParams] = useSearchParams();
   const [faculties, setFaculties] = useState<FacultyResponse[]>([]);
-  const [treeData, setTreeData] = useState<TreeNode[]>([]);
+  const [treeData, setTreeData] = useState<UITreeNode[]>([]);
   const [universities, setUniversities] = useState<UniversityResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('list');
@@ -120,27 +110,7 @@ export default function AdminFacultiesPage() {
     }
   };
 
-  const filterTreeData = (nodes: TreeNode[], searchTerm: string): TreeNode[] => {
-    if (!searchTerm.trim()) return nodes;
-    
-    return nodes.filter(node => {
-      const matchesSearch = node.name_fr.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           (node.name_en && node.name_en.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                           (node.acronym && node.acronym.toLowerCase().includes(searchTerm.toLowerCase()));
-      
-      const hasMatchingChildren = node.children && filterTreeData(node.children, searchTerm).length > 0;
-      
-      if (matchesSearch || hasMatchingChildren) {
-        return {
-          ...node,
-          children: node.children ? filterTreeData(node.children, searchTerm) : undefined,
-          expanded: hasMatchingChildren ? true : node.expanded
-        };
-      }
-      
-      return false;
-    }).map(node => node as TreeNode);
-  };
+  //
 
   const loadData = async () => {
     setLoading(true);
@@ -154,7 +124,7 @@ export default function AdminFacultiesPage() {
           stop_level: 'department',
           include_counts: true
         });
-        setTreeData(transformToTreeNodes(treeResponse));
+        setTreeData(mapApiTreeToUiNodes(treeResponse as any, universitiesHierarchyResolver));
       } else {
         // Load list data
         const params: Record<string, string | number> = {
@@ -278,190 +248,16 @@ export default function AdminFacultiesPage() {
     }
   };
 
-  const transformToTreeNodes = (data: any[]): TreeNode[] => {
-    const mapUniversity = (u: any): TreeNode => ({
-      id: u.id,
-      name_fr: u.name_fr,
-      name_en: u.name_en,
-      name_ar: u.name_ar,
-      acronym: u.acronym,
-      type: 'university',
-      thesis_count: u.thesis_count,
-      expanded: false,
-      children: (u.faculties || []).map(mapFaculty)
-    });
-    const mapFaculty = (f: any): TreeNode => ({
-      id: f.id,
-      name_fr: f.name_fr,
-      name_en: f.name_en,
-      name_ar: f.name_ar,
-      acronym: f.acronym,
-      type: 'faculty',
-      parent_id: f.parent_id,
-      thesis_count: f.thesis_count,
-      expanded: false,
-      children: (f.departments || []).map(mapDepartment)
-    });
-    const mapDepartment = (d: any): TreeNode => ({
-      id: d.id,
-      name_fr: d.name_fr,
-      name_en: d.name_en,
-      name_ar: d.name_ar,
-      acronym: d.acronym,
-      type: 'department',
-      parent_id: d.parent_id,
-      thesis_count: d.thesis_count
-    });
-    return data.map((node: any) => {
-      if (node.type === 'university') return mapUniversity(node);
-      if (node.type === 'faculty') return mapFaculty(node);
-      return mapDepartment(node);
-    });
-  };
+  //
 
   const getUniversityName = (universityId: string) => {
     const university = universities.find(u => u.id === universityId);
     return university?.name_fr || 'Université inconnue';
   };
 
-  const toggleNode = (nodeId: string, path: number[] = []) => {
-    setTreeData(prev => {
-      const newData = [...prev];
-      let current = newData;
-      
-      for (let i = 0; i < path.length; i++) {
-        current = current[path[i]].children!;
-      }
-      
-      const nodeIndex = current.findIndex(node => node.id === nodeId);
-      if (nodeIndex !== -1) {
-        current[nodeIndex] = {
-          ...current[nodeIndex],
-          expanded: !current[nodeIndex].expanded
-        };
-      }
-      
-      return newData;
-    });
-  };
+  //
 
-  const renderTreeNode = (node: TreeNode, path: number[] = [], depth: number = 0) => {
-    const hasChildren = node.children && node.children.length > 0;
-    const isExpanded = node.expanded;
-
-    return (
-      <div key={node.id} className="select-none">
-        <div
-          className="flex items-center space-x-2 py-2 px-3 hover:bg-gray-50 rounded-lg group"
-          style={{ marginLeft: `${depth * 20}px` }}
-        >
-          {hasChildren ? (
-            <button
-              onClick={() => toggleNode(node.id, path)}
-              className="p-1 hover:bg-gray-200 rounded"
-            >
-              {isExpanded ? (
-                <ChevronDown className="w-4 h-4 text-gray-600" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-gray-600" />
-              )}
-            </button>
-          ) : (
-            <div className="w-6 h-6" />
-          )}
-
-          <div className="flex items-center space-x-2 flex-1">
-            {node.type === 'university' && <Building2 className="w-4 h-4 text-blue-600" />}
-            {node.type === 'faculty' && <GraduationCap className="w-4 h-4 text-green-600" />}
-            {node.type === 'department' && <Users className="w-4 h-4 text-purple-600" />}
-            
-            <div className="flex-1">
-              <div className="flex items-center space-x-2">
-                <span className="font-medium text-gray-900">{node.name_fr}</span>
-                {node.acronym && (
-                  <span className="text-sm text-gray-500">({node.acronym})</span>
-                )}
-              </div>
-              {(node.name_en || node.name_ar) && (
-                <div className="text-sm text-gray-600">
-                  {node.name_en && <span>{node.name_en}</span>}
-                  {node.name_en && node.name_ar && <span> • </span>}
-                  {node.name_ar && <span>{node.name_ar}</span>}
-                </div>
-              )}
-            </div>
-
-            {node.thesis_count !== undefined && (
-              <span className="text-sm bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                {node.thesis_count} thèses
-              </span>
-            )}
-
-            {node.type === 'faculty' && (
-              <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openModal('view', node as any);
-                  }}
-                  className="p-1 text-gray-400 hover:text-gray-600"
-                  title="Voir les détails"
-                >
-                  <Eye className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openModal('edit', node as any);
-                  }}
-                  className="p-1 text-gray-400 hover:text-blue-600"
-                  title="Modifier"
-                >
-                  <Edit className="w-4 h-4" />
-                </button>
-                <Link
-                  to={`/admin/departments?faculty_id=${node.id}`}
-                  className="p-1 text-gray-400 hover:text-green-600"
-                  title="Gérer les départements"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Users className="w-4 h-4" />
-                </Link>
-                <Link
-                  to={`/admin/departments?faculty_id=${node.id}&action=create`}
-                  className="p-1 text-gray-400 hover:text-green-600"
-                  title="Ajouter un département"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Plus className="w-4 h-4" />
-                </Link>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (confirm('Êtes-vous sûr de vouloir supprimer cette faculté ?')) {
-                      handleDelete(node.id);
-                    }
-                  }}
-                  className="p-1 text-gray-400 hover:text-red-600"
-                  title="Supprimer"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {hasChildren && isExpanded && (
-          <div>
-            {node.children!.map((child, index) =>
-              renderTreeNode(child, [...path, index], depth + 1)
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
+  //
 
   const renderModal = () => {
     if (!modal.isOpen) return null;
@@ -866,17 +662,15 @@ export default function AdminFacultiesPage() {
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 Structure Hiérarchique des Facultés
               </h2>
-              <div className="space-y-1">
-                {filterTreeData(treeData, searchTerm).length > 0 ? (
-                  filterTreeData(treeData, searchTerm).map((node, index) => renderTreeNode(node, [index]))
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <GraduationCap className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p className="text-lg font-medium">Aucune faculté trouvée</p>
-                    <p className="text-sm">Aucune donnée disponible pour les critères sélectionnés</p>
-                  </div>
-                )}
-              </div>
+              {treeData.length > 0 ? (
+                <TreeView nodes={treeData} searchable showCounts showIcons maxHeight="500px" />
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <GraduationCap className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p className="text-lg font-medium">Aucune faculté trouvée</p>
+                  <p className="text-sm">Aucune donnée disponible pour les critères sélectionnés</p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
