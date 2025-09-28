@@ -18,7 +18,7 @@ import { apiService } from '../../services/api';
 import AdminHeader from '../layout/AdminHeader';
 import TreeView from '../ui/TreeView/TreeView';
 import { TreeNode as UITreeNode } from '../../types/tree';
-import { mapApiTreeToUiNodes } from '../../utils/treeMappers';
+import { mapApiTreeToUiNodes, keywordsHierarchyResolver } from '../../utils/treeMappers';
 import { 
   KeywordResponse,
   PaginatedResponse,
@@ -69,52 +69,65 @@ export default function AdminKeywordsPage() {
   };
 
   const buildTreeData = (keywords: KeywordResponse[]) => {
-    // Build hierarchical tree structure
+    // Build hierarchical tree structure from flat data
     const keywordMap = new Map<string, any>();
     const rootKeywords: any[] = [];
 
-    // First pass: create nodes
+    // First pass: create nodes with proper structure
     keywords.forEach(keyword => {
       const node = {
         id: keyword.id,
         label: keyword.keyword_fr,
         label_en: keyword.keyword_en,
         label_ar: keyword.keyword_ar,
-        type: 'keyword' as const,
+        type: keywordsHierarchyResolver(0), // Use standardized resolver
         level: 0,
         count: 0,
         children: [],
-        parent_id: keyword.parent_keyword_id,
-        category_id: keyword.category_id
+        parentId: keyword.parent_keyword_id,
+        metadata: {
+          category_id: keyword.category_id
+        }
       };
       keywordMap.set(keyword.id, node);
     });
 
-    // Second pass: build hierarchy
+    // Second pass: build hierarchy with proper level calculation
     keywords.forEach(keyword => {
       const node = keywordMap.get(keyword.id)!;
-      if (keyword.parent_keyword_id) {
-        const parent = keywordMap.get(keyword.parent_keyword_id);
+      if (node.parentId) {
+        const parent = keywordMap.get(node.parentId);
         if (parent) {
           parent.children!.push(node);
           node.level = parent.level + 1;
+          node.type = keywordsHierarchyResolver(node.level);
+        } else {
+          // Parent not found, treat as root
+          rootKeywords.push(node);
         }
       } else {
         rootKeywords.push(node);
       }
     });
 
-    // Convert to UITreeNode format
-    const treeNodes = rootKeywords.map(node => ({
+    // Recursive function to convert nodes to UITreeNode format (consistent with mapApiTreeToUiNodes)
+    const convertToUITreeNode = (node: any): UITreeNode => ({
       id: node.id,
       label: node.label,
       label_en: node.label_en,
       label_ar: node.label_ar,
-      type: 'keyword' as const,
+      type: node.type,
       level: node.level,
       count: node.count,
-      children: node.children.length > 0 ? node.children : undefined
-    }));
+      parentId: node.parentId,
+      metadata: node.metadata,
+      children: node.children && node.children.length > 0 
+        ? node.children.map(convertToUITreeNode) 
+        : undefined
+    });
+
+    // Convert to UITreeNode format with proper recursion
+    const treeNodes = rootKeywords.map(convertToUITreeNode);
 
     setTreeData(treeNodes);
   };
