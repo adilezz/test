@@ -423,14 +423,14 @@ export default function AdminAcademicPersonsPage() {
   };
 
   // Context Menu Handlers
-  const handleNodeView = (node: any) => {
+  const handleNodeView = (node: UITreeNode) => {
     const person = data.find((p: AcademicPersonResponse) => p.id === node.id);
     if (person) {
       setModal({ isOpen: true, mode: 'view', item: person });
     }
   };
 
-  const handleNodeAdd = (node: any) => {
+  const handleNodeAdd = (node: UITreeNode) => {
     // Add a new academic person under this institution
     setFormData({
       complete_name_fr: '',
@@ -450,7 +450,7 @@ export default function AdminAcademicPersonsPage() {
     setModal({ isOpen: true, mode: 'create' });
   };
 
-  const handleNodeEdit = (node: any) => {
+  const handleNodeEdit = (node: UITreeNode) => {
     const person = data.find((p: AcademicPersonResponse) => p.id === node.id);
     if (person) {
       setFormData({
@@ -472,7 +472,7 @@ export default function AdminAcademicPersonsPage() {
     }
   };
 
-  const handleNodeDelete = (node: any) => {
+  const handleNodeDelete = (node: UITreeNode) => {
     const person = data.find((p: AcademicPersonResponse) => p.id === node.id);
     if (person) {
       setModal({ isOpen: true, mode: 'delete', item: person });

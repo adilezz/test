@@ -46,7 +46,7 @@ interface ModalState {
 
 export default function AdminSchoolsPage() {
   const [treeData, setTreeData] = useState<UITreeNode[]>([]);
-  const [flatList, setFlatList] = useState<SchoolResponse[]>([]);
+  const [data, setData] = useState<SchoolResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
   const [startLevel, setStartLevel] = useState<'school' | 'department'>('school');
@@ -161,7 +161,7 @@ export default function AdminSchoolsPage() {
           params.limit = 20; // Show limited results initially
         }
         const listResponse = await apiService.adminList<PaginatedResponse>('schools', params);
-        setFlatList(listResponse.data || []);
+        setData(listResponse.data || []);
       }
     } catch (error) {
       console.error('Error loading schools:', error);
@@ -253,7 +253,7 @@ export default function AdminSchoolsPage() {
 
   // Context Menu Handlers
   const handleNodeView = (node: UITreeNode) => {
-    const school = flatList.find(s => s.id === node.id);
+    const school = data.find(s => s.id === node.id);
     if (school) {
       setModal({ isOpen: true, mode: 'view', item: school });
     }
@@ -273,7 +273,7 @@ export default function AdminSchoolsPage() {
   };
 
   const handleNodeEdit = (node: UITreeNode) => {
-    const school = flatList.find(s => s.id === node.id);
+    const school = data.find(s => s.id === node.id);
     if (school) {
       setFormData({
         name_fr: school.name_fr,
@@ -288,7 +288,7 @@ export default function AdminSchoolsPage() {
   };
 
   const handleNodeDelete = (node: UITreeNode) => {
-    const school = flatList.find(s => s.id === node.id);
+    const school = data.find(s => s.id === node.id);
     if (school) {
       setModal({ isOpen: true, mode: 'delete', item: school });
     }
@@ -717,7 +717,7 @@ export default function AdminSchoolsPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {flatList.map((school) => (
+                  {data.map((school) => (
                     <tr key={school.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
@@ -776,7 +776,7 @@ export default function AdminSchoolsPage() {
               </table>
 
               {/* Show All Button for List View */}
-              {viewMode === 'list' && !showAllSchools && flatList.length >= 20 && (
+              {viewMode === 'list' && !showAllSchools && data.length >= 20 && (
                 <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
                   <div className="text-center">
                     <button

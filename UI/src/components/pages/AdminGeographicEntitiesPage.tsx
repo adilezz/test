@@ -20,6 +20,7 @@ import {
 import { apiService } from '../../services/api';
 import AdminHeader from '../layout/AdminHeader';
 import TreeView from '../ui/TreeView/TreeView';
+import { TreeNode as UITreeNode } from '../../types/tree';
 import { 
   mapApiTreeToUiNodes, 
   geographicHierarchyResolver 
@@ -58,7 +59,7 @@ interface ModalState {
 export default function AdminGeographicEntitiesPage() {
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
   const [treeNodes, setTreeNodes] = useState<any[]>([]);
-  const [flatList, setFlatList] = useState<GeographicEntityResponse[]>([]);
+  const [data, setData] = useState<GeographicEntityResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
   const [startLevel, setStartLevel] = useState<'country' | 'region' | 'province' | 'city'>('country');
@@ -129,7 +130,7 @@ export default function AdminGeographicEntitiesPage() {
           params.limit = 20; // Show limited results initially
         }
         const listResponse = await apiService.adminList<PaginatedResponse>('geographic_entities', params);
-        setFlatList(listResponse.data);
+        setData(listResponse.data);
       }
     } catch (error) {
       console.error('Error loading geographic entities:', error);
@@ -217,20 +218,20 @@ export default function AdminGeographicEntitiesPage() {
   };
 
   // Context Menu Handlers
-  const handleNodeView = (node: any) => {
-    const entity = flatList.find((e: GeographicEntityResponse) => e.id === node.id);
+  const handleNodeView = (node: UITreeNode) => {
+    const entity = data.find((e: GeographicEntityResponse) => e.id === node.id);
     if (entity) {
       setModal({ isOpen: true, mode: 'view', item: entity });
     }
   };
 
-  const handleNodeAdd = (node: any) => {
+  const handleNodeAdd = (node: UITreeNode) => {
     // Add a new geographic entity under this parent
     setFormData({
       name_fr: '',
       name_en: '',
       name_ar: '',
-      level: node.id === 'root' ? GeographicLevel.COUNTRY : getNextLevel(node.level),
+      level: node.id === 'root' ? GeographicLevel.COUNTRY : getNextLevel(GeographicLevel.COUNTRY),
       parent_id: node.id === 'root' ? undefined : node.id,
       code: '',
       latitude: undefined,
@@ -239,8 +240,8 @@ export default function AdminGeographicEntitiesPage() {
     setModal({ isOpen: true, mode: 'create' });
   };
 
-  const handleNodeEdit = (node: any) => {
-    const entity = flatList.find((e: GeographicEntityResponse) => e.id === node.id);
+  const handleNodeEdit = (node: UITreeNode) => {
+    const entity = data.find((e: GeographicEntityResponse) => e.id === node.id);
     if (entity) {
       setFormData({
         name_fr: entity.name_fr,
@@ -256,8 +257,8 @@ export default function AdminGeographicEntitiesPage() {
     }
   };
 
-  const handleNodeDelete = (node: any) => {
-    const entity = flatList.find((e: GeographicEntityResponse) => e.id === node.id);
+  const handleNodeDelete = (node: UITreeNode) => {
+    const entity = data.find((e: GeographicEntityResponse) => e.id === node.id);
     if (entity) {
       setModal({ isOpen: true, mode: 'delete', item: entity });
     }
@@ -748,7 +749,7 @@ export default function AdminGeographicEntitiesPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {flatList.map((entity) => (
+                  {data.map((entity) => (
                     <tr key={entity.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
@@ -814,7 +815,7 @@ export default function AdminGeographicEntitiesPage() {
               </table>
 
               {/* Show All Button for List View */}
-              {viewMode === 'list' && !showAllEntities && flatList.length >= 20 && (
+              {viewMode === 'list' && !showAllEntities && data.length >= 20 && (
                 <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
                   <div className="text-center">
                     <button

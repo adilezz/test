@@ -80,7 +80,7 @@ export default function AdminKeywordsPage() {
         label: keyword.keyword_fr,
         label_en: keyword.keyword_en,
         label_ar: keyword.keyword_ar,
-        type: 'category' as const,
+        type: 'keyword' as const,
         level: 0,
         count: 0,
         children: [],
@@ -110,7 +110,7 @@ export default function AdminKeywordsPage() {
       label: node.label,
       label_en: node.label_en,
       label_ar: node.label_ar,
-      type: 'category' as const,
+      type: 'keyword' as const,
       level: node.level,
       count: node.count,
       children: node.children.length > 0 ? node.children : undefined

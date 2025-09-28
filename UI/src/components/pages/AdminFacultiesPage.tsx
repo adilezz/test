@@ -43,7 +43,7 @@ interface ModalState {
 
 export default function AdminFacultiesPage() {
   const [searchParams] = useSearchParams();
-  const [faculties, setFaculties] = useState<FacultyResponse[]>([]);
+  const [data, setData] = useState<FacultyResponse[]>([]);
   const [treeData, setTreeData] = useState<UITreeNode[]>([]);
   const [universities, setUniversities] = useState<UniversityResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -146,7 +146,7 @@ export default function AdminFacultiesPage() {
         }
 
         const response = await apiService.adminList<PaginatedResponse>('faculties', params);
-        setFaculties(response.data || []);
+        setData(response.data || []);
         
         if (response.meta) {
           setTotalPages(response.meta.pages);
@@ -226,7 +226,7 @@ export default function AdminFacultiesPage() {
 
   // Context Menu Handlers
   const handleNodeView = (node: UITreeNode) => {
-    const faculty = faculties.find(f => f.id === node.id);
+    const faculty = data.find(f => f.id === node.id);
     if (faculty) {
       setModal({ isOpen: true, mode: 'view', item: faculty });
     }
@@ -245,7 +245,7 @@ export default function AdminFacultiesPage() {
   };
 
   const handleNodeEdit = (node: UITreeNode) => {
-    const faculty = faculties.find(f => f.id === node.id);
+    const faculty = data.find(f => f.id === node.id);
     if (faculty) {
       setFormData({
         name_fr: faculty.name_fr,
@@ -259,7 +259,7 @@ export default function AdminFacultiesPage() {
   };
 
   const handleNodeDelete = (node: UITreeNode) => {
-    const faculty = faculties.find(f => f.id === node.id);
+    const faculty = data.find(f => f.id === node.id);
     if (faculty) {
       setModal({ isOpen: true, mode: 'delete', item: faculty });
     }
@@ -463,7 +463,7 @@ export default function AdminFacultiesPage() {
     );
   };
 
-  if (loading && faculties.length === 0) {
+  if (loading && data.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -747,7 +747,7 @@ export default function AdminFacultiesPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {faculties.map((faculty) => (
+                {data.map((faculty) => (
                   <tr key={faculty.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
@@ -814,7 +814,7 @@ export default function AdminFacultiesPage() {
               </table>
 
               {/* Show All Button for List View */}
-              {viewMode === 'list' && !showAllFaculties && faculties.length >= 20 && (
+              {viewMode === 'list' && !showAllFaculties && data.length >= 20 && (
                 <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
                   <div className="text-center">
                     <button
@@ -842,7 +842,7 @@ export default function AdminFacultiesPage() {
                 </div>
               )}
               
-              {faculties.length === 0 && !loading && (
+              {data.length === 0 && !loading && (
                 <div className="px-6 py-12 text-center">
                   <GraduationCap className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune faculté trouvée</h3>

@@ -19,6 +19,7 @@ import {
 import { apiService } from '../../services/api';
 import AdminHeader from '../layout/AdminHeader';
 import TreeView from '../ui/TreeView/TreeView';
+import { TreeNode as UITreeNode } from '../../types/tree';
 import { 
   mapApiTreeToUiNodes, 
   categoriesHierarchyResolver 
@@ -55,7 +56,7 @@ interface ModalState {
 export default function AdminCategoriesPage() {
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
   const [treeNodes, setTreeNodes] = useState<any[]>([]);
-  const [flatList, setFlatList] = useState<CategoryResponse[]>([]);
+  const [data, setData] = useState<CategoryResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
   const [startLevel, setStartLevel] = useState<'domain' | 'discipline' | 'specialty' | 'subdiscipline'>('domain');
@@ -102,7 +103,7 @@ export default function AdminCategoriesPage() {
       } else {
         const allCategories = await apiService.getAllCategories();
         const hierarchicalList = buildHierarchicalList(allCategories);
-        setFlatList(hierarchicalList);
+        setData(hierarchicalList);
       }
     } catch (error) {
       console.error('Error loading categories:', error);
@@ -178,7 +179,7 @@ export default function AdminCategoriesPage() {
     return result;
   };
 
-  const filteredCategories = flatList.filter(category => {
+  const filteredCategories = data.filter(category => {
     if (!searchTerm) return true;
     const searchLower = searchTerm.toLowerCase();
     return (
@@ -235,14 +236,14 @@ export default function AdminCategoriesPage() {
   };
 
   // Context Menu Handlers
-  const handleNodeView = (node: any) => {
-    const category = flatList.find((c: CategoryResponse) => c.id === node.id);
+  const handleNodeView = (node: UITreeNode) => {
+    const category = data.find((c: CategoryResponse) => c.id === node.id);
     if (category) {
       setModal({ isOpen: true, mode: 'view', item: category });
     }
   };
 
-  const handleNodeAdd = (node: any) => {
+  const handleNodeAdd = (node: UITreeNode) => {
     // Add a new category under this parent category
     setFormData({
       name_fr: '',
@@ -256,8 +257,8 @@ export default function AdminCategoriesPage() {
     setModal({ isOpen: true, mode: 'create' });
   };
 
-  const handleNodeEdit = (node: any) => {
-    const category = flatList.find((c: CategoryResponse) => c.id === node.id);
+  const handleNodeEdit = (node: UITreeNode) => {
+    const category = data.find((c: CategoryResponse) => c.id === node.id);
     if (category) {
       setFormData({
         name_fr: category.name_fr,
@@ -272,8 +273,8 @@ export default function AdminCategoriesPage() {
     }
   };
 
-  const handleNodeDelete = (node: any) => {
-    const category = flatList.find((c: CategoryResponse) => c.id === node.id);
+  const handleNodeDelete = (node: UITreeNode) => {
+    const category = data.find((c: CategoryResponse) => c.id === node.id);
     if (category) {
       setModal({ isOpen: true, mode: 'delete', item: category });
     }

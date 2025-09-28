@@ -4,7 +4,7 @@ export interface TreeNode {
   label_ar?: string;
   label_en?: string;
   count: number;
-  type: 'university' | 'faculty' | 'school' | 'department' | 'discipline' | 'subdiscipline' | 'specialty' | 'category' | 'location';
+  type: 'university' | 'faculty' | 'school' | 'department' | 'discipline' | 'subdiscipline' | 'specialty' | 'category' | 'location' | 'keyword' | 'person' | 'geographic';
   level: number;
   parentId?: string;
   children?: TreeNode[];

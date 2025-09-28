@@ -48,7 +48,7 @@ interface ModalState {
 
 export default function AdminDepartmentsPage() {
   const [searchParams] = useSearchParams();
-  const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
+  const [data, setData] = useState<DepartmentResponse[]>([]);
   const [treeData, setTreeData] = useState<UITreeNode[]>([]);
   const [faculties, setFaculties] = useState<FacultyResponse[]>([]);
   const [schools, setSchools] = useState<SchoolResponse[]>([]);
@@ -206,7 +206,7 @@ export default function AdminDepartmentsPage() {
         if (!filters.school_id) {
           facultiesResponse.data?.forEach((faculty: any) => {
             if (faculty.departments) {
-              faculty.departments.forEach((dept: DepartmentResponse) => {
+              faculty.data.forEach((dept: DepartmentResponse) => {
                 if (!filters.faculty_id || faculty.id === filters.faculty_id) {
                   allDepartments.push({
                     ...dept,
@@ -224,7 +224,7 @@ export default function AdminDepartmentsPage() {
         if (!filters.faculty_id) {
           schoolsResponse.data?.forEach((school: any) => {
             if (school.departments) {
-              school.departments.forEach((dept: DepartmentResponse) => {
+              school.data.forEach((dept: DepartmentResponse) => {
                 if (!filters.school_id || school.id === filters.school_id) {
                   allDepartments.push({
                     ...dept,
@@ -256,7 +256,7 @@ export default function AdminDepartmentsPage() {
           displayDepartments = filteredDepartments.slice(0, 20);
         }
         
-        setDepartments(displayDepartments);
+        setData(displayDepartments);
         setTotalPages(Math.ceil(filteredDepartments.length / 20));
         
         // Update statistics
@@ -351,7 +351,7 @@ export default function AdminDepartmentsPage() {
 
   // Context Menu Handlers
   const handleNodeView = (node: UITreeNode) => {
-    const department = departments.find(d => d.id === node.id);
+    const department = data.find(d => d.id === node.id);
     if (department) {
       setModal({ isOpen: true, mode: 'view', item: department });
     }
@@ -371,7 +371,7 @@ export default function AdminDepartmentsPage() {
   };
 
   const handleNodeEdit = (node: UITreeNode) => {
-    const department = departments.find(d => d.id === node.id);
+    const department = data.find(d => d.id === node.id);
     if (department) {
       setFormData({
         name_fr: department.name_fr,
@@ -386,7 +386,7 @@ export default function AdminDepartmentsPage() {
   };
 
   const handleNodeDelete = (node: UITreeNode) => {
-    const department = departments.find(d => d.id === node.id);
+    const department = data.find(d => d.id === node.id);
     if (department) {
       setModal({ isOpen: true, mode: 'delete', item: department });
     }
@@ -614,7 +614,7 @@ export default function AdminDepartmentsPage() {
     );
   };
 
-  if (loading && departments.length === 0 && treeData.length === 0) {
+  if (loading && data.length === 0 && treeData.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -929,7 +929,7 @@ export default function AdminDepartmentsPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {departments.map((department) => (
+                  {data.map((department) => (
                     <tr key={department.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
@@ -989,7 +989,7 @@ export default function AdminDepartmentsPage() {
               </table>
 
               {/* Show All Button for List View */}
-              {viewMode === 'list' && !showAllDepartments && departments.length >= 20 && (
+              {viewMode === 'list' && !showAllDepartments && data.length >= 20 && (
                 <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
                   <div className="text-center">
                     <button
@@ -1017,7 +1017,7 @@ export default function AdminDepartmentsPage() {
                 </div>
               )}
               
-              {departments.length === 0 && !loading && (
+              {data.length === 0 && !loading && (
                 <div className="px-6 py-12 text-center">
                   <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun département trouvé</h3>
