@@ -467,15 +467,20 @@ export default function AdminAcademicPersonsPage() {
   };
 
   const convertToUITreeNode = (node: TreeNode): UITreeNode => {
+    const mapType = (t: TreeNode['type']): UITreeNode['type'] => {
+      if (t === 'university') return 'university';
+      if (t === 'faculty') return 'faculty';
+      if (t === 'school') return 'school';
+      // Fallback for person nodes to a supported type for iconography
+      return 'department';
+    };
+
     return {
       id: node.id,
       label: node.name_fr,
+      type: mapType(node.type),
       children: node.children ? node.children.map(convertToUITreeNode) : undefined,
-      isExpanded: node.expanded,
-      icon: node.type === 'university' ? Building2 : 
-            node.type === 'faculty' ? GraduationCap :
-            node.type === 'school' ? School : Users
-    } as unknown as UITreeNode;
+    } as UITreeNode;
   };
 
   const handleTreeNodeClick = (nodeId: string) => {
@@ -1152,8 +1157,11 @@ export default function AdminAcademicPersonsPage() {
               </h2>
               {treeData.length > 0 ? (
                 <TreeView
-                  data={treeData.map(convertToUITreeNode)}
-                  onNodeClick={handleTreeNodeClick}
+                  nodes={treeData.map(convertToUITreeNode)}
+                  searchable
+                  showCounts={false}
+                  showIcons
+                  maxHeight="500px"
                 />
               ) : (
                 <div className="text-center py-8 text-gray-500">
