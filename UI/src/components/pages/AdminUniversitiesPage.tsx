@@ -24,6 +24,7 @@ import { Link } from 'react-router-dom';
 import { apiService } from '../../services/api';
 import TreeView from '../ui/TreeView/TreeView';
 import { TreeNode as UITreeNode } from '../../types/tree';
+import { mapApiTreeToUiNodes, universitiesHierarchyResolver, schoolsHierarchyResolver } from '../../utils/treeMappers';
 import AdminHeader from '../layout/AdminHeader';
 import { 
   UniversityResponse, 
@@ -35,18 +36,7 @@ import {
   UniversityUpdate
 } from '../../types/api';
 
-interface TreeNode {
-  id: string;
-  name_fr: string;
-  name_en?: string;
-  name_ar?: string;
-  acronym?: string;
-  type: 'university' | 'faculty' | 'department';
-  children?: TreeNode[];
-  thesis_count?: number;
-  expanded?: boolean;
-  parent_id?: string;
-}
+//
 
 interface ModalState {
   isOpen: boolean;
@@ -55,7 +45,7 @@ interface ModalState {
 }
 
 export default function AdminUniversitiesPage() {
-  const [treeData, setTreeData] = useState<TreeNode[]>([]);
+  const [treeData, setTreeData] = useState<UITreeNode[]>([]);
   const [flatList, setFlatList] = useState<UniversityResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
@@ -170,38 +160,7 @@ export default function AdminUniversitiesPage() {
     }
   }, [filters]);
 
-  // Search effect for tree view
-  useEffect(() => {
-    // For tree view, we filter client-side, so no need to reload data
-    // The filterTreeData function handles the search in tree view
-  }, [searchTerm]);
-
-  const filterTreeData = (nodes: TreeNode[], searchTerm: string): TreeNode[] => {
-    if (!searchTerm.trim()) return nodes;
-    
-    const lowerSearch = searchTerm.toLowerCase();
-    
-    return nodes.filter(node => {
-      const matchesNode = 
-        node.name_fr.toLowerCase().includes(lowerSearch) ||
-        node.name_en?.toLowerCase().includes(lowerSearch) ||
-        node.name_ar?.toLowerCase().includes(lowerSearch) ||
-        node.acronym?.toLowerCase().includes(lowerSearch);
-      
-      const hasMatchingChildren = node.children && 
-        filterTreeData(node.children, searchTerm).length > 0;
-      
-      if (matchesNode || hasMatchingChildren) {
-        return {
-          ...node,
-          children: node.children ? filterTreeData(node.children, searchTerm) : undefined,
-          expanded: hasMatchingChildren ? true : node.expanded
-        };
-      }
-      
-      return false;
-    }).map(node => typeof node === 'object' ? node : nodes.find(n => n === node)!);
-  };
+  //
 
   const loadData = async () => {
     setLoading(true);
@@ -216,12 +175,12 @@ export default function AdminUniversitiesPage() {
             include_theses: true,
             theses_per_node: 5
           });
-          setTreeData(transformToTreeNodes(treeResponse));
+          setTreeData(mapApiTreeToUiNodes(treeResponse as any, universitiesHierarchyResolver));
         } catch (treeError) {
           console.warn('Unified tree endpoint failed, trying dedicated universities tree:', treeError);
           // Fallback to dedicated universities tree endpoint
           const fallbackResponse = await apiService.getUniversitiesTree(true, 5);
-          setTreeData(transformToTreeNodes(fallbackResponse));
+          setTreeData(mapApiTreeToUiNodes(fallbackResponse as any, universitiesHierarchyResolver));
         }
       } else {
         const params: Record<string, string | number> = {};
@@ -250,85 +209,7 @@ export default function AdminUniversitiesPage() {
     }
   };
 
-  const transformToTreeNodes = (data: any[]): TreeNode[] => {
-    // Create a map of current expanded states
-    const expandedStates = new Map<string, boolean>();
-    const collectExpandedStates = (nodes: TreeNode[]) => {
-      nodes.forEach(node => {
-        if (node.expanded) {
-          expandedStates.set(node.id, true);
-        }
-        if (node.children) {
-          collectExpandedStates(node.children);
-        }
-      });
-    };
-    collectExpandedStates(treeData);
-
-    const mapUniversity = (u: any): TreeNode => ({
-      id: u.id,
-      name_fr: u.name_fr,
-      name_en: u.name_en,
-      name_ar: u.name_ar,
-      acronym: u.acronym,
-      type: 'university',
-      thesis_count: u.thesis_count,
-      expanded: expandedStates.get(u.id) || false, // Preserve expanded state
-      children: (u.faculties || []).map(mapFaculty)
-    });
-    const mapFaculty = (f: any): TreeNode => ({
-      id: f.id,
-      name_fr: f.name_fr,
-      name_en: f.name_en,
-      name_ar: f.name_ar,
-      acronym: f.acronym,
-      type: 'faculty',
-      parent_id: f.parent_id,
-      thesis_count: f.thesis_count,
-      expanded: expandedStates.get(f.id) || false, // Preserve expanded state
-      children: (f.departments || []).map(mapDepartment)
-    });
-    const mapDepartment = (d: any): TreeNode => ({
-      id: d.id,
-      name_fr: d.name_fr,
-      name_en: d.name_en,
-      name_ar: d.name_ar,
-      acronym: d.acronym,
-      type: 'department',
-      parent_id: d.parent_id,
-      thesis_count: d.thesis_count,
-      expanded: expandedStates.get(d.id) || false // Preserve expanded state
-    });
-
-    // Handle different API response structures
-    return data.map((node: any) => {
-      // The node already has a type property from the API
-      if (node.type === 'university') return mapUniversity(node);
-      if (node.type === 'faculty') return mapFaculty(node);
-      if (node.type === 'department') return mapDepartment(node);
-      
-      // Fallback: detect type based on properties
-      if (node.faculties) return mapUniversity(node);
-      if (node.departments) return mapFaculty(node);
-      return mapDepartment(node);
-    });
-  };
-
-  const toggleNode = (nodeId: string) => {
-    const updateNode = (nodes: TreeNode[]): TreeNode[] => {
-      return nodes.map(node => {
-        if (node.id === nodeId) {
-          return { ...node, expanded: !node.expanded };
-        }
-        if (node.children) {
-          return { ...node, children: updateNode(node.children) };
-        }
-        return node;
-      });
-    };
-
-    setTreeData(updateNode(treeData));
-  };
+  //
 
   const handleCreate = async () => {
     try {
@@ -407,117 +288,7 @@ export default function AdminUniversitiesPage() {
     }
   };
 
-  const renderTreeNode = (node: TreeNode, depth: number = 0): React.ReactNode => {
-    const hasChildren = node.children && node.children.length > 0;
-    const isExpanded = node.expanded;
-
-    return (
-      <div key={node.id} className="select-none">
-        <div
-          className={`flex items-center space-x-2 py-2 px-3 hover:bg-gray-50 rounded-lg cursor-pointer ${
-            selectedItems.includes(node.id) ? 'bg-blue-50 border border-blue-200' : ''
-          }`}
-          style={{ marginLeft: `${depth * 20}px` }}
-        >
-          {hasChildren ? (
-            <button
-              onClick={() => toggleNode(node.id)}
-              className="p-1 hover:bg-gray-200 rounded"
-            >
-              {isExpanded ? (
-                <ChevronDown className="w-4 h-4 text-gray-600" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-gray-600" />
-              )}
-            </button>
-          ) : (
-            <div className="w-6 h-6" />
-          )}
-
-          <div className="flex items-center space-x-2 flex-1">
-            {node.type === 'university' && <Building2 className="w-4 h-4 text-blue-600" />}
-            {node.type === 'faculty' && <GraduationCap className="w-4 h-4 text-green-600" />}
-            {node.type === 'department' && <Users className="w-4 h-4 text-purple-600" />}
-            
-            <div className="flex-1">
-              <div className="flex items-center space-x-2">
-                <span className="font-medium text-gray-900">{node.name_fr}</span>
-                {node.acronym && (
-                  <span className="text-sm text-gray-500">({node.acronym})</span>
-                )}
-              </div>
-              {(node.name_en || node.name_ar) && (
-                <div className="text-sm text-gray-600">
-                  {node.name_en && <span>{node.name_en}</span>}
-                  {node.name_en && node.name_ar && <span> • </span>}
-                  {node.name_ar && <span>{node.name_ar}</span>}
-                </div>
-              )}
-            </div>
-
-            {node.thesis_count !== undefined && (
-              <span className="text-sm bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                {node.thesis_count} thèses
-              </span>
-            )}
-
-            {node.type === 'university' && (
-              <div className="flex items-center space-x-1">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openModal('view', node as any);
-                  }}
-                  className="p-1 text-gray-400 hover:text-gray-600"
-                  title="Voir les détails"
-                >
-                  <Eye className="w-4 h-4" />
-                </button>
-                <Link
-                  to={`/admin/faculties?university_id=${node.id}`}
-                  className="p-1 text-gray-400 hover:text-green-600"
-                  title="Gérer les facultés"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <GraduationCap className="w-4 h-4" />
-                </Link>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openModal('edit', node as any);
-                  }}
-                  className="p-1 text-gray-400 hover:text-blue-600"
-                  title="Modifier"
-                >
-                  <Edit className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (confirm('Êtes-vous sûr de vouloir supprimer cette université ?')) {
-                      handleDelete(node.id);
-                    }
-                  }}
-                  className="p-1 text-gray-400 hover:text-red-600"
-                  title="Supprimer"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {hasChildren && isExpanded && (
-          <div>
-            {node.children!.map((child) =>
-              renderTreeNode(child, depth + 1)
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
+  //
 
   const renderModal = () => {
     if (!modal.isOpen) return null;
@@ -926,21 +697,19 @@ export default function AdminUniversitiesPage() {
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 Structure Hiérarchique
               </h2>
-              <div className="space-y-1">
-                {filterTreeData(treeData, searchTerm).length > 0 ? (
-                  filterTreeData(treeData, searchTerm).map((node) => renderTreeNode(node))
-                ) : (
-                  <div className="flex items-center justify-center h-64 text-gray-500">
-                    <div className="text-center">
-                      <Building2 className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                      <p className="text-lg font-medium">Aucune université trouvée</p>
-                      <p className="text-sm">
-                        {searchTerm ? 'Aucun résultat pour votre recherche' : 'Aucune donnée disponible'}
-                      </p>
-                    </div>
+              {treeData.length > 0 ? (
+                <TreeView nodes={treeData} searchable showCounts showIcons maxHeight="500px" />
+              ) : (
+                <div className="flex items-center justify-center h-64 text-gray-500">
+                  <div className="text-center">
+                    <Building2 className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p className="text-lg font-medium">Aucune université trouvée</p>
+                    <p className="text-sm">
+                      {searchTerm ? 'Aucun résultat pour votre recherche' : 'Aucune donnée disponible'}
+                    </p>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
