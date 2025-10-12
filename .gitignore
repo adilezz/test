@@ -28,3 +28,15 @@ wheels/
 # UI build artifacts
 UI/dist/
 *.log
+
+# Uploaded files
+uploads/
+uploads/**/*
+
+# Data and scripts (temporary processing files)
+data/
+scripts/
+
+# Old pipeline files (deprecated)
+metadata_pipeline/
+fastapi_gemini_integration.py

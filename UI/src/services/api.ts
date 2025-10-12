@@ -501,6 +501,19 @@ class ApiService {
     return this.request<ThesisDetailsResponse>(`/admin/theses/${id}`);
   }
 
+  async getPublicThesis(id: string): Promise<any> {
+    return this.request<any>(`/theses/${id}`);
+  }
+
+  async getRelatedTheses(id: string, limit: number = 5): Promise<PaginatedResponse> {
+    // Get related theses by similar keywords/categories
+    const params = new URLSearchParams({
+      limit: limit.toString(),
+      exclude_id: id
+    });
+    return this.request<PaginatedResponse>(`/theses?${params}`);
+  }
+
   async createThesis(data: ThesisCreate): Promise<ThesisResponse> {
     // Backend expects manual create at /admin/thesis-content/manual/create
     return this.request<ThesisResponse>('/admin/thesis-content/manual/create', {
@@ -636,6 +649,11 @@ class ApiService {
   // Admin thesis form structure (references)
   async getThesisFormStructure(): Promise<import('../types/api').ThesisFormStructureResponse> {
     return this.request<import('../types/api').ThesisFormStructureResponse>('/admin/thesis-content/manual/form');
+  }
+
+  // NEW: Generic get method for custom endpoints
+  async get(endpoint: string): Promise<any> {
+    return this.request<any>(endpoint);
   }
 }
 

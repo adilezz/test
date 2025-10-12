@@ -10,13 +10,19 @@ import {
   Save,
   ArrowLeft,
   RefreshCw,
-  UserPlus
+  UserPlus,
+  FileText,
+  Building2,
+  GraduationCap,
+  Tags
 } from 'lucide-react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { apiService } from '../../services/api';
 import AdminHeader from '../layout/AdminHeader';
 import TreeView from '../ui/TreeView/TreeView';
 import { TreeNode as UITreeNode } from '../../types/tree';
+import { useAutoSave, loadAutoSaved, clearAutoSaved } from '../../utils/autoSave';
+import { Section } from '../ui/Section';
 import { 
   ThesisCreate,
   ThesisUpdate, 
@@ -127,13 +133,44 @@ export default function AdminThesisPage() {
     faculty_id: ''
   });
   const [newKeywordData, setNewKeywordData] = useState({ keyword_fr: '', keyword_en: '', keyword_ar: '' });
+  
+  // NEW: Search states for filtering
+  const [personSearchTerm, setPersonSearchTerm] = useState('');
+  const [keywordSearchTerm, setKeywordSearchTerm] = useState('');
+  const [facultySearchTerm, setFacultySearchTerm] = useState('');
+  const [departmentSearchTerm, setDepartmentSearchTerm] = useState('');
 
   useEffect(() => {
     loadReferenceData();
     if (isEditMode) {
       loadThesis();
+    } else {
+      // NEW: Restore auto-saved draft for new thesis
+      const draft = loadAutoSaved<any>('thesis_draft', 24);
+      if (draft && draft.formData) {
+        const ageHours = ((Date.now() - draft._savedAt) / (1000 * 60 * 60)).toFixed(1);
+        if (confirm(`Un brouillon de ${ageHours}h existe. Restaurer ?`)) {
+          if (draft.formData) setFormData(draft.formData);
+          if (draft.academicPersonAssignments) setAcademicPersonAssignments(draft.academicPersonAssignments);
+          if (draft.selectedCategories) setSelectedCategories(draft.selectedCategories);
+          if (draft.selectedKeywords) setSelectedKeywords(draft.selectedKeywords);
+          if (draft.primaryCategoryId) setPrimaryCategoryId(draft.primaryCategoryId);
+        } else {
+          clearAutoSaved('thesis_draft');
+        }
+      }
     }
   }, [id]);
+  
+  // NEW: Auto-save every 30 seconds
+  useAutoSave(
+    { formData, academicPersonAssignments, selectedCategories, selectedKeywords, primaryCategoryId },
+    {
+      key: 'thesis_draft',
+      delay: 30000,
+      onSave: () => console.log('Draft auto-saved')
+    }
+  );
 
   useEffect(() => {
     if (geographicEntities && formData.study_location_id) {
@@ -229,6 +266,8 @@ export default function AdminThesisPage() {
     setLoading(true);
     try {
       const details = await apiService.getThesis(id);
+      
+      // Charger les données de base
       setFormData({
         title_fr: details.thesis.title_fr,
         title_en: details.thesis.title_en || '',
@@ -242,20 +281,55 @@ export default function AdminThesisPage() {
         department_id: (details.institution.department.id as string) || '',
         degree_id: (details.academic.degree.id as string) || '',
         thesis_number: details.thesis.thesis_number || '',
-        study_location_id: '',
+        study_location_id: details.thesis.study_location_id || '',
         defense_date: details.thesis.defense_date || '',
         language_id: details.academic.language.id,
-        secondary_language_ids: [],
+        secondary_language_ids: details.academic.secondary_languages?.map((l: any) => l.id) || [],
         page_count: details.thesis.page_count || 0,
         status: details.thesis.status,
-        file_id: ''
+        file_id: details.thesis.file_id || ''
       });
+      
+      // NEW: Charger le PDF original
       if (details.thesis.file_url) {
         setPdfUrl(details.thesis.file_url);
       }
-      // Preload related selections
+      
+      // NEW: Charger les facultés et départements pour l'université sélectionnée
+      if (details.institution.university.id) {
+        await loadFaculties(details.institution.university.id as string);
+      }
+      if (details.institution.faculty.id) {
+        await loadDepartments(details.institution.faculty.id as string);
+      }
+      
+      // NEW: Charger les personnes académiques
+      if (Array.isArray(details.academic_persons)) {
+        const assignments = details.academic_persons.map((ap: any, index: number) => ({
+          id: `${Date.now()}-${index}`,
+          person_id: ap.person_id,
+          role: ap.role,
+          is_external: ap.is_external || false,
+          external_institution_name: ap.external_institution_name
+        }));
+        setAcademicPersonAssignments(assignments);
+      }
+      
+      // NEW: Charger les catégories
+      if (Array.isArray(details.categories)) {
+        const primary = details.categories.find((c: any) => c.is_primary);
+        if (primary) {
+          setPrimaryCategoryId(primary.category_id);
+        }
+        const secondary = details.categories
+          .filter((c: any) => !c.is_primary)
+          .map((c: any) => c.category_id);
+        setSelectedCategories(secondary);
+      }
+      
+      // Charger les keywords
       if (Array.isArray(details.keywords)) {
-        setSelectedKeywords(details.keywords.map(k => k.keyword_id));
+        setSelectedKeywords(details.keywords.map((k: any) => k.keyword_id));
       }
     } catch (error) {
       console.error('Error loading thesis:', error);
@@ -266,17 +340,18 @@ export default function AdminThesisPage() {
 
   const handleFileUpload = async (file: File) => {
     try {
+      // NEW: Afficher immédiatement le fichier sélectionné AVANT l'upload
+      const url = URL.createObjectURL(file);
+      setPdfUrl(url);
+      setUploadedFile(file);
+      
+      // Lancer l'upload en arrière-plan
       setUploadProgress(0);
       const response = await apiService.uploadFile(file, (progress) => {
         setUploadProgress(progress);
       });
       
       setFormData(prev => ({ ...prev, file_id: response.file_id }));
-      
-      // Create object URL for preview
-      const url = URL.createObjectURL(file);
-      setPdfUrl(url);
-      setUploadedFile(file);
       
       // Simulate metadata extraction
       setTimeout(() => {
@@ -289,6 +364,9 @@ export default function AdminThesisPage() {
       
     } catch (error) {
       console.error('Error uploading file:', error);
+      // Réinitialiser en cas d'erreur
+      setPdfUrl('');
+      setUploadedFile(null);
     }
   };
 
@@ -314,6 +392,9 @@ export default function AdminThesisPage() {
     }));
     setFaculties([]);
     setDepartments([]);
+    // NEW: Clear search terms when changing university
+    setFacultySearchTerm('');
+    setDepartmentSearchTerm('');
     if (universityId) {
       loadFaculties(universityId);
     }
@@ -325,6 +406,8 @@ export default function AdminThesisPage() {
       faculty_id: facultyId || undefined,
       department_id: undefined
     }));
+    // NEW: Clear department search term when changing faculty
+    setDepartmentSearchTerm('');
     if (facultyId) {
       loadDepartments(facultyId);
     } else {
@@ -340,6 +423,33 @@ export default function AdminThesisPage() {
       is_external: false
     };
     setAcademicPersonAssignments(prev => [...prev, newAssignment]);
+  };
+
+  // NEW: Add template for academic persons
+  const addPersonsTemplate = (template: 'phd' | 'master') => {
+    const templates = {
+      phd: [
+        { role: AcademicRole.AUTHOR },
+        { role: AcademicRole.DIRECTOR },
+        { role: AcademicRole.CO_DIRECTOR },
+        { role: AcademicRole.JURY_PRESIDENT },
+        { role: AcademicRole.JURY_EXAMINER },
+        { role: AcademicRole.JURY_EXAMINER }
+      ],
+      master: [
+        { role: AcademicRole.AUTHOR },
+        { role: AcademicRole.DIRECTOR }
+      ]
+    };
+    
+    setAcademicPersonAssignments(
+      templates[template].map((t, i) => ({
+        id: `${Date.now()}-${i}`,
+        person_id: '',
+        role: t.role,
+        is_external: false
+      }))
+    );
   };
 
   const updateAcademicPerson = (id: string, field: keyof AcademicPersonAssignment, value: any) => {
@@ -475,6 +585,7 @@ export default function AdminThesisPage() {
         // Clean up the form data - convert empty strings to null for UUID fields
         const cleanedFormData: ThesisCreate = {
           ...formData,
+          status: ThesisStatus.PUBLISHED, // NEW: Auto-publier pour admin
           university_id: formData.university_id || undefined,
           faculty_id: formData.faculty_id || undefined,
           school_id: formData.school_id || undefined,
@@ -528,6 +639,8 @@ export default function AdminThesisPage() {
         }
       }
       
+      // NEW: Clear auto-saved draft on success
+      clearAutoSaved('thesis_draft');
       navigate('/admin/theses');
     } catch (error: any) {
       console.error('Error saving thesis:', error);
@@ -547,6 +660,42 @@ export default function AdminThesisPage() {
       setSaving(false);
     }
   };
+
+  // NEW: Filter functions
+  const filteredAcademicPersons = academicPersons.filter(person => {
+    if (!personSearchTerm) return true;
+    const searchLower = personSearchTerm.toLowerCase();
+    const fullName = `${person.first_name_fr} ${person.last_name_fr}`.toLowerCase();
+    return fullName.includes(searchLower);
+  });
+
+  const filteredKeywords = keywords.filter(keyword => {
+    if (!keywordSearchTerm) return true;
+    const searchLower = keywordSearchTerm.toLowerCase();
+    return (
+      keyword.keyword_fr?.toLowerCase().includes(searchLower) ||
+      keyword.keyword_en?.toLowerCase().includes(searchLower) ||
+      keyword.keyword_ar?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  const filteredFaculties = faculties.filter(faculty => {
+    if (!facultySearchTerm) return true;
+    const searchLower = facultySearchTerm.toLowerCase();
+    return (
+      faculty.name_fr?.toLowerCase().includes(searchLower) ||
+      faculty.acronym?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  const filteredDepartments = departments.filter(department => {
+    if (!departmentSearchTerm) return true;
+    const searchLower = departmentSearchTerm.toLowerCase();
+    return (
+      department.name_fr?.toLowerCase().includes(searchLower) ||
+      department.acronym?.toLowerCase().includes(searchLower)
+    );
+  });
 
   if (loading) {
     return (
@@ -659,9 +808,14 @@ export default function AdminThesisPage() {
 
           {/* Form Section */}
           <div className="space-y-6">
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">Métadonnées de la thèse</h2>
-              
+            {/* Section 1: Informations de base */}
+            <Section
+              title="Informations de base"
+              subtitle="Titres et résumés de la thèse"
+              defaultExpanded={true}
+              required
+              icon={<FileText className="w-5 h-5" />}
+            >
               <div className="space-y-6">
                 {/* Titles */}
                 <div className="space-y-4">
@@ -709,7 +863,17 @@ export default function AdminThesisPage() {
                     />
                   </div>
                 </div>
+              </div>
+            </Section>
 
+            {/* Section 2: Institution */}
+            <Section
+              title="Institution"
+              subtitle="Université, faculté et département"
+              defaultExpanded={false}
+              icon={<Building2 className="w-5 h-5" />}
+            >
+              <div className="space-y-6">
                 {/* Institution Information */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -736,6 +900,16 @@ export default function AdminThesisPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Faculté
                     </label>
+                    {faculties.length > 5 && (
+                      <input
+                        type="text"
+                        placeholder="Rechercher une faculté..."
+                        value={facultySearchTerm}
+                        onChange={(e) => setFacultySearchTerm(e.target.value)}
+                        className="w-full px-4 py-2 mb-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        disabled={!formData.university_id}
+                      />
+                    )}
                     <select
                       name="faculty_id"
                       value={formData.faculty_id || ''}
@@ -744,12 +918,15 @@ export default function AdminThesisPage() {
                       disabled={!formData.university_id}
                     >
                       <option value="">Sélectionnez une faculté</option>
-                      {faculties.map(faculty => (
+                      {filteredFaculties.map(faculty => (
                         <option key={faculty.id} value={faculty.id}>
                           {faculty.name_fr} {faculty.acronym && `(${faculty.acronym})`}
                         </option>
                       ))}
                     </select>
+                    {faculties.length > 0 && filteredFaculties.length === 0 && (
+                      <p className="text-xs text-gray-500 mt-1">Aucune faculté trouvée</p>
+                    )}
                   </div>
                 </div>
 
@@ -758,6 +935,16 @@ export default function AdminThesisPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Département
                     </label>
+                    {departments.length > 5 && (
+                      <input
+                        type="text"
+                        placeholder="Rechercher un département..."
+                        value={departmentSearchTerm}
+                        onChange={(e) => setDepartmentSearchTerm(e.target.value)}
+                        className="w-full px-4 py-2 mb-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        disabled={!formData.faculty_id}
+                      />
+                    )}
                     <select
                       name="department_id"
                       value={formData.department_id || ''}
@@ -766,12 +953,15 @@ export default function AdminThesisPage() {
                       disabled={!formData.faculty_id}
                     >
                       <option value="">Sélectionnez un département</option>
-                      {departments.map(department => (
+                      {filteredDepartments.map(department => (
                         <option key={department.id} value={department.id}>
                           {department.name_fr} {department.acronym && `(${department.acronym})`}
                         </option>
                       ))}
                     </select>
+                    {departments.length > 0 && filteredDepartments.length === 0 && (
+                      <p className="text-xs text-gray-500 mt-1">Aucun département trouvé</p>
+                    )}
                   </div>
 
                   <div>
@@ -794,9 +984,18 @@ export default function AdminThesisPage() {
                     </select>
                   </div>
                 </div>
+              </div>
+            </Section>
 
-                
-
+            {/* Section 3: Détails académiques */}
+            <Section
+              title="Détails académiques"
+              subtitle="Diplôme, langue, date et personnes"
+              defaultExpanded={false}
+              required
+              icon={<GraduationCap className="w-5 h-5" />}
+            >
+              <div className="space-y-6">
                 {/* Additional Details */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -903,7 +1102,21 @@ export default function AdminThesisPage() {
                     <label className="block text-sm font-medium text-gray-700">
                       Personnes académiques
                     </label>
-                    <div className="flex space-x-2">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => addPersonsTemplate('phd')}
+                        className="flex items-center space-x-1 px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                      >
+                        <span>📚 Modèle Doctorat</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addPersonsTemplate('master')}
+                        className="flex items-center space-x-1 px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
+                      >
+                        <span>📖 Modèle Master</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => setShowPersonModal(true)}
@@ -924,6 +1137,20 @@ export default function AdminThesisPage() {
                   </div>
 
                   <div className="space-y-3">
+                    {academicPersons.length > 10 && (
+                      <div className="mb-3">
+                        <input
+                          type="text"
+                          placeholder="Rechercher une personne (nom, prénom)..."
+                          value={personSearchTerm}
+                          onChange={(e) => setPersonSearchTerm(e.target.value)}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        />
+                        {academicPersons.length > 0 && filteredAcademicPersons.length === 0 && (
+                          <p className="text-xs text-gray-500 mt-1">Aucune personne trouvée</p>
+                        )}
+                      </div>
+                    )}
                     {academicPersonAssignments.map((assignment, index) => (
                       <div key={assignment.id} className="border border-gray-200 rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
@@ -947,7 +1174,7 @@ export default function AdminThesisPage() {
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                             >
                               <option value="">Sélectionnez une personne</option>
-                              {academicPersons.map(person => (
+                              {filteredAcademicPersons.map(person => (
                                 <option key={person.id} value={person.id}>
                                   {person.first_name_fr} {person.last_name_fr}
                                 </option>
@@ -975,7 +1202,17 @@ export default function AdminThesisPage() {
                     ))}
                   </div>
                 </div>
+              </div>
+            </Section>
 
+            {/* Section 4: Classification */}
+            <Section
+              title="Classification"
+              subtitle="Catégories et mots-clés"
+              defaultExpanded={false}
+              icon={<Tags className="w-5 h-5" />}
+            >
+              <div className="space-y-6">
                 {/* Categories */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1017,34 +1254,77 @@ export default function AdminThesisPage() {
                     </button>
                   </div>
                   
-                  <div className="border border-gray-300 rounded-lg p-3 max-h-40 overflow-y-auto">
-                    <div className="space-y-2">
-                      {keywords.map(keyword => (
-                        <label key={keyword.id} className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            checked={selectedKeywords.includes(keyword.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedKeywords(prev => [...prev, keyword.id]);
-                              } else {
-                                setSelectedKeywords(prev => prev.filter(id => id !== keyword.id));
-                              }
-                            }}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="text-sm text-gray-900">{keyword.keyword_fr}</span>
-                          {keyword.keyword_en && (
-                            <span className="text-sm text-gray-500">({keyword.keyword_en})</span>
-                          )}
-                        </label>
-                      ))}
+                  {keywords.length > 10 && (
+                    <div className="mb-3">
+                      <input
+                        type="text"
+                        placeholder="Rechercher un mot-clé..."
+                        value={keywordSearchTerm}
+                        onChange={(e) => setKeywordSearchTerm(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      />
                     </div>
+                  )}
+                  
+                  <div className="border border-gray-300 rounded-lg p-3 max-h-64 overflow-y-auto">
+                    {filteredKeywords.length > 0 ? (
+                      <div className="space-y-2">
+                        {filteredKeywords.map(keyword => (
+                          <label key={keyword.id} className="flex items-center space-x-2 hover:bg-gray-50 p-2 rounded cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedKeywords.includes(keyword.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedKeywords(prev => [...prev, keyword.id]);
+                                } else {
+                                  setSelectedKeywords(prev => prev.filter(id => id !== keyword.id));
+                                }
+                              }}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-900">{keyword.keyword_fr}</span>
+                            {keyword.keyword_en && (
+                              <span className="text-sm text-gray-500">({keyword.keyword_en})</span>
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 text-center py-4">
+                        {keywordSearchTerm ? 'Aucun mot-clé trouvé' : 'Aucun mot-clé disponible'}
+                      </p>
+                    )}
                   </div>
+                  
+                  {selectedKeywords.length > 0 && (
+                    <div className="mt-2 text-xs text-gray-600">
+                      {selectedKeywords.length} mot{selectedKeywords.length > 1 ? 's' : ''}-clé{selectedKeywords.length > 1 ? 's' : ''} sélectionné{selectedKeywords.length > 1 ? 's' : ''}
+                    </div>
+                  )}
                 </div>
 
-                
+                {/* Categories Help */}
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded">
+                  <h4 className="font-medium text-blue-900 mb-2">Comment ça marche ?</h4>
+                  <ol className="text-sm text-blue-800 list-decimal ml-4 space-y-1">
+                    <li>Cliquez sur une catégorie pour la définir comme <strong>primaire</strong> (obligatoire)</li>
+                    <li>Cliquez sur d'autres catégories pour les ajouter comme <strong>secondaires</strong></li>
+                    <li>Re-cliquez pour désélectionner</li>
+                  </ol>
+                </div>
+              </div>
+            </Section>
 
+            {/* Section 5: Résumés */}
+            <Section
+              title="Résumés"
+              subtitle="Abstracts multilingues"
+              defaultExpanded={false}
+              required
+              icon={<FileText className="w-5 h-5" />}
+            >
+              <div className="space-y-6">
                 {/* Abstracts */}
                 <div className="space-y-4">
                   <div>
@@ -1076,31 +1356,40 @@ export default function AdminThesisPage() {
                     />
                   </div>
                 </div>
+              </div>
+            </Section>
 
-                {/* Status */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Statut *
-                  </label>
-                  <select
-                    name="status"
-                    value={formData.status}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  >
-                    <option value={ThesisStatus.DRAFT}>Brouillon</option>
-                    <option value={ThesisStatus.SUBMITTED}>Soumise</option>
-                    <option value={ThesisStatus.UNDER_REVIEW}>En révision</option>
-                    <option value={ThesisStatus.APPROVED}>Approuvée</option>
-                    <option value={ThesisStatus.PUBLISHED}>Publiée</option>
-                    <option value={ThesisStatus.REJECTED}>Rejetée</option>
-                  </select>
+            {/* Section 6: Statut - uniquement en mode édition */}
+            {isEditMode && (
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <div className="space-y-6">
+                  {/* Status */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Statut *
+                    </label>
+                    <select
+                      name="status"
+                      value={formData.status}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    >
+                      <option value={ThesisStatus.DRAFT}>Brouillon</option>
+                      <option value={ThesisStatus.SUBMITTED}>Soumise</option>
+                      <option value={ThesisStatus.UNDER_REVIEW}>En révision</option>
+                      <option value={ThesisStatus.APPROVED}>Approuvée</option>
+                      <option value={ThesisStatus.PUBLISHED}>Publiée</option>
+                      <option value={ThesisStatus.REJECTED}>Rejetée</option>
+                    </select>
+                  </div>
                 </div>
               </div>
+            )}
 
-              {/* Submit Buttons */}
-              <div className="flex justify-end space-x-4 mt-8 pt-6 border-t border-gray-200">
+            {/* Submit Buttons */}
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="flex justify-end space-x-4">
                 <button
                   type="button"
                   onClick={() => navigate('/admin/theses')}

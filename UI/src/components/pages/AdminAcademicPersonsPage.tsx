@@ -103,7 +103,6 @@ export default function AdminAcademicPersonsPage() {
   });
 
   useEffect(() => {
-    loadData();
     loadUniversities();
     loadFaculties();
     loadSchools();
@@ -121,9 +120,10 @@ export default function AdminAcademicPersonsPage() {
         school_id: schoolId || ''
       }));
     }
+    // loadData() will be called by the debounced effect below
   }, []);
 
-  // Debounced search effect
+  // Debounced search effect - handles all data loading
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       loadData();

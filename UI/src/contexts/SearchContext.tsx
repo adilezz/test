@@ -15,6 +15,7 @@ interface SearchState {
 
 type SearchAction =
   | { type: 'SET_FILTERS'; payload: Partial<SearchRequest> }
+  | { type: 'CLEAR_FILTERS'; payload: Partial<SearchRequest> }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_RESULTS'; payload: { results: ThesisResponse[]; total: number; page: number; pages: number } }
   | { type: 'SET_ERROR'; payload: string | null }
@@ -44,6 +45,12 @@ function searchReducer(state: SearchState, action: SearchAction): SearchState {
       return {
         ...state,
         filters: { ...state.filters, ...action.payload }
+      };
+    case 'CLEAR_FILTERS':
+      // Replace filters completely instead of merging
+      return {
+        ...state,
+        filters: action.payload
       };
     case 'SET_LOADING':
       return {
@@ -94,6 +101,7 @@ interface SearchContextType {
   dispatch: React.Dispatch<SearchAction>;
   search: (filters?: Partial<SearchRequest>) => Promise<void>;
   setFilters: (filters: Partial<SearchRequest>) => void;
+  clearFilters: (filters: Partial<SearchRequest>) => void;
   resetSearch: () => void;
   clearResults: () => void;
   loadPage: (page: number) => Promise<void>;
@@ -156,6 +164,10 @@ export const SearchProvider: React.FC<SearchProviderProps> = ({ children }) => {
     dispatch({ type: 'SET_FILTERS', payload: filters });
   }, []);
 
+  const clearFilters = useCallback((filters: Partial<SearchRequest>) => {
+    dispatch({ type: 'CLEAR_FILTERS', payload: filters });
+  }, []);
+
   const resetSearch = useCallback(() => {
     dispatch({ type: 'RESET_SEARCH' });
   }, []);
@@ -168,22 +180,26 @@ export const SearchProvider: React.FC<SearchProviderProps> = ({ children }) => {
     await search({ ...state.filters, page });
   }, [search, state.filters]);
 
-  // Auto-search when filters change (debounced)
+  // Auto-search when search query changes (debounced for text input only)
   useEffect(() => {
+    // Only auto-search for text query changes, not for filter changes
+    if (state.filters.q === undefined || state.filters.q === state.lastSearchQuery) {
+      return;
+    }
+
     const timeoutId = setTimeout(() => {
-      if (state.filters.q !== undefined && state.filters.q !== state.lastSearchQuery) {
-        search();
-      }
+      search();
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [state.filters.q, state.lastSearchQuery, search]);
+  }, [state.filters.q]);
 
   const value: SearchContextType = {
     state,
     dispatch,
     search,
     setFilters,
+    clearFilters,
     resetSearch,
     clearResults,
     loadPage

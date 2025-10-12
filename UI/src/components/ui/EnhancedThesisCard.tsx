@@ -1,5 +1,4 @@
 import React, { useState, useCallback } from 'react';
-import { motion } from 'framer-motion';
 import {
   BookOpen,
   Download,
@@ -165,12 +164,8 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
 
   if (variant === 'compact') {
     return (
-      <motion.div
-        layout
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        whileHover={{ y: -2 }}
-        className={`card p-4 cursor-pointer group ${className}`}
+      <div
+        className={`card p-4 cursor-pointer group ${className} thesis-card-compact`}
         onClick={() => onView?.(thesis)}
       >
         <div className="flex space-x-4">
@@ -209,17 +204,13 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -4, boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.1)' }}
-      className={`card overflow-hidden group ${className}`}
+    <div
+      className={`card overflow-hidden group ${className} thesis-card-enhanced`}
     >
       {/* Thumbnail */}
       <div className="aspect-[4/3] bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden">
@@ -407,16 +398,7 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
                 disabled={isDownloading || thesis.status !== ThesisStatus.PUBLISHED}
                 className="btn-primary text-sm"
               >
-                {isDownloading ? (
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                  >
-                    <Download className="w-4 h-4 mr-1" />
-                  </motion.div>
-                ) : (
-                  <Download className="w-4 h-4 mr-1" />
-                )}
+                <Download className={`w-4 h-4 mr-1 ${isDownloading ? 'animate-spin' : ''}`} />
                 Télécharger
               </button>
               
@@ -453,8 +435,8 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 };
 
-export default EnhancedThesisCard;
+export default React.memo(EnhancedThesisCard);

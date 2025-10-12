@@ -20,6 +20,9 @@ import {
 import { Link } from 'react-router-dom';
 import { apiService } from '../../services/api';
 import AdminHeader from '../layout/AdminHeader';
+import { useDebounce } from '../../utils/debounce';
+import { ThesisListSkeleton } from '../ui/SkeletonLoader';
+import { DeleteConfirmModal } from '../ui/DeleteConfirmModal';
 import { 
   PaginatedResponse,
   ThesisStatus,
@@ -50,6 +53,15 @@ export default function AdminThesesListPage() {
     year_to: '',
     language_id: ''
   });
+  
+  // NEW: Global statistics
+  const [globalStats, setGlobalStats] = useState<any>(null);
+  
+  // NEW: Delete modal
+  const [deleteModal, setDeleteModal] = useState<{
+    open: boolean;
+    thesis: AdminThesisListItem | null;
+  }>({ open: false, thesis: null });
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -57,9 +69,26 @@ export default function AdminThesesListPage() {
   const [totalItems, setTotalItems] = useState(0);
   const itemsPerPage = 20;
 
+  // NEW: Debounce search term
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+
   useEffect(() => {
     loadTheses();
-  }, [currentPage, searchTerm, filters]);
+  }, [currentPage, debouncedSearchTerm, filters]);
+  
+  // NEW: Load global stats on mount
+  useEffect(() => {
+    loadGlobalStats();
+  }, []);
+
+  const loadGlobalStats = async () => {
+    try {
+      const stats = await apiService.get('/admin/theses/statistics');
+      setGlobalStats(stats);
+    } catch (error) {
+      console.error('Error loading global stats:', error);
+    }
+  };
 
   const loadTheses = async () => {
     setLoading(true);
@@ -112,13 +141,22 @@ export default function AdminThesesListPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (thesis: AdminThesisListItem) => {
+    setDeleteModal({ open: true, thesis });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteModal.thesis) return;
+    
     try {
-      await apiService.deleteThesis(id);
+      await apiService.deleteThesis(deleteModal.thesis.id);
       loadTheses();
+      loadGlobalStats(); // Refresh stats
     } catch (error) {
       console.error('Error deleting thesis:', error);
     }
+    
+    setDeleteModal({ open: false, thesis: null });
   };
 
   const handleBulkDelete = async () => {
@@ -229,7 +267,7 @@ export default function AdminThesesListPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">En révision</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {theses.filter(t => t.status === ThesisStatus.UNDER_REVIEW).length}
+                  {globalStats?.by_status?.under_review || theses.filter(t => t.status === ThesisStatus.UNDER_REVIEW).length}
                 </p>
               </div>
             </div>
@@ -243,7 +281,7 @@ export default function AdminThesesListPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Publiées</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {theses.filter(t => t.status === ThesisStatus.PUBLISHED).length}
+                  {globalStats?.by_status?.published || theses.filter(t => t.status === ThesisStatus.PUBLISHED).length}
                 </p>
               </div>
             </div>
@@ -257,7 +295,7 @@ export default function AdminThesesListPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Rejetées</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {theses.filter(t => t.status === ThesisStatus.REJECTED).length}
+                  {globalStats?.by_status?.rejected || theses.filter(t => t.status === ThesisStatus.REJECTED).length}
                 </p>
               </div>
             </div>
@@ -420,6 +458,9 @@ export default function AdminThesesListPage() {
                   </th>
                 </tr>
               </thead>
+              {loading ? (
+                <ThesisListSkeleton rows={10} />
+              ) : (
               <tbody className="bg-white divide-y divide-gray-200">
                 {theses.map((thesis) => (
                   <tr key={thesis.id} className="hover:bg-gray-50">
@@ -492,11 +533,7 @@ export default function AdminThesesListPage() {
                           <Download className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => {
-                            if (confirm('Êtes-vous sûr de vouloir supprimer cette thèse ?')) {
-                              handleDelete(thesis.id);
-                            }
-                          }}
+                          onClick={() => handleDelete(thesis)}
                           className="text-red-600 hover:text-red-900"
                           title="Supprimer"
                         >
@@ -507,6 +544,7 @@ export default function AdminThesesListPage() {
                   </tr>
                 ))}
               </tbody>
+              )}
             </table>
 
             {theses.length === 0 && (
@@ -552,6 +590,17 @@ export default function AdminThesesListPage() {
             </div>
           )}
         </div>
+        
+        {/* NEW: Delete Confirmation Modal */}
+        <DeleteConfirmModal
+          isOpen={deleteModal.open}
+          onClose={() => setDeleteModal({ open: false, thesis: null })}
+          onConfirm={confirmDelete}
+          thesisTitle={deleteModal.thesis?.title_fr}
+          title="Confirmer la suppression"
+          message="Cette action est irréversible. La thèse et son fichier PDF seront définitivement supprimés."
+          danger={true}
+        />
       </div>
     </div>
   );

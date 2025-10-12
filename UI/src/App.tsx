@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SearchProvider } from './contexts/SearchContext';
+import { ToastProvider } from './components/ui/ToastContainer';
 import HomePage from './components/pages/HomePage';
 import SearchResultsPage from './components/pages/SearchResultsPage';
 import LoginPage from './components/pages/LoginPage';
@@ -93,9 +94,10 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 function App() {
   return (
     <AuthProvider>
-      <SearchProvider>
-        <Router>
-          <Routes>
+      <ToastProvider>
+        <SearchProvider>
+          <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <Routes>
             {/* Public Routes */}
             <Route path="/login" element={<LoginPage />} />
             
@@ -265,8 +267,9 @@ function App() {
               </AppLayout>
             } />
           </Routes>
-        </Router>
-      </SearchProvider>
+          </Router>
+        </SearchProvider>
+      </ToastProvider>
     </AuthProvider>
   );
 }

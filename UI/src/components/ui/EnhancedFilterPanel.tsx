@@ -44,6 +44,7 @@ interface EnhancedFilterPanelProps {
   filters: Partial<SearchRequest>;
   onFiltersChange: (filters: Partial<SearchRequest>) => void;
   onSearch?: () => void;
+  onClearFilters?: () => void;
   isLoading?: boolean;
   className?: string;
 }
@@ -114,6 +115,7 @@ const EnhancedFilterPanel: React.FC<EnhancedFilterPanelProps> = ({
   filters,
   onFiltersChange,
   onSearch,
+  onClearFilters,
   isLoading = false,
   className = ''
 }) => {
@@ -231,15 +233,6 @@ const EnhancedFilterPanel: React.FC<EnhancedFilterPanelProps> = ({
   const handleTreeNodeSelect = useCallback((groupKey: string, node: TreeNodeType) => {
     handleFilterChange(groupKey as keyof SearchRequest, node.id);
   }, [handleFilterChange]);
-
-  const clearAllFilters = useCallback(() => {
-    onFiltersChange({
-      page: 1,
-      limit: 20,
-      sort_field: SortField.CREATED_AT,
-      sort_order: SortOrder.DESC
-    });
-  }, [onFiltersChange]);
 
   const getActiveFilterCount = useMemo(() => {
     const excludeKeys = ['page', 'limit', 'sort_field', 'sort_order'];
@@ -421,11 +414,12 @@ const EnhancedFilterPanel: React.FC<EnhancedFilterPanelProps> = ({
             )}
           </h3>
           
-          {getActiveFilterCount > 0 && (
+          {getActiveFilterCount > 0 && onClearFilters && (
             <button
-              onClick={clearAllFilters}
+              onClick={onClearFilters}
               className="btn-ghost text-sm"
               disabled={isLoading}
+              title="Réinitialiser tous les filtres"
             >
               <X className="w-4 h-4 mr-1" />
               Effacer
@@ -434,50 +428,15 @@ const EnhancedFilterPanel: React.FC<EnhancedFilterPanelProps> = ({
         </div>
 
         {/* Quick Search */}
-        <div className="space-y-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Recherche rapide (titre, auteur, mots-clés...)"
-              value={filters.q || ''}
-              onChange={(e) => handleFilterChange('q', e.target.value)}
-              className="input-field pl-10 pr-4"
-            />
-          </div>
-
-          {/* Sort Options */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Trier par
-              </label>
-              <select
-                value={filters.sort_field || SortField.CREATED_AT}
-                onChange={(e) => handleFilterChange('sort_field', e.target.value as SortField)}
-                className="input-field text-sm"
-              >
-                {sortOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Ordre
-              </label>
-              <select
-                value={filters.sort_order || SortOrder.DESC}
-                onChange={(e) => handleFilterChange('sort_order', e.target.value as SortOrder)}
-                className="input-field text-sm"
-              >
-                <option value={SortOrder.DESC}>Décroissant</option>
-                <option value={SortOrder.ASC}>Croissant</option>
-              </select>
-            </div>
-          </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Recherche rapide (titre, auteur, mots-clés...)"
+            value={filters.q || ''}
+            onChange={(e) => handleFilterChange('q', e.target.value)}
+            className="input-field pl-10 pr-4"
+          />
         </div>
       </div>
 
@@ -506,13 +465,14 @@ const EnhancedFilterPanel: React.FC<EnhancedFilterPanelProps> = ({
               onClick={onSearch}
               disabled={isLoading}
               className="btn-primary"
+              title="Lancer la recherche (Entrée)"
             >
               {isLoading ? (
                 <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
               ) : (
                 <Search className="w-4 h-4 mr-2" />
               )}
-              Rechercher
+              {isLoading ? 'Recherche...' : 'Rechercher'}
             </button>
           )}
         </div>

@@ -118,6 +118,98 @@
   animation: expandNode 0.2s ease-out;
 }
 
+/* Animation for thesis cards */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Thesis results container - smooth transitions between views */
+.thesis-results-container {
+  display: grid;
+  transition: grid-template-columns 0.2s ease-in-out, gap 0.2s ease-in-out;
+  width: 100%;
+}
+
+/* Grid view */
+.thesis-grid-view {
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .thesis-grid-view {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .thesis-grid-view {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* List view */
+.thesis-list-view {
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+/* Card wrapper */
+.thesis-card-wrapper {
+  width: 100%;
+  transition: transform 0.15s ease-in-out;
+  will-change: auto;
+}
+
+/* Enhanced thesis card - optimized hover effect */
+.thesis-card-enhanced {
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+
+.thesis-card-enhanced:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1);
+}
+
+/* Compact thesis card - subtle hover effect */
+.thesis-card-compact {
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+}
+
+.thesis-card-compact:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+}
+
+/* Scroll to top button pulse animation */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(79, 70, 229, 0);
+  }
+}
+
+/* Filter chips animation */
+@keyframes slideInChip {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Loading skeleton animations */
 @keyframes shimmer {
   0% {

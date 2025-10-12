@@ -44,7 +44,7 @@ from datetime import datetime, timedelta, date
 from typing import Optional, List, Dict, Any, Union
 import json
 from enum import Enum
-from fastapi_gemini_integration import setup_gemini_extraction
+# from fastapi_gemini_integration import setup_gemini_extraction  # Disabled - file removed
 
 # =============================================================================
 # CONFIGURATION
@@ -263,7 +263,7 @@ def check_database_health():
                     FROM pg_tables 
                     WHERE schemaname = 'public' 
                     AND tablename IN ('users', 'theses', 'universities', 'faculties', 
-                                     'extraction_jobs', 'languages', 'degrees')
+                                     'languages', 'degrees')
                     ORDER BY tablename
                 """)
                 tables = [row['tablename'] for row in cursor.fetchall()]
@@ -530,9 +530,107 @@ def validate_file_size(file: UploadFile) -> bool:
     # Note: This is a basic check. For accurate size, we need to read the file
     return True  # Will be checked during file writing
 
+# NEW: PDF Integrity Validation
+try:
+    import PyPDF2
+    from PyPDF2.errors import PdfReadError
+    PDF_VALIDATION_AVAILABLE = True
+except ImportError:
+    PDF_VALIDATION_AVAILABLE = False
+    logger.warning("PyPDF2 not installed. PDF validation will be skipped.")
+
+async def validate_pdf_integrity(file_path: Path) -> dict:
+    """Validate PDF file integrity and extract basic info"""
+    if not PDF_VALIDATION_AVAILABLE:
+        return {"valid": True, "warning": "PDF validation skipped (PyPDF2 not installed)"}
+    
+    try:
+        with open(file_path, 'rb') as f:
+            pdf_reader = PyPDF2.PdfReader(f)
+            
+            if pdf_reader.is_encrypted:
+                return {"valid": False, "error": "PDF chiffré non supporté"}
+            
+            page_count = len(pdf_reader.pages)
+            if page_count == 0:
+                return {"valid": False, "error": "PDF vide"}
+            
+            # Try reading first page
+            try:
+                first_page = pdf_reader.pages[0]
+                _ = first_page.extract_text()
+            except Exception:
+                return {"valid": False, "error": "Impossible de lire le contenu PDF"}
+            
+            return {
+                "valid": True,
+                "page_count": page_count,
+                "encrypted": False,
+                "has_metadata": bool(pdf_reader.metadata)
+            }
+    except PdfReadError as e:
+        return {"valid": False, "error": f"PDF corrompu: {str(e)}"}
+    except Exception as e:
+        return {"valid": False, "error": f"Erreur validation: {str(e)}"}
+
+# NEW: Institutional Hierarchy Validation
+def validate_institutional_hierarchy(
+    university_id: Optional[str],
+    faculty_id: Optional[str],
+    department_id: Optional[str]
+) -> None:
+    """Validate that faculty belongs to university and department belongs to faculty"""
+    if not university_id:
+        return
+    
+    # Validate faculty → university
+    if faculty_id:
+        faculty = execute_query_with_result(
+            "SELECT university_id FROM faculties WHERE id = %s",
+            (faculty_id,)
+        )
+        if not faculty:
+            raise HTTPException(400, f"Faculté non trouvée")
+        if str(faculty[0]["university_id"]) != str(university_id):
+            raise HTTPException(400, "La faculté ne correspond pas à l'université")
+    
+    # Validate department → faculty
+    if department_id and faculty_id:
+        dept = execute_query_with_result(
+            "SELECT faculty_id, school_id FROM departments WHERE id = %s",
+            (department_id,)
+        )
+        if not dept:
+            raise HTTPException(400, f"Département non trouvé")
+        dept = dept[0]
+        if dept["faculty_id"] and str(dept["faculty_id"]) != str(faculty_id):
+            raise HTTPException(400, "Le département ne correspond pas à la faculté")
+
 def generate_file_id() -> str:
     """Generate unique file identifier"""
     return str(uuid.uuid4())
+
+def normalize_pg_array(value) -> list:
+    """
+    Normalize PostgreSQL array values to Python list.
+    PostgreSQL can return arrays as strings like '{}' or '{val1,val2}'
+    """
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        # Handle empty array string
+        if value in ('{}', ''):
+            return []
+        # Handle PostgreSQL array string format
+        if value.startswith('{') and value.endswith('}'):
+            # Remove braces and split by comma
+            inner = value[1:-1]
+            if not inner:
+                return []
+            return [v.strip() for v in inner.split(',') if v.strip()]
+    return []
 
 def get_file_hash(file_path: Path) -> str:
     """Calculate MD5 hash of file"""
@@ -577,18 +675,16 @@ async def save_temp_file(file: UploadFile, submitted_by:str) -> dict:
         # Calculate file hash
         file_hash = get_file_hash(temp_path)
         
-        # Check for duplicates
-        existing_file = check_file_duplicate(file_hash)
-        if existing_file:
-            temp_path.unlink()  # Delete duplicate
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"File already exists: {existing_file['original_filename']}"
-            )
+        # Check for duplicates (disabled - file_hash column doesn't exist in DB)
+        # existing_file = check_file_duplicate(file_hash)
+        # if existing_file:
+        #     temp_path.unlink()  # Delete duplicate
+        #     raise HTTPException(
+        #         status_code=status.HTTP_409_CONFLICT,
+        #         detail=f"File already exists: {existing_file['original_filename']}"
+        #     )
         
-        # Create manual extraction job record
-        extraction_job_id = create_manual_extraction_job(file_id, file.filename, file_size, file_hash, submitted_by)
-        
+        # Return file info (no extraction job needed)
         return {
             "file_id": file_id,
             "original_filename": file.filename,
@@ -596,7 +692,6 @@ async def save_temp_file(file: UploadFile, submitted_by:str) -> dict:
             "temp_path": str(temp_path),
             "file_size": file_size,
             "file_hash": file_hash,
-            "extraction_job_id": extraction_job_id,
             "submitted_by": submitted_by
         }
         
@@ -606,43 +701,6 @@ async def save_temp_file(file: UploadFile, submitted_by:str) -> dict:
             temp_path.unlink()
         logger.error(f"File upload error: {e}")
         raise
-
-def create_manual_extraction_job(file_id: str, original_filename: str, file_size: int, file_hash: str, submitted_by: str) -> str:
-    """Create extraction job record for manual entry"""
-    job_id = str(uuid.uuid4())
-    
-    # Get current admin user (we'll pass this in the actual endpoint)
-    # For now, use a default admin user ID - this will be updated in the actual implementation
-    
-    query = """
-        INSERT INTO extraction_jobs (
-            id, original_filename, file_url, file_size, file_hash, 
-            submitted_by, processing_status, processing_stage,
-            extraction_language, created_at, updated_at
-        ) VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-        ) RETURNING id
-    """
-    
-    # Temporary file URL in temp directory
-    temp_file_url = f"/temp/{file_id}.pdf"
-    
-    params = (
-        job_id,
-        original_filename,
-        temp_file_url,
-        file_size,
-        file_hash,
-        submitted_by, 
-        "completed",  # Manual entry is immediately "completed"
-        "manual_entry",
-        "fr",  # Default to French
-        datetime.utcnow(),
-        datetime.utcnow()
-    )
-    
-    result = execute_query(query, params, fetch_one=True)
-    return result["id"]
 
 def move_file_to_published(file_id: str) -> str:
     """Move file from temp to published directory"""
@@ -658,14 +716,6 @@ def move_file_to_published(file_id: str) -> str:
     try:
         # Move file
         shutil.move(str(temp_path), str(published_path))
-        
-        # Update file URL in extraction job
-        update_query = """
-            UPDATE extraction_jobs 
-            SET file_url = %s, updated_at = %s 
-            WHERE file_url = %s
-        """
-        execute_query(update_query, (f"/published/{file_id}.pdf", datetime.utcnow(), f"/temp/{file_id}.pdf"))
         
         return f"/published/{file_id}.pdf"
         
@@ -683,11 +733,12 @@ def delete_temp_file(file_id: str):
         temp_path.unlink()
 
 def check_file_duplicate(file_hash: str) -> Optional[dict]:
-    """Check if file with same hash already exists"""
+    """Check if file with same hash already exists in published theses"""
     query = """
-        SELECT original_filename, file_url 
-        FROM extraction_jobs 
+        SELECT file_name as original_filename, file_url 
+        FROM theses 
         WHERE file_hash = %s
+        LIMIT 1
     """
     return execute_query(query, (file_hash,), fetch_one=True)
 async def save_bulk_files(files: List[UploadFile], metadata_csv: UploadFile = None) -> dict:
@@ -1415,7 +1466,7 @@ class ThesisResponse(ThesisBase):
     file_url: str
     file_name: str
     submitted_by: Optional[UUID4] = None
-    extraction_job_id: UUID4
+    extraction_job_id: Optional[UUID4] = None  # Deprecated, kept for backward compatibility
     created_at: datetime
     updated_at: datetime
 
@@ -1493,7 +1544,7 @@ class FileUploadResponse(BaseResponse):
     temp_filename: str
     file_size: int
     file_hash: str
-    extraction_job_id: UUID4
+    extraction_job_id: Optional[UUID4] = None  # Deprecated, kept for backward compatibility
 
 class StatisticsResponse(BaseModel):
     total_theses: int = 0
@@ -1971,42 +2022,7 @@ async def login(request: Request, login_data: LoginRequest):
         data={"sub": str(user["id"]), "email": user["email"]}
     )
     
-    # Create session record
-    try:
-        session_id = str(uuid.uuid4())
-        session_token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
-        
-        query = """
-            INSERT INTO user_sessions (
-                id, user_id, token_hash, ip_address, user_agent, 
-                expires_at, created_at, last_used_at
-            ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s
-            )
-        """
-        
-        # Get client info
-        client_ip = request.client.host if request.client else None
-        user_agent = request.headers.get("user-agent", "Unknown")
-        expires_at = datetime.utcnow() + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
-        
-        execute_query(
-            query,
-            (
-                session_id,
-                user["id"],
-                session_token_hash,
-                client_ip,
-                user_agent,
-                expires_at,
-                datetime.utcnow(),
-                datetime.utcnow()
-            )
-        )
-        
-    except Exception as e:
-        logger.error(f"Failed to create session: {e}")
-        # Continue anyway - tokens are valid
+    # JWT tokens are stateless - no server-side session needed
     
     # Prepare user data for response (exclude sensitive fields)
     user_data = {
@@ -2048,17 +2064,8 @@ async def logout(request: Request, current_user: dict = Depends(get_current_user
         # Get token from request header
         auth_header = request.headers.get("authorization", "")
         if auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
-            
-            # Hash the token to match stored session (if using refresh token for session tracking)
-            # For now, we'll invalidate all user sessions for security
-            query = """
-                DELETE FROM user_sessions 
-                WHERE user_id = %s
-            """
-            
-            execute_query(query, (current_user["id"],))
-            
+            # JWT tokens are stateless - no server-side session to clear
+            # Client will discard the token
             logger.info(f"User {current_user['email']} logged out successfully")
         
         return BaseResponse(
@@ -2108,33 +2115,7 @@ async def refresh_token(request: Request, refresh_data: TokenRefreshRequest):
             detail="Account is deactivated"
         )
     
-    # Check if session exists and is valid
-    session_token_hash = hashlib.sha256(refresh_data.refresh_token.encode()).hexdigest()
-    
-    query = """
-        SELECT id, expires_at 
-        FROM user_sessions 
-        WHERE user_id = %s AND token_hash = %s
-    """
-    
-    session = execute_query(query, (user["id"], session_token_hash), fetch_one=True)
-    
-    if not session:
-        # Session doesn't exist - might have been logged out
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session not found. Please login again."
-        )
-    
-    # Update last used time
-    update_query = """
-        UPDATE user_sessions 
-        SET last_used_at = %s 
-        WHERE id = %s
-    """
-    execute_query(update_query, (datetime.utcnow(), session["id"]))
-    
-    # Create new tokens
+    # Create new tokens (JWT is stateless, token verification is enough)
     new_access_token = create_access_token(
         data={"sub": str(user["id"]), "email": user["email"], "role": user["role"]}
     )
@@ -2143,15 +2124,6 @@ async def refresh_token(request: Request, refresh_data: TokenRefreshRequest):
     new_refresh_token = create_refresh_token(
         data={"sub": str(user["id"]), "email": user["email"]}
     )
-    
-    # Update session with new refresh token hash
-    new_token_hash = hashlib.sha256(new_refresh_token.encode()).hexdigest()
-    update_token_query = """
-        UPDATE user_sessions 
-        SET token_hash = %s, last_used_at = %s 
-        WHERE id = %s
-    """
-    execute_query(update_token_query, (new_token_hash, datetime.utcnow(), session["id"]))
     
     # Prepare user data
     user_data = {
@@ -2363,12 +2335,7 @@ async def change_password(
     
     execute_query(query, (new_password_hash, datetime.utcnow(), current_user["id"]))
     
-    # Invalidate all existing sessions for security
-    session_query = """
-        DELETE FROM user_sessions 
-        WHERE user_id = %s
-    """
-    execute_query(session_query, (current_user["id"],))
+    # JWT tokens are stateless - user must login again with new password
     
     logger.info(f"User {current_user['email']} changed password")
     
@@ -6819,10 +6786,11 @@ async def upload_thesis_file(
     admin_user: dict = Depends(get_admin_user)
 ):
     """
-    Upload a thesis PDF file to temporary storage
+    Upload a thesis PDF file to temporary storage with validation
     
     First step in manual thesis entry. File is stored temporarily
     until metadata is complete and thesis is confirmed.
+    Now includes PDF integrity validation.
     """
     request_id = getattr(request.state, "request_id", None)
     
@@ -6830,26 +6798,36 @@ async def upload_thesis_file(
         # Save file to temp directory
         file_info = await save_temp_file(file, submitted_by=admin_user["id"])
         
-        # Update extraction job with the admin user who uploaded
-        update_query = """
-            UPDATE extraction_jobs 
-            SET submitted_by = %s, updated_at = %s 
-            WHERE id = %s
-        """
-        execute_query(update_query, (admin_user["id"], datetime.utcnow(), file_info["extraction_job_id"]))
+        # NEW: Validate PDF integrity
+        temp_file_path = TEMP_UPLOAD_DIR / f"{file_info['file_id']}.pdf"
+        validation_result = await validate_pdf_integrity(temp_file_path)
         
-        logger.info(f"File uploaded: {file_info['original_filename']} by {admin_user['email']}")
+        if not validation_result["valid"]:
+            # Delete the invalid file
+            if temp_file_path.exists():
+                temp_file_path.unlink()
+            
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"PDF invalide: {validation_result['error']}"
+            )
+        
+        logger.info(
+            f"File uploaded and validated: {file_info['original_filename']} "
+            f"({validation_result.get('page_count', 'unknown')} pages) by {admin_user['email']}"
+        )
         
         return FileUploadResponse(
             success=True,
-            message="File uploaded successfully",
+            message="File uploaded and validated successfully",
             file_id=file_info["file_id"],
             submitted_by=admin_user["id"],
             original_filename=file_info["original_filename"],
             temp_filename=file_info["temp_filename"],
             file_size=file_info["file_size"],
             file_hash=file_info["file_hash"],
-            extraction_job_id=file_info["extraction_job_id"]
+            extraction_job_id=None,
+            page_count=validation_result.get("page_count")
         )
         
     except HTTPException:
@@ -7024,20 +7002,12 @@ async def create_thesis_manual(
                 detail="File not found in temporary storage. Please upload the file first."
             )
         
-        # Get extraction job ID from file
-        job_query = """
-            SELECT id FROM extraction_jobs 
-            WHERE file_url = %s
-        """
-        job_result = execute_query(job_query, (f"/temp/{thesis_data.file_id}.pdf",), fetch_one=True)
-        
-        if not job_result:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Extraction job not found for this file"
-            )
-        
-        extraction_job_id = job_result["id"]
+        # NEW: Validate institutional hierarchy
+        validate_institutional_hierarchy(
+            str(thesis_data.university_id) if thesis_data.university_id else None,
+            str(thesis_data.faculty_id) if thesis_data.faculty_id else None,
+            str(thesis_data.department_id) if thesis_data.department_id else None
+        )
         
         # Begin transaction-like operation
         thesis_id = str(uuid.uuid4())
@@ -7054,12 +7024,12 @@ async def create_thesis_manual(
                 degree_id, thesis_number, study_location_id,
                 defense_date, language_id, secondary_language_ids,
                 page_count, file_url, file_name,
-                extraction_job_id, status,
+                status,
                 submitted_by, submitted_at,
                 created_at, updated_at
             ) VALUES (
                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
                 %s, %s, %s, %s
             ) RETURNING *
         """
@@ -7085,7 +7055,6 @@ async def create_thesis_manual(
             thesis_data.page_count,
             published_file_url,
             f"{thesis_data.file_id}.pdf",
-            extraction_job_id,
             thesis_data.status.value if hasattr(thesis_data.status, 'value') else str(thesis_data.status),
             admin_user["id"],
             datetime.utcnow(),
@@ -7122,14 +7091,14 @@ async def create_thesis_manual(
             study_location_id=thesis_result["study_location_id"],
             defense_date=thesis_result["defense_date"],
             language_id=thesis_result["language_id"],
-            secondary_language_ids=thesis_result["secondary_language_ids"] or [],
+            secondary_language_ids=normalize_pg_array(thesis_result["secondary_language_ids"]),
             page_count=thesis_result["page_count"],
             file_url=thesis_result["file_url"],
             file_name=thesis_result["file_name"],
             status=thesis_result["status"],
             submitted_by=thesis_result["submitted_by"],
             submitted_at=thesis_result["submitted_at"],
-            extraction_job_id=thesis_result["extraction_job_id"],
+            extraction_job_id=thesis_result.get("extraction_job_id"),  # May be None
             created_at=thesis_result["created_at"],
             updated_at=thesis_result["updated_at"]
         )
@@ -7828,13 +7797,13 @@ async def update_thesis(
             study_location_id=result["study_location_id"],
             defense_date=result["defense_date"],
             language_id=result["language_id"],
-            secondary_language_ids=result["secondary_language_ids"] or [],
+            secondary_language_ids=normalize_pg_array(result["secondary_language_ids"]),
             page_count=result["page_count"],
             file_url=result["file_url"],
             file_name=result["file_name"],
             status=result["status"],
             submitted_by=result["submitted_by"],
-            extraction_job_id=result["extraction_job_id"],
+            extraction_job_id=result.get("extraction_job_id"),  # May be None
             created_at=result["created_at"],
             updated_at=result["updated_at"]
         )
@@ -7902,6 +7871,34 @@ async def delete_thesis(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete thesis: {str(e)}"
         )
+
+# NEW: Global Thesis Statistics Endpoint
+@app.get("/admin/theses/statistics", response_model=Dict, tags=["Admin - Thesis Content"])
+async def get_thesis_statistics(
+    request: Request,
+    admin_user: dict = Depends(get_admin_user)
+):
+    """Get global thesis statistics for admin dashboard"""
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                # Stats by status
+                cursor.execute("SELECT status, COUNT(*) as count FROM theses GROUP BY status")
+                status_stats = cursor.fetchall()
+                status_counts = {stat["status"]: int(stat["count"]) for stat in status_stats}
+                
+                # Total count
+                cursor.execute("SELECT COUNT(*) as total FROM theses")
+                total = cursor.fetchone()["total"]
+                
+                return {
+                    "total": int(total),
+                    "by_status": status_counts
+                }
+    except Exception as e:
+        logger.error(f"Error fetching statistics: {e}")
+        raise HTTPException(500, f"Failed to fetch statistics: {str(e)}")
+
 # Download endpoint (public)
 @app.get("/theses/{thesis_id}/download", tags=["Public - Thesis search"])
 async def public_thesis_download(thesis_id: str, request: Request):
@@ -7920,6 +7917,249 @@ async def public_thesis_download(thesis_id: str, request: Request):
         logger.warning("Failed to log thesis download event", exc_info=True)
     # serve file
     return serve_file(r["file_url"], r["file_name"]) 
+
+# Public thesis detail endpoint
+@app.get("/theses/{thesis_id}", tags=["Public - Thesis search"])
+async def public_thesis_details(
+    request: Request,
+    thesis_id: str
+):
+    """
+    Get complete thesis details for public viewing
+    Only returns published/approved theses
+    """
+    try:
+        # Get thesis with related data
+        thesis_query = """
+            SELECT 
+                t.*,
+                u.name_fr as university_name,
+                u.name_en as university_name_en,
+                u.name_ar as university_name_ar,
+                f.name_fr as faculty_name,
+                f.name_en as faculty_name_en,
+                f.name_ar as faculty_name_ar,
+                s.name_fr as school_name,
+                dept.name_fr as department_name,
+                d.name_fr as degree_name,
+                d.name_en as degree_name_en,
+                d.abbreviation as degree_abbreviation,
+                l.name as language_name,
+                l.code as language_code
+            FROM theses t
+            LEFT JOIN universities u ON t.university_id = u.id
+            LEFT JOIN faculties f ON t.faculty_id = f.id
+            LEFT JOIN schools s ON t.school_id = s.id
+            LEFT JOIN departments dept ON t.department_id = dept.id
+            LEFT JOIN degrees d ON t.degree_id = d.id
+            LEFT JOIN languages l ON t.language_id = l.id
+            WHERE t.id = %s AND t.status IN ('published', 'approved')
+        """
+        
+        thesis = execute_query(thesis_query, (thesis_id,), fetch_one=True)
+        
+        if not thesis:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Thesis not found"
+            )
+        
+        # Record view event (best-effort)
+        try:
+            ip = request.client.host if request.client else None
+            ua = request.headers.get("user-agent")
+            execute_query(
+                "INSERT INTO thesis_views (id, thesis_id, user_id, ip_address, user_agent) VALUES (gen_random_uuid(), %s, NULL, %s, %s)",
+                (thesis_id, ip, ua),
+            )
+        except Exception:
+            logger.warning("Failed to log thesis view event", exc_info=True)
+        
+        # Get academic persons
+        persons_query = """
+            SELECT 
+                tap.id,
+                tap.person_id,
+                tap.role,
+                tap.is_external,
+                tap.external_institution_name,
+                ap.complete_name_fr,
+                ap.complete_name_ar,
+                ap.title,
+                ap.first_name_fr,
+                ap.last_name_fr
+            FROM thesis_academic_persons tap
+            JOIN academic_persons ap ON tap.person_id = ap.id
+            WHERE tap.thesis_id = %s
+            ORDER BY 
+                CASE tap.role
+                    WHEN 'author' THEN 1
+                    WHEN 'director' THEN 2
+                    WHEN 'co_director' THEN 3
+                    WHEN 'jury_president' THEN 4
+                    WHEN 'jury_reporter' THEN 5
+                    WHEN 'jury_examiner' THEN 6
+                    ELSE 7
+                END,
+                ap.complete_name_fr
+        """
+        persons = execute_query_with_result(persons_query, (thesis_id,))
+        
+        # Get categories
+        categories_query = """
+            SELECT 
+                tc.id,
+                tc.category_id,
+                tc.is_primary,
+                c.code,
+                c.name_fr,
+                c.name_en,
+                c.name_ar
+            FROM thesis_categories tc
+            JOIN categories c ON tc.category_id = c.id
+            WHERE tc.thesis_id = %s
+            ORDER BY tc.is_primary DESC, c.name_fr
+        """
+        categories = execute_query_with_result(categories_query, (thesis_id,))
+        
+        # Get keywords
+        keywords_query = """
+            SELECT 
+                tk.id,
+                tk.keyword_id,
+                tk.keyword_position,
+                k.keyword_fr,
+                k.keyword_en,
+                k.keyword_ar
+            FROM thesis_keywords tk
+            JOIN keywords k ON tk.keyword_id = k.id
+            WHERE tk.thesis_id = %s
+            ORDER BY tk.keyword_position NULLS LAST, k.keyword_fr
+        """
+        keywords = execute_query_with_result(keywords_query, (thesis_id,))
+        
+        # Get statistics
+        views_count = execute_query(
+            "SELECT COUNT(*) as count FROM thesis_views WHERE thesis_id = %s",
+            (thesis_id,),
+            fetch_one=True
+        )
+        downloads_count = execute_query(
+            "SELECT COUNT(*) as count FROM thesis_downloads WHERE thesis_id = %s",
+            (thesis_id,),
+            fetch_one=True
+        )
+        
+        # Format response
+        response = {
+            "success": True,
+            "data": {
+                "thesis": {
+                    "id": str(thesis["id"]),
+                    "title_fr": thesis["title_fr"],
+                    "title_ar": thesis["title_ar"],
+                    "title_en": thesis["title_en"],
+                    "abstract_fr": thesis["abstract_fr"],
+                    "abstract_ar": thesis["abstract_ar"],
+                    "abstract_en": thesis["abstract_en"],
+                    "thesis_number": thesis["thesis_number"],
+                    "defense_date": thesis["defense_date"].isoformat() if thesis["defense_date"] else None,
+                    "page_count": thesis["page_count"],
+                    "status": thesis["status"],
+                    "file_url": thesis["file_url"],
+                    "file_name": thesis["file_name"]
+                },
+                "institution": {
+                    "university": {
+                        "id": str(thesis["university_id"]) if thesis["university_id"] else None, 
+                        "name_fr": thesis["university_name"],
+                        "name_en": thesis["university_name_en"],
+                        "name_ar": thesis["university_name_ar"]
+                    },
+                    "faculty": {
+                        "id": str(thesis["faculty_id"]) if thesis["faculty_id"] else None,
+                        "name_fr": thesis["faculty_name"],
+                        "name_en": thesis["faculty_name_en"],
+                        "name_ar": thesis["faculty_name_ar"]
+                    },
+                    "school": {
+                        "id": str(thesis["school_id"]) if thesis["school_id"] else None,
+                        "name_fr": thesis["school_name"]
+                    },
+                    "department": {
+                        "id": str(thesis["department_id"]) if thesis["department_id"] else None,
+                        "name_fr": thesis["department_name"]
+                    }
+                },
+                "academic": {
+                    "degree": {
+                        "id": str(thesis["degree_id"]) if thesis["degree_id"] else None,
+                        "name_fr": thesis["degree_name"],
+                        "name_en": thesis["degree_name_en"],
+                        "abbreviation": thesis["degree_abbreviation"]
+                    },
+                    "language": {
+                        "id": str(thesis["language_id"]), 
+                        "name": thesis["language_name"],
+                        "code": thesis["language_code"]
+                    }
+                },
+                "persons": [
+                    {
+                        "id": str(p["id"]),
+                        "person_id": str(p["person_id"]),
+                        "role": p["role"],
+                        "name": p["complete_name_fr"],
+                        "name_ar": p["complete_name_ar"],
+                        "title": p["title"],
+                        "first_name": p["first_name_fr"],
+                        "last_name": p["last_name_fr"],
+                        "is_external": p["is_external"],
+                        "institution": p["external_institution_name"]
+                    } for p in persons
+                ],
+                "categories": [
+                    {
+                        "id": str(c["id"]),
+                        "category_id": str(c["category_id"]),
+                        "code": c["code"],
+                        "name_fr": c["name_fr"],
+                        "name_en": c["name_en"],
+                        "name_ar": c["name_ar"],
+                        "is_primary": c["is_primary"]
+                    } for c in categories
+                ],
+                "keywords": [
+                    {
+                        "id": str(k["id"]),
+                        "keyword_id": str(k["keyword_id"]),
+                        "keyword_fr": k["keyword_fr"],
+                        "keyword_en": k["keyword_en"],
+                        "keyword_ar": k["keyword_ar"],
+                        "position": k["keyword_position"]
+                    } for k in keywords
+                ],
+                "statistics": {
+                    "views": views_count["count"] if views_count else 0,
+                    "downloads": downloads_count["count"] if downloads_count else 0
+                },
+                "metadata": {
+                    "created_at": thesis["created_at"].isoformat() if thesis["created_at"] else None,
+                    "updated_at": thesis["updated_at"].isoformat() if thesis["updated_at"] else None
+                }
+            }
+        }
+        
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching public thesis details: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch thesis details"
+        )
 
 # =============================================================================
 # PUBLIC API - TREES AND LISTS
@@ -9044,14 +9284,16 @@ async def startup_event():
             directory.mkdir(parents=True, exist_ok=True)
         logger.info("Upload directories created/verified")
         # Setup Gemini extraction router if enabled and API key provided
-        try:
-            if settings.ENABLE_GEMINI_API and settings.GEMINI_API_KEY:
-                setup_gemini_extraction(app, settings.GEMINI_API_KEY, settings.GEMINI_MODEL_NAME)
-                logger.info("Gemini metadata extraction router enabled")
-            else:
-                logger.warning("Gemini extraction disabled or missing GEMINI_API_KEY; router not included")
-        except Exception as e:
-            logger.error(f"Failed to setup Gemini extraction router: {e}")
+        # DISABLED - fastapi_gemini_integration module removed
+        # try:
+        #     if settings.ENABLE_GEMINI_API and settings.GEMINI_API_KEY:
+        #         setup_gemini_extraction(app, settings.GEMINI_API_KEY, settings.GEMINI_MODEL_NAME)
+        #         logger.info("Gemini metadata extraction router enabled")
+        #     else:
+        #         logger.warning("Gemini extraction disabled or missing GEMINI_API_KEY; router not included")
+        # except Exception as e:
+        #     logger.error(f"Failed to setup Gemini extraction router: {e}")
+        logger.info("Gemini extraction router disabled (module removed)")
     except Exception as e:
         logger.error(f"Failed to initialize application: {e}")
         raise
