@@ -1,12 +1,10 @@
 -- ============================================================================
--- IMPROVED DATABASE STRUCTURE for theses.ma - VERSION 2.0
+-- IMPROVED DATABASE STRUCTURE for theses.ma
 -- Moroccan Thesis Repository
 -- ============================================================================
 -- This structure includes:
--- - Complete institutional redesign (institutions, campuses, org units)
--- - Renamed categories → disciplines for clarity
--- - Separation of organizational structure from academic programs
--- - All features from requirements (user profiles, citations, collections, etc.)
+-- - Fixes for critical issues in current database
+-- - All new tables for requested features
 -- - Proper constraints, indexes, and cascade rules
 -- ============================================================================
 
@@ -14,92 +12,20 @@
 -- ENUM TYPES
 -- ============================================================================
 
--- User & Access
 CREATE TYPE user_role AS ENUM ('user', 'moderator', 'admin', 'super_admin');
-
--- Institutions
-CREATE TYPE institution_type AS ENUM (
-    'public_university',
-    'private_university',
-    'grande_ecole',
-    'professional_institute',
-    'private_school',
-    'research_institute',
-    'specialized_institute'
-);
-
-CREATE TYPE ownership_type AS ENUM (
-    'public',
-    'private',
-    'semi_public',
-    'international',
-    'military',
-    'religious'
-);
-
-CREATE TYPE accreditation_status AS ENUM (
-    'accredited',
-    'provisional',
-    'pending',
-    'not_accredited'
-);
-
-CREATE TYPE organizational_unit_type AS ENUM (
-    'faculty',
-    'school',
-    'institute',
-    'department',
-    'section',
-    'laboratory',
-    'center',
-    'division'
-);
-
-CREATE TYPE program_level AS ENUM (
-    'bac_2',
-    'licence',
-    'licence_pro',
-    'master',
-    'master_spe',
-    'doctorat',
-    'diplome_ingenieur',
-    'diplome_grande_ecole',
-    'executive',
-    'other'
-);
-
-CREATE TYPE partnership_type AS ENUM (
-    'exchange_program',
-    'joint_degree',
-    'research_collaboration',
-    'co_tutelle',
-    'franchise',
-    'accreditation',
-    'other'
-);
-
--- Thesis & Academic
 CREATE TYPE thesis_status AS ENUM ('draft', 'pending', 'published', 'rejected');
 CREATE TYPE academic_role AS ENUM ('author', 'supervisor', 'co_supervisor', 'examiner', 'president', 'co_examiner');
-
--- Reports & Moderation
 CREATE TYPE report_status AS ENUM ('open', 'in_review', 'resolved', 'dismissed');
 CREATE TYPE report_type AS ENUM ('correction', 'metadata_error', 'copyright', 'inappropriate', 'duplicate');
 CREATE TYPE priority_level AS ENUM ('low', 'normal', 'medium', 'high', 'urgent');
-
--- Communication
 CREATE TYPE notification_type AS ENUM ('thesis_status', 'new_thesis', 'comment', 'report', 'announcement', 'citation', 'follow', 'system');
-CREATE TYPE announcement_type AS ENUM ('maintenance', 'feature', 'news', 'alert', 'update');
-
--- Collections & Content
-CREATE TYPE collection_type AS ENUM ('special_issue', 'curated', 'event', 'award', 'featured');
-
--- Analytics
 CREATE TYPE activity_type AS ENUM ('login', 'logout', 'search', 'view', 'download', 'upload', 'edit', 'delete', 'comment', 'bookmark', 'follow', 'export');
+CREATE TYPE collection_type AS ENUM ('special_issue', 'curated', 'event', 'award', 'featured');
+CREATE TYPE announcement_type AS ENUM ('maintenance', 'feature', 'news', 'alert', 'update');
 CREATE TYPE export_format AS ENUM ('bibtex', 'ris', 'endnote', 'json', 'xml');
 
 -- ============================================================================
--- CORE REFERENCE TABLES
+-- CORE ENTITY TABLES (IMPROVED)
 -- ============================================================================
 
 -- Languages
@@ -131,239 +57,70 @@ CREATE TABLE geographic_entities (
 );
 CREATE INDEX idx_geo_parent ON geographic_entities(parent_id);
 CREATE INDEX idx_geo_level ON geographic_entities(level);
-CREATE INDEX idx_geo_code ON geographic_entities(code);
 
--- ============================================================================
--- INSTITUTIONAL STRUCTURE (NEW DESIGN)
--- ============================================================================
-
--- Main Institutions Table
-CREATE TABLE institutions (
+-- Universities
+CREATE TABLE universities (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    -- Names (multilingual)
     name_en VARCHAR(255),
     name_fr VARCHAR(255) NOT NULL,
     name_ar VARCHAR(255),
-    official_name_fr VARCHAR(500),
-    official_name_ar VARCHAR(500),
     acronym VARCHAR(20),
-    
-    -- Classification
-    institution_type institution_type NOT NULL,
-    ownership_type ownership_type NOT NULL,
-    accreditation_status accreditation_status DEFAULT 'accredited',
-    
-    -- Hierarchy (for institution groups/networks)
-    parent_institution_id UUID REFERENCES institutions(id) ON DELETE SET NULL,
-    
-    -- Location (default/main)
     geographic_entity_id UUID REFERENCES geographic_entities(id) ON DELETE SET NULL,
-    
-    -- Metadata
-    founded_year INTEGER CHECK (founded_year IS NULL OR founded_year >= 1900),
-    recognition_date DATE,
-    accreditation_number VARCHAR(50),
-    accreditation_date DATE,
-    
-    -- Authority
-    supervising_ministry VARCHAR(255),
-    
-    -- Contact & Online
     website_url VARCHAR(255),
-    email VARCHAR(255),
-    phone VARCHAR(30),
-    address TEXT,
-    
-    -- Social & Rankings
-    international_ranking INTEGER,
-    national_ranking INTEGER,
-    
-    -- Status
+    founded_year INTEGER,
     is_active BOOLEAN DEFAULT true,
-    closure_date DATE,
-    
-    -- Stats (denormalized for performance)
-    total_students INTEGER DEFAULT 0,
-    total_faculty INTEGER DEFAULT 0,
-    total_theses INTEGER DEFAULT 0,
-    
-    -- Audit
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX idx_universities_geo ON universities(geographic_entity_id);
+CREATE INDEX idx_universities_name ON universities(name_fr);
 
-CREATE INDEX idx_institutions_type ON institutions(institution_type);
-CREATE INDEX idx_institutions_ownership ON institutions(ownership_type);
-CREATE INDEX idx_institutions_parent ON institutions(parent_institution_id);
-CREATE INDEX idx_institutions_geo ON institutions(geographic_entity_id);
-CREATE INDEX idx_institutions_active ON institutions(is_active);
-CREATE INDEX idx_institutions_name ON institutions(name_fr);
-
--- Institution Campuses (Multi-campus support)
-CREATE TABLE institution_campuses (
+-- Faculties
+CREATE TABLE faculties (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    
-    -- Campus Info
-    campus_name_fr VARCHAR(255) NOT NULL,
-    campus_name_en VARCHAR(255),
-    campus_name_ar VARCHAR(255),
-    campus_code VARCHAR(20),
-    
-    -- Location
-    geographic_entity_id UUID REFERENCES geographic_entities(id) ON DELETE SET NULL,
-    address TEXT,
-    postal_code VARCHAR(10),
-    latitude NUMERIC(10,8),
-    longitude NUMERIC(11,8),
-    
-    -- Details
-    is_main_campus BOOLEAN DEFAULT false,
-    campus_area_hectares NUMERIC(10,2),
-    established_year INTEGER,
-    
-    -- Contact
-    phone VARCHAR(30),
-    email VARCHAR(255),
-    
-    -- Facilities
-    has_library BOOLEAN DEFAULT true,
-    has_labs BOOLEAN DEFAULT false,
-    has_sports_facilities BOOLEAN DEFAULT false,
-    has_dormitories BOOLEAN DEFAULT false,
-    
-    -- Status
+    university_id UUID NOT NULL REFERENCES universities(id) ON DELETE CASCADE,
+    name_en VARCHAR(255),
+    name_fr VARCHAR(255) NOT NULL,
+    name_ar VARCHAR(255),
+    acronym VARCHAR(50),
     is_active BOOLEAN DEFAULT true,
-    
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    UNIQUE (institution_id, campus_code)
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX idx_faculties_university ON faculties(university_id);
 
-CREATE INDEX idx_campuses_institution ON institution_campuses(institution_id);
-CREATE INDEX idx_campuses_geo ON institution_campuses(geographic_entity_id);
-CREATE INDEX idx_campuses_main ON institution_campuses(is_main_campus);
-
--- Organizational Units (Consolidates faculties, schools, departments)
-CREATE TABLE organizational_units (
+-- Schools
+CREATE TABLE schools (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    -- Hierarchy
-    institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    parent_unit_id UUID REFERENCES organizational_units(id) ON DELETE CASCADE,
-    campus_id UUID REFERENCES institution_campuses(id) ON DELETE SET NULL,
-    
-    -- Names
     name_en VARCHAR(500),
     name_fr VARCHAR(500) NOT NULL,
     name_ar VARCHAR(500),
-    acronym VARCHAR(50),
-    
-    -- Classification
-    unit_type organizational_unit_type NOT NULL,
-    hierarchy_level INTEGER DEFAULT 1,
-    
-    -- Details
-    description_fr TEXT,
-    description_en TEXT,
-    established_year INTEGER,
-    
-    -- Contact
-    head_person_id UUID,  -- Will reference academic_persons
-    email VARCHAR(255),
-    phone VARCHAR(30),
-    office_location VARCHAR(255),
-    
-    -- Administrative
-    is_research_unit BOOLEAN DEFAULT false,
-    is_teaching_unit BOOLEAN DEFAULT true,
-    
-    -- Status
+    acronym VARCHAR(20),
+    parent_university_id UUID REFERENCES universities(id) ON DELETE CASCADE,
+    parent_school_id UUID REFERENCES schools(id) ON DELETE CASCADE,
     is_active BOOLEAN DEFAULT true,
-    
-    -- Audit
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX idx_schools_university ON schools(parent_university_id);
+CREATE INDEX idx_schools_parent ON schools(parent_school_id);
 
-CREATE INDEX idx_org_units_institution ON organizational_units(institution_id);
-CREATE INDEX idx_org_units_parent ON organizational_units(parent_unit_id);
-CREATE INDEX idx_org_units_campus ON organizational_units(campus_id);
-CREATE INDEX idx_org_units_type ON organizational_units(unit_type);
-CREATE INDEX idx_org_units_level ON organizational_units(hierarchy_level);
-CREATE INDEX idx_org_units_name ON organizational_units(name_fr);
-
--- Institution Partnerships
-CREATE TABLE institution_partnerships (
+-- Departments
+CREATE TABLE departments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    partner_institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
-    partner_institution_name VARCHAR(255),
-    partner_country VARCHAR(100),
-    
-    partnership_type partnership_type NOT NULL,
-    
-    description TEXT,
-    start_date DATE,
-    end_date DATE,
-    
-    is_active BOOLEAN DEFAULT true,
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_partnerships_institution ON institution_partnerships(institution_id);
-CREATE INDEX idx_partnerships_type ON institution_partnerships(partnership_type);
-
--- ============================================================================
--- ACADEMIC CLASSIFICATION
--- ============================================================================
-
--- Disciplines (Renamed from categories)
-CREATE TABLE disciplines (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    -- Hierarchy
-    parent_id UUID REFERENCES disciplines(id) ON DELETE SET NULL,
-    level INTEGER DEFAULT 0,
-    
-    -- Identification
-    code VARCHAR(50) NOT NULL UNIQUE,
-    unesco_code VARCHAR(20),
-    
-    -- Names
+    faculty_id UUID REFERENCES faculties(id) ON DELETE CASCADE,
+    school_id UUID REFERENCES schools(id) ON DELETE CASCADE,
     name_en VARCHAR(255),
     name_fr VARCHAR(255) NOT NULL,
     name_ar VARCHAR(255),
-    
-    -- Details
-    description_en TEXT,
-    description_fr TEXT,
-    description_ar TEXT,
-    
-    -- Classification
-    field_of_study VARCHAR(100),
-    
-    -- Display
-    display_order INTEGER DEFAULT 0,
-    color_hex VARCHAR(7),
-    icon_name VARCHAR(50),
-    
-    -- Status
+    acronym VARCHAR(20),
     is_active BOOLEAN DEFAULT true,
-    
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CHECK (faculty_id IS NOT NULL OR school_id IS NOT NULL)
 );
-
-CREATE INDEX idx_disciplines_parent ON disciplines(parent_id);
-CREATE INDEX idx_disciplines_code ON disciplines(code);
-CREATE INDEX idx_disciplines_field ON disciplines(field_of_study);
-CREATE INDEX idx_disciplines_level ON disciplines(level);
+CREATE INDEX idx_departments_faculty ON departments(faculty_id);
+CREATE INDEX idx_departments_school ON departments(school_id);
 
 -- Degrees
 CREATE TABLE degrees (
@@ -374,90 +131,29 @@ CREATE TABLE degrees (
     abbreviation VARCHAR(20) NOT NULL,
     type VARCHAR(50) NOT NULL,
     category VARCHAR(50),
-    level INTEGER,
+    level INTEGER, -- 1=Bachelor, 2=Master, 3=Doctorate
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Study Programs (NEW - Filières)
-CREATE TABLE study_programs (
+-- Categories (Research Disciplines)
+CREATE TABLE categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    -- Affiliation
-    organizational_unit_id UUID NOT NULL REFERENCES organizational_units(id) ON DELETE CASCADE,
-    discipline_id UUID REFERENCES disciplines(id) ON DELETE SET NULL,
-    
-    -- Names
-    program_name_fr VARCHAR(500) NOT NULL,
-    program_name_en VARCHAR(500),
-    program_name_ar VARCHAR(500),
-    program_code VARCHAR(50),
-    
-    -- Classification
-    program_level program_level NOT NULL,
-    degree_id UUID REFERENCES degrees(id) ON DELETE SET NULL,
-    
-    -- Details
+    parent_id UUID REFERENCES categories(id) ON DELETE SET NULL,
+    level INTEGER DEFAULT 0,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    name_en VARCHAR(255),
+    name_fr VARCHAR(255) NOT NULL,
+    name_ar VARCHAR(255),
     description_fr TEXT,
-    duration_years NUMERIC(3,1),
-    total_credits INTEGER,
-    
-    -- Language of instruction
-    instruction_language_ids UUID[],
-    
-    -- Accreditation
-    is_accredited BOOLEAN DEFAULT true,
-    accreditation_number VARCHAR(100),
-    accreditation_date DATE,
-    accreditation_expiry DATE,
-    
-    -- Admission
-    admission_requirements TEXT,
-    admission_capacity INTEGER,
-    
-    -- Status
     is_active BOOLEAN DEFAULT true,
-    start_year INTEGER,
-    end_year INTEGER,
-    
+    display_order INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE INDEX idx_programs_unit ON study_programs(organizational_unit_id);
-CREATE INDEX idx_programs_discipline ON study_programs(discipline_id);
-CREATE INDEX idx_programs_level ON study_programs(program_level);
-CREATE INDEX idx_programs_degree ON study_programs(degree_id);
-
--- Specializations (NEW - Spécialités)
-CREATE TABLE specializations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    study_program_id UUID NOT NULL REFERENCES study_programs(id) ON DELETE CASCADE,
-    
-    -- Names
-    specialization_name_fr VARCHAR(255) NOT NULL,
-    specialization_name_en VARCHAR(255),
-    specialization_name_ar VARCHAR(255),
-    specialization_code VARCHAR(50),
-    
-    -- Details
-    description_fr TEXT,
-    description_en TEXT,
-    
-    -- Disciplines
-    primary_discipline_id UUID REFERENCES disciplines(id) ON DELETE SET NULL,
-    
-    -- Status
-    is_active BOOLEAN DEFAULT true,
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_specializations_program ON specializations(study_program_id);
-CREATE INDEX idx_specializations_discipline ON specializations(primary_discipline_id);
+CREATE INDEX idx_categories_parent ON categories(parent_id);
+CREATE INDEX idx_categories_code ON categories(code);
 
 -- Keywords
 CREATE TABLE keywords (
@@ -466,14 +162,13 @@ CREATE TABLE keywords (
     keyword_en VARCHAR(200),
     keyword_fr VARCHAR(200) NOT NULL,
     keyword_ar VARCHAR(200),
-    discipline_id UUID REFERENCES disciplines(id) ON DELETE SET NULL,
+    category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
     usage_count INTEGER DEFAULT 0,
     is_approved BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE INDEX idx_keywords_discipline ON keywords(discipline_id);
+CREATE INDEX idx_keywords_category ON keywords(category_id);
 CREATE INDEX idx_keywords_fr ON keywords(keyword_fr);
 CREATE INDEX idx_keywords_usage ON keywords(usage_count DESC);
 
@@ -485,22 +180,21 @@ CREATE TABLE research_methodologies (
     name_ar VARCHAR(255),
     description_fr TEXT,
     parent_id UUID REFERENCES research_methodologies(id) ON DELETE SET NULL,
-    methodology_type VARCHAR(50),
+    methodology_type VARCHAR(50), -- 'quantitative', 'qualitative', 'mixed', 'experimental', etc.
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX idx_methodologies_parent ON research_methodologies(parent_id);
 
 -- ============================================================================
--- USER MANAGEMENT
+-- USER MANAGEMENT (IMPROVED)
 -- ============================================================================
 
--- Users (Enhanced)
+-- Users
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) NOT NULL UNIQUE CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$'),
+    email VARCHAR(255) NOT NULL UNIQUE,
     username VARCHAR(100) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     first_name VARCHAR(100) NOT NULL,
@@ -512,11 +206,10 @@ CREATE TABLE users (
     google_scholar_id VARCHAR(100),
     linkedin_url VARCHAR(255),
     website_url VARCHAR(255),
-    
-    -- Affiliation (updated to new structure)
-    institution_id UUID REFERENCES institutions(id) ON DELETE SET NULL,
-    organizational_unit_id UUID REFERENCES organizational_units(id) ON DELETE SET NULL,
-    
+    university_id UUID REFERENCES universities(id) ON DELETE SET NULL,
+    faculty_id UUID REFERENCES faculties(id) ON DELETE SET NULL,
+    department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
+    school_id UUID REFERENCES schools(id) ON DELETE SET NULL,
     phone VARCHAR(30),
     alternative_email VARCHAR(255),
     language VARCHAR(5) DEFAULT 'fr',
@@ -532,13 +225,12 @@ CREATE TABLE users (
     login_count INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP
+    deleted_at TIMESTAMP,
+    CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$')
 );
-
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
-CREATE INDEX idx_users_institution ON users(institution_id);
-CREATE INDEX idx_users_org_unit ON users(organizational_unit_id);
+CREATE INDEX idx_users_university ON users(university_id);
 CREATE INDEX idx_users_active ON users(is_active, created_at DESC);
 
 -- User Publications
@@ -546,7 +238,7 @@ CREATE TABLE user_publications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title VARCHAR(500) NOT NULL,
-    publication_type VARCHAR(50),
+    publication_type VARCHAR(50), -- 'journal', 'conference', 'book', 'chapter', 'thesis'
     authors TEXT,
     publication_date DATE,
     journal_name VARCHAR(255),
@@ -560,7 +252,6 @@ CREATE TABLE user_publications (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX idx_publications_user ON user_publications(user_id);
 
 -- User Research Interests
@@ -568,11 +259,10 @@ CREATE TABLE user_research_interests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     keyword_id UUID NOT NULL REFERENCES keywords(id) ON DELETE CASCADE,
-    interest_level INTEGER DEFAULT 5,
+    interest_level INTEGER DEFAULT 5, -- 1-10 scale
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (user_id, keyword_id)
 );
-
 CREATE INDEX idx_research_interests_user ON user_research_interests(user_id);
 
 -- User Activity Logs
@@ -587,7 +277,6 @@ CREATE TABLE user_activity_logs (
     user_agent TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX idx_activity_user_date ON user_activity_logs(user_id, created_at DESC);
 CREATE INDEX idx_activity_type ON user_activity_logs(activity_type, created_at DESC);
 
@@ -595,26 +284,24 @@ CREATE INDEX idx_activity_type ON user_activity_logs(activity_type, created_at D
 CREATE TABLE user_bookmarks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    thesis_id UUID NOT NULL,  -- Will reference theses
+    thesis_id UUID NOT NULL REFERENCES theses(id) ON DELETE CASCADE,
     notes TEXT,
     folder_name VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (user_id, thesis_id)
 );
-
 CREATE INDEX idx_bookmarks_user ON user_bookmarks(user_id, created_at DESC);
 
 -- User Follows
 CREATE TABLE user_follows (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     follower_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    following_type VARCHAR(20) NOT NULL,
+    following_type VARCHAR(20) NOT NULL, -- 'user', 'researcher', 'keyword', 'category'
     following_id UUID NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (follower_id, following_type, following_id)
 );
-
 CREATE INDEX idx_follows_follower ON user_follows(follower_id);
 CREATE INDEX idx_follows_following ON user_follows(following_type, following_id);
 
@@ -626,7 +313,6 @@ CREATE TABLE academic_persons (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     complete_name_fr VARCHAR(200),
     complete_name_ar VARCHAR(200),
-    complete_name_en VARCHAR(200),
     first_name_fr VARCHAR(100),
     last_name_fr VARCHAR(100),
     first_name_ar VARCHAR(100),
@@ -634,16 +320,12 @@ CREATE TABLE academic_persons (
     first_name_en VARCHAR(100),
     last_name_en VARCHAR(100),
     title VARCHAR(100),
-    
-    -- Affiliation (updated to new structure)
-    institution_id UUID REFERENCES institutions(id) ON DELETE SET NULL,
-    organizational_unit_id UUID REFERENCES organizational_units(id) ON DELETE SET NULL,
-    
-    -- External affiliation
+    university_id UUID REFERENCES universities(id) ON DELETE SET NULL,
+    faculty_id UUID REFERENCES faculties(id) ON DELETE SET NULL,
+    school_id UUID REFERENCES schools(id) ON DELETE SET NULL,
     external_institution_name VARCHAR(255),
     external_institution_country VARCHAR(100),
     external_institution_type VARCHAR(50),
-    
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     orcid VARCHAR(19),
     email VARCHAR(255),
@@ -651,19 +333,12 @@ CREATE TABLE academic_persons (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX idx_academic_persons_name ON academic_persons(complete_name_fr);
-CREATE INDEX idx_academic_persons_institution ON academic_persons(institution_id);
-CREATE INDEX idx_academic_persons_unit ON academic_persons(organizational_unit_id);
+CREATE INDEX idx_academic_persons_university ON academic_persons(university_id);
 CREATE INDEX idx_academic_persons_user ON academic_persons(user_id);
 
--- Add foreign key for head_person_id in organizational_units
-ALTER TABLE organizational_units
-    ADD CONSTRAINT fk_org_units_head
-    FOREIGN KEY (head_person_id) REFERENCES academic_persons(id) ON DELETE SET NULL;
-
 -- ============================================================================
--- THESES (Enhanced)
+-- THESES (IMPROVED)
 -- ============================================================================
 
 CREATE TABLE theses (
@@ -674,17 +349,14 @@ CREATE TABLE theses (
     abstract_en TEXT,
     abstract_fr TEXT NOT NULL,
     abstract_ar TEXT,
-    
-    -- Affiliation (updated to new structure)
-    institution_id UUID REFERENCES institutions(id) ON DELETE SET NULL,
-    organizational_unit_id UUID REFERENCES organizational_units(id) ON DELETE SET NULL,
-    study_program_id UUID REFERENCES study_programs(id) ON DELETE SET NULL,
-    specialization_id UUID REFERENCES specializations(id) ON DELETE SET NULL,
-    
+    university_id UUID REFERENCES universities(id) ON DELETE SET NULL,
+    faculty_id UUID REFERENCES faculties(id) ON DELETE SET NULL,
+    school_id UUID REFERENCES schools(id) ON DELETE SET NULL,
+    department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
     degree_id UUID REFERENCES degrees(id) ON DELETE SET NULL,
     thesis_number VARCHAR(100),
     study_location_id UUID REFERENCES geographic_entities(id) ON DELETE SET NULL,
-    defense_date DATE NOT NULL CHECK (defense_date <= CURRENT_DATE + INTERVAL '1 year'),
+    defense_date DATE NOT NULL,
     defense_year INTEGER GENERATED ALWAYS AS (EXTRACT(YEAR FROM defense_date)) STORED,
     language_id UUID NOT NULL REFERENCES languages(id) ON DELETE RESTRICT,
     page_count INTEGER CHECK (page_count IS NULL OR page_count > 0),
@@ -712,25 +384,18 @@ CREATE TABLE theses (
     metadata_completeness_score NUMERIC(3,2),
     extraction_job_id UUID,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CHECK (defense_date <= CURRENT_DATE + INTERVAL '1 year')
 );
-
 CREATE INDEX idx_theses_status ON theses(status, created_at DESC);
 CREATE INDEX idx_theses_defense_date ON theses(defense_date DESC);
 CREATE INDEX idx_theses_defense_year ON theses(defense_year DESC);
-CREATE INDEX idx_theses_institution ON theses(institution_id);
-CREATE INDEX idx_theses_org_unit ON theses(organizational_unit_id);
-CREATE INDEX idx_theses_program ON theses(study_program_id);
+CREATE INDEX idx_theses_university ON theses(university_id);
 CREATE INDEX idx_theses_degree ON theses(degree_id);
 CREATE INDEX idx_theses_language ON theses(language_id);
 CREATE INDEX idx_theses_featured ON theses(is_featured, featured_until);
 CREATE INDEX idx_theses_fulltext_title ON theses USING gin(to_tsvector('french', title_fr));
 CREATE INDEX idx_theses_fulltext_abstract ON theses USING gin(to_tsvector('french', abstract_fr));
-
--- Add foreign key for bookmarks
-ALTER TABLE user_bookmarks
-    ADD CONSTRAINT fk_bookmarks_thesis
-    FOREIGN KEY (thesis_id) REFERENCES theses(id) ON DELETE CASCADE;
 
 -- Thesis Languages (Secondary Languages)
 CREATE TABLE thesis_languages (
@@ -749,7 +414,7 @@ CREATE TABLE thesis_academic_persons (
     person_id UUID NOT NULL REFERENCES academic_persons(id) ON DELETE CASCADE,
     role academic_role NOT NULL,
     role_order INTEGER DEFAULT 0,
-    organizational_unit_id UUID REFERENCES organizational_units(id) ON DELETE SET NULL,
+    faculty_id UUID REFERENCES faculties(id) ON DELETE SET NULL,
     is_external BOOLEAN DEFAULT false,
     external_institution_name VARCHAR(255),
     approved_by UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -758,27 +423,25 @@ CREATE TABLE thesis_academic_persons (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (thesis_id, person_id, role)
 );
-
 CREATE INDEX idx_thesis_persons_thesis ON thesis_academic_persons(thesis_id);
 CREATE INDEX idx_thesis_persons_person ON thesis_academic_persons(person_id);
 CREATE INDEX idx_thesis_persons_role ON thesis_academic_persons(role);
 
--- Thesis Disciplines
-CREATE TABLE thesis_disciplines (
+-- Thesis Categories
+CREATE TABLE thesis_categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     thesis_id UUID NOT NULL REFERENCES theses(id) ON DELETE CASCADE,
-    discipline_id UUID NOT NULL REFERENCES disciplines(id) ON DELETE CASCADE,
+    category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
     is_primary BOOLEAN DEFAULT false,
     confidence_score NUMERIC(5,4),
     reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
     reviewed_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (thesis_id, discipline_id)
+    UNIQUE (thesis_id, category_id)
 );
-
-CREATE INDEX idx_thesis_disciplines_thesis ON thesis_disciplines(thesis_id);
-CREATE INDEX idx_thesis_disciplines_discipline ON thesis_disciplines(discipline_id);
+CREATE INDEX idx_thesis_categories_thesis ON thesis_categories(thesis_id);
+CREATE INDEX idx_thesis_categories_category ON thesis_categories(category_id);
 
 -- Thesis Keywords
 CREATE TABLE thesis_keywords (
@@ -793,7 +456,6 @@ CREATE TABLE thesis_keywords (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (thesis_id, keyword_id)
 );
-
 CREATE INDEX idx_thesis_keywords_thesis ON thesis_keywords(thesis_id);
 CREATE INDEX idx_thesis_keywords_keyword ON thesis_keywords(keyword_id);
 
@@ -806,7 +468,6 @@ CREATE TABLE thesis_methodologies (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (thesis_id, methodology_id)
 );
-
 CREATE INDEX idx_thesis_methodologies_thesis ON thesis_methodologies(thesis_id);
 
 -- Thesis Awards
@@ -818,7 +479,7 @@ CREATE TABLE thesis_awards (
     award_name_ar VARCHAR(255),
     awarding_organization VARCHAR(255),
     award_date DATE,
-    award_level VARCHAR(50),
+    award_level VARCHAR(50), -- 'university', 'national', 'international'
     award_category VARCHAR(50),
     description TEXT,
     prize_amount NUMERIC(10,2),
@@ -827,7 +488,6 @@ CREATE TABLE thesis_awards (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX idx_awards_thesis ON thesis_awards(thesis_id);
 
 -- ============================================================================
@@ -852,7 +512,6 @@ CREATE TABLE thesis_citations (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CHECK (citing_thesis_id IS NOT NULL OR cited_thesis_id IS NOT NULL)
 );
-
 CREATE INDEX idx_citations_citing ON thesis_citations(citing_thesis_id);
 CREATE INDEX idx_citations_cited ON thesis_citations(cited_thesis_id);
 
@@ -861,14 +520,14 @@ CREATE TABLE thesis_similarities (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     thesis_id UUID NOT NULL REFERENCES theses(id) ON DELETE CASCADE,
     similar_thesis_id UUID NOT NULL REFERENCES theses(id) ON DELETE CASCADE,
-    similarity_score NUMERIC(5,4) NOT NULL CHECK (similarity_score >= 0 AND similarity_score <= 1),
-    similarity_type VARCHAR(50),
+    similarity_score NUMERIC(5,4) NOT NULL,
+    similarity_type VARCHAR(50), -- 'content', 'keywords', 'category', 'ml_model'
     model_version VARCHAR(50),
     calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (thesis_id, similar_thesis_id),
-    CHECK (thesis_id != similar_thesis_id)
+    CHECK (thesis_id != similar_thesis_id),
+    CHECK (similarity_score >= 0 AND similarity_score <= 1)
 );
-
 CREATE INDEX idx_similarities_thesis ON thesis_similarities(thesis_id, similarity_score DESC);
 
 -- ============================================================================
@@ -894,7 +553,6 @@ CREATE TABLE thesis_collections (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX idx_collections_type ON thesis_collections(collection_type);
 CREATE INDEX idx_collections_curator ON thesis_collections(curator_id);
 
@@ -909,7 +567,6 @@ CREATE TABLE collection_theses (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (collection_id, thesis_id)
 );
-
 CREATE INDEX idx_collection_theses_collection ON collection_theses(collection_id, display_order);
 
 -- ============================================================================
@@ -935,7 +592,6 @@ CREATE TABLE thesis_comments (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX idx_comments_thesis ON thesis_comments(thesis_id, created_at DESC);
 CREATE INDEX idx_comments_user ON thesis_comments(user_id);
 CREATE INDEX idx_comments_parent ON thesis_comments(parent_comment_id);
@@ -949,7 +605,6 @@ CREATE TABLE comment_reactions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (comment_id, user_id, reaction_type)
 );
-
 CREATE INDEX idx_reactions_comment ON comment_reactions(comment_id);
 
 -- ============================================================================
@@ -973,7 +628,6 @@ CREATE TABLE thesis_reports (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX idx_reports_status ON thesis_reports(status, priority, created_at DESC);
 CREATE INDEX idx_reports_thesis ON thesis_reports(thesis_id);
 CREATE INDEX idx_reports_assigned ON thesis_reports(assigned_to);
@@ -994,7 +648,6 @@ CREATE TABLE thesis_views (
     referrer_url VARCHAR(500),
     viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX idx_views_thesis_date ON thesis_views(thesis_id, viewed_at DESC);
 CREATE INDEX idx_views_user ON thesis_views(user_id, viewed_at DESC);
 
@@ -1009,7 +662,6 @@ CREATE TABLE thesis_downloads (
     referrer_url VARCHAR(500),
     downloaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX idx_downloads_thesis_date ON thesis_downloads(thesis_id, downloaded_at DESC);
 CREATE INDEX idx_downloads_user ON thesis_downloads(user_id, downloaded_at DESC);
 
@@ -1022,7 +674,6 @@ CREATE TABLE thesis_exports (
     ip_address INET,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX idx_exports_thesis ON thesis_exports(thesis_id, created_at DESC);
 
 -- ============================================================================
@@ -1042,7 +693,6 @@ CREATE TABLE saved_searches (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX idx_saved_searches_user ON saved_searches(user_id);
 CREATE INDEX idx_saved_searches_alerts ON saved_searches(is_alert_enabled, alert_frequency);
 
@@ -1057,7 +707,6 @@ CREATE TABLE search_history (
     ip_address INET,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX idx_search_history_user ON search_history(user_id, created_at DESC);
 CREATE INDEX idx_search_history_query ON search_history USING gin(to_tsvector('french', search_query));
 
@@ -1081,7 +730,6 @@ CREATE TABLE notifications (
     expires_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX idx_notifications_user_unread ON notifications(user_id, is_read, created_at DESC);
 CREATE INDEX idx_notifications_type ON notifications(notification_type, created_at DESC);
 
@@ -1105,7 +753,6 @@ CREATE TABLE system_announcements (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX idx_announcements_active ON system_announcements(is_active, publish_at DESC);
 
 -- ============================================================================
@@ -1116,7 +763,7 @@ CREATE INDEX idx_announcements_active ON system_announcements(is_active, publish
 CREATE TABLE trending_topics (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     keyword_id UUID REFERENCES keywords(id) ON DELETE CASCADE,
-    discipline_id UUID REFERENCES disciplines(id) ON DELETE CASCADE,
+    category_id UUID REFERENCES categories(id) ON DELETE CASCADE,
     time_period VARCHAR(20) NOT NULL,
     search_count INTEGER DEFAULT 0,
     view_count INTEGER DEFAULT 0,
@@ -1126,16 +773,15 @@ CREATE TABLE trending_topics (
     period_start DATE NOT NULL,
     period_end DATE NOT NULL,
     calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CHECK (keyword_id IS NOT NULL OR discipline_id IS NOT NULL)
+    CHECK (keyword_id IS NOT NULL OR category_id IS NOT NULL)
 );
-
 CREATE INDEX idx_trending_period ON trending_topics(time_period, trend_score DESC, rank_position);
 
 -- Institution Rankings
 CREATE TABLE institution_rankings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
-    organizational_unit_id UUID REFERENCES organizational_units(id) ON DELETE CASCADE,
+    university_id UUID REFERENCES universities(id) ON DELETE CASCADE,
+    faculty_id UUID REFERENCES faculties(id) ON DELETE CASCADE,
     ranking_type VARCHAR(50) NOT NULL,
     time_period VARCHAR(20) NOT NULL,
     rank_position INTEGER,
@@ -1149,9 +795,8 @@ CREATE TABLE institution_rankings (
     period_start DATE NOT NULL,
     period_end DATE NOT NULL,
     calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CHECK (institution_id IS NOT NULL OR organizational_unit_id IS NOT NULL)
+    CHECK (university_id IS NOT NULL OR faculty_id IS NOT NULL)
 );
-
 CREATE INDEX idx_rankings_institution ON institution_rankings(ranking_type, time_period, rank_position);
 
 -- Researcher Rankings
@@ -1171,7 +816,6 @@ CREATE TABLE researcher_rankings (
     period_end DATE NOT NULL,
     calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX idx_rankings_researcher ON researcher_rankings(ranking_type, time_period, rank_position);
 
 -- ============================================================================
@@ -1196,7 +840,6 @@ CREATE TABLE bulk_upload_batches (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX idx_bulk_uploads_user ON bulk_upload_batches(uploaded_by, created_at DESC);
 
 -- Bulk Upload Files
@@ -1211,7 +854,6 @@ CREATE TABLE bulk_upload_files (
     processed_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX idx_bulk_files_batch ON bulk_upload_files(batch_id);
 
 -- ============================================================================
@@ -1237,10 +879,10 @@ CREATE TABLE ml_models (
 );
 
 -- AI Auto-Categorization
-CREATE TABLE thesis_auto_disciplines (
+CREATE TABLE thesis_auto_categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     thesis_id UUID NOT NULL REFERENCES theses(id) ON DELETE CASCADE,
-    discipline_id UUID NOT NULL REFERENCES disciplines(id) ON DELETE CASCADE,
+    category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
     confidence_score NUMERIC(5,4) NOT NULL,
     model_id UUID REFERENCES ml_models(id) ON DELETE SET NULL,
     is_accepted BOOLEAN DEFAULT false,
@@ -1248,8 +890,7 @@ CREATE TABLE thesis_auto_disciplines (
     accepted_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE INDEX idx_auto_disciplines_thesis ON thesis_auto_disciplines(thesis_id, confidence_score DESC);
+CREATE INDEX idx_auto_categories_thesis ON thesis_auto_categories(thesis_id, confidence_score DESC);
 
 -- AI-Generated Summaries
 CREATE TABLE thesis_summaries (
@@ -1267,29 +908,9 @@ CREATE TABLE thesis_summaries (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (thesis_id, summary_type, language_code)
 );
-
 CREATE INDEX idx_summaries_thesis ON thesis_summaries(thesis_id);
 
 -- ============================================================================
 -- END OF DATABASE STRUCTURE
 -- ============================================================================
-
--- Summary:
--- Total Tables: 60+
--- Core Institutional: 7 tables (institutions, campuses, units, programs, etc.)
--- Academic Classification: 6 tables (disciplines, degrees, keywords, methodologies, etc.)
--- Users: 6 tables (users, publications, interests, activities, bookmarks, follows)
--- Academic Persons: 1 table
--- Theses: 9 tables (theses + related junction tables)
--- Citations: 2 tables
--- Collections: 2 tables
--- Comments: 2 tables
--- Reports: 1 table
--- Analytics: 3 tables (views, downloads, exports)
--- Search: 2 tables
--- Notifications: 2 tables
--- Rankings: 3 tables
--- Bulk Upload: 2 tables
--- AI/ML: 3 tables
--- Partnerships: 1 table
 
