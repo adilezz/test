@@ -1,0 +1,319 @@
+-- Database Structure for theses.ma
+-- Moroccan Thesis Repository
+-- Generated: Saturday, October 18, 2025 3:19:06 PM
+
+CREATE TABLE academic_persons (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    complete_name_fr VARCHAR(100),
+    complete_name_ar VARCHAR(100),
+    first_name_fr VARCHAR(100),
+    last_name_fr VARCHAR(100),
+    first_name_ar VARCHAR(100),
+    last_name_ar VARCHAR(100),
+    title VARCHAR(10),
+    university_id UUID,
+    faculty_id UUID,
+    school_id UUID,
+    external_institution_name VARCHAR(255),
+    external_institution_country VARCHAR(100),
+    external_institution_type VARCHAR(50),
+    user_id UUID,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (university_id) REFERENCES universities(id),
+    FOREIGN KEY (faculty_id) REFERENCES faculties(id),
+    FOREIGN KEY (school_id) REFERENCES schools(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE categories (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    parent_id UUID,
+    level INTEGER DEFAULT 0,
+    code VARCHAR(50) NOT NULL,
+    name_en VARCHAR(255),
+    name_fr VARCHAR(255) NOT NULL,
+    name_ar VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE (code),
+    FOREIGN KEY (parent_id) REFERENCES categories(id)
+);
+
+CREATE TABLE degrees (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    name_en VARCHAR(255) NOT NULL,
+    name_fr VARCHAR(255) NOT NULL,
+    name_ar VARCHAR(255) NOT NULL,
+    abbreviation VARCHAR(20) NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    category VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE departments (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    faculty_id UUID,
+    school_id UUID,
+    name_en VARCHAR(255),
+    name_fr VARCHAR(255) NOT NULL,
+    name_ar VARCHAR(255),
+    acronym VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (faculty_id) REFERENCES faculties(id),
+    FOREIGN KEY (school_id) REFERENCES schools(id)
+);
+
+CREATE TABLE faculties (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    university_id UUID NOT NULL,
+    name_en VARCHAR(255),
+    name_fr VARCHAR(255) NOT NULL,
+    name_ar VARCHAR(255),
+    acronym VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (university_id) REFERENCES universities(id)
+);
+
+CREATE TABLE geographic_entities (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    name_en VARCHAR(100),
+    name_fr VARCHAR(100) NOT NULL,
+    name_ar VARCHAR(100),
+    parent_id UUID,
+    level VARCHAR(50) NOT NULL,
+    code VARCHAR(20),
+    latitude NUMERIC,
+    longitude NUMERIC,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE (code),
+    FOREIGN KEY (parent_id) REFERENCES geographic_entities(id)
+);
+
+CREATE TABLE keywords (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    parent_keyword_id UUID,
+    keyword_en VARCHAR(200),
+    keyword_fr VARCHAR(200) NOT NULL,
+    keyword_ar VARCHAR(200),
+    category_id UUID,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE (keyword_en),
+    UNIQUE (keyword_fr),
+    UNIQUE (keyword_ar),
+    FOREIGN KEY (parent_keyword_id) REFERENCES keywords(id),
+    FOREIGN KEY (category_id) REFERENCES categories(id)
+);
+
+CREATE TABLE languages (
+    code VARCHAR(5) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    native_name VARCHAR(100) NOT NULL,
+    rtl BOOLEAN DEFAULT false,
+    is_active BOOLEAN DEFAULT true,
+    display_order INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE schools (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    name_en VARCHAR(500),
+    name_fr VARCHAR(500) NOT NULL,
+    name_ar VARCHAR(500),
+    acronym VARCHAR(20),
+    parent_university_id UUID,
+    parent_school_id UUID,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (parent_university_id) REFERENCES universities(id),
+    FOREIGN KEY (parent_school_id) REFERENCES schools(id)
+);
+
+CREATE TABLE theses (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    title_en VARCHAR(500),
+    title_fr VARCHAR(500) NOT NULL,
+    title_ar VARCHAR(500),
+    abstract_en TEXT,
+    abstract_fr TEXT NOT NULL,
+    abstract_ar TEXT,
+    university_id UUID,
+    faculty_id UUID,
+    school_id UUID,
+    department_id UUID,
+    degree_id UUID,
+    thesis_number VARCHAR(100),
+    study_location_id UUID,
+    defense_date DATE NOT NULL,
+    language_id UUID NOT NULL,
+    secondary_language_ids ARRAY DEFAULT '{}'::uuid[],
+    page_count INTEGER,
+    file_url VARCHAR(500) NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    submitted_at TIMESTAMP,
+    reviewed_at TIMESTAMP,
+    approved_at TIMESTAMP,
+    approved_by UUID,
+    extraction_job_id UUID,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) DEFAULT 'draft'::character varying,
+    submitted_by UUID,
+    reviewed_by UUID,
+    rejection_reason TEXT,
+    PRIMARY KEY (id),
+    FOREIGN KEY (university_id) REFERENCES universities(id),
+    FOREIGN KEY (faculty_id) REFERENCES faculties(id),
+    FOREIGN KEY (school_id) REFERENCES schools(id),
+    FOREIGN KEY (department_id) REFERENCES departments(id),
+    FOREIGN KEY (degree_id) REFERENCES degrees(id),
+    FOREIGN KEY (study_location_id) REFERENCES geographic_entities(id),
+    FOREIGN KEY (language_id) REFERENCES languages(id),
+    FOREIGN KEY (approved_by) REFERENCES users(id),
+    FOREIGN KEY (submitted_by) REFERENCES users(id),
+    FOREIGN KEY (reviewed_by) REFERENCES users(id)
+);
+
+CREATE TABLE thesis_academic_persons (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    thesis_id UUID NOT NULL,
+    person_id UUID NOT NULL,
+    role VARCHAR(50) NOT NULL,
+    faculty_id UUID,
+    is_external BOOLEAN DEFAULT false,
+    external_institution_name VARCHAR(255),
+    approved_by UUID,
+    approved_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE (thesis_id),
+    UNIQUE (person_id),
+    UNIQUE (role),
+    FOREIGN KEY (thesis_id) REFERENCES theses(id),
+    FOREIGN KEY (person_id) REFERENCES academic_persons(id),
+    FOREIGN KEY (faculty_id) REFERENCES faculties(id),
+    FOREIGN KEY (approved_by) REFERENCES users(id)
+);
+
+CREATE TABLE thesis_categories (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    thesis_id UUID NOT NULL,
+    category_id UUID NOT NULL,
+    is_primary BOOLEAN DEFAULT false,
+    reviewed_by UUID,
+    reviewed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (thesis_id) REFERENCES theses(id),
+    FOREIGN KEY (category_id) REFERENCES categories(id),
+    FOREIGN KEY (reviewed_by) REFERENCES users(id)
+);
+
+CREATE TABLE thesis_downloads (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    thesis_id UUID NOT NULL,
+    user_id UUID,
+    ip_address INET,
+    user_agent TEXT,
+    download_type VARCHAR(20) DEFAULT 'full'::character varying,
+    downloaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (thesis_id) REFERENCES theses(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE thesis_keywords (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    thesis_id UUID NOT NULL,
+    keyword_id UUID NOT NULL,
+    keyword_position INTEGER,
+    frequency_count INTEGER DEFAULT 0,
+    reviewed_by UUID,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (thesis_id) REFERENCES theses(id),
+    FOREIGN KEY (keyword_id) REFERENCES keywords(id),
+    FOREIGN KEY (reviewed_by) REFERENCES users(id)
+);
+
+CREATE TABLE thesis_views (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    thesis_id UUID NOT NULL,
+    user_id UUID,
+    ip_address INET,
+    user_agent TEXT,
+    session_id VARCHAR(255),
+    view_duration INTEGER,
+    viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (thesis_id) REFERENCES theses(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE universities (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    name_en VARCHAR(255),
+    name_fr VARCHAR(255) NOT NULL,
+    name_ar VARCHAR(255),
+    acronym VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    geographic_entities_id UUID,
+    PRIMARY KEY (id),
+    FOREIGN KEY (geographic_entities_id) REFERENCES geographic_entities(id)
+);
+
+CREATE TABLE users (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    email VARCHAR(255) NOT NULL,
+    username VARCHAR(100) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    first_name VARCHAR(20) NOT NULL,
+    last_name VARCHAR(20) NOT NULL,
+    title VARCHAR(50) NOT NULL,
+    university_id UUID,
+    faculty_id UUID,
+    department_id UUID,
+    school_id UUID,
+    phone VARCHAR(20),
+    alternative_email VARCHAR(255),
+    language VARCHAR(5) DEFAULT 'fr'::character varying,
+    timezone VARCHAR(50) DEFAULT 'Africa/Casablanca'::character varying,
+    role VARCHAR(50) DEFAULT 'user'::character varying,
+    email_verified BOOLEAN DEFAULT false,
+    email_verification_token VARCHAR(255),
+    email_verification_expires TIMESTAMP,
+    is_active BOOLEAN DEFAULT true,
+    password_reset_token VARCHAR(255),
+    password_reset_expires TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE (email),
+    UNIQUE (username),
+    FOREIGN KEY (university_id) REFERENCES universities(id),
+    FOREIGN KEY (faculty_id) REFERENCES faculties(id),
+    FOREIGN KEY (department_id) REFERENCES departments(id),
+    FOREIGN KEY (school_id) REFERENCES schools(id)
+);
+
