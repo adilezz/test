@@ -31,7 +31,7 @@ export default function AdminMainPage() {
       description: 'Gérer les universités et leurs structures',
       icon: <Building2 className="w-6 h-6" />,
       path: '/admin/universities',
-      color: 'bg-blue-500',
+      color: 'bg-navy-600',
       category: 'institution'
     },
     {
@@ -39,7 +39,7 @@ export default function AdminMainPage() {
       description: 'Gérer les facultés et leurs départements',
       icon: <GraduationCap className="w-6 h-6" />,
       path: '/admin/faculties',
-      color: 'bg-green-500',
+      color: 'bg-primary-600',
       category: 'institution'
     },
     {
@@ -47,7 +47,7 @@ export default function AdminMainPage() {
       description: 'Gérer les écoles et leurs hiérarchies',
       icon: <BookOpen className="w-6 h-6" />,
       path: '/admin/schools',
-      color: 'bg-purple-500',
+      color: 'bg-navy-600',
       category: 'institution'
     },
     {
@@ -55,7 +55,7 @@ export default function AdminMainPage() {
       description: 'Gérer les départements des facultés et écoles',
       icon: <Users className="w-6 h-6" />,
       path: '/admin/departments',
-      color: 'bg-red-500',
+      color: 'bg-error-600',
       category: 'institution'
     },
     
@@ -65,7 +65,7 @@ export default function AdminMainPage() {
       description: 'Gérer les auteurs, directeurs et membres du jury',
       icon: <Users className="w-6 h-6" />,
       path: '/admin/academic-persons',
-      color: 'bg-orange-500',
+      color: 'bg-secondary-600',
       category: 'academic'
     },
     {
@@ -73,7 +73,7 @@ export default function AdminMainPage() {
       description: 'Gérer les types de diplômes et niveaux',
       icon: <GraduationCap className="w-6 h-6" />,
       path: '/admin/degrees',
-      color: 'bg-teal-500',
+      color: 'bg-accent-600',
       category: 'academic'
     },
     
@@ -83,7 +83,7 @@ export default function AdminMainPage() {
       description: 'Gérer les thèses et leur contenu',
       icon: <FileText className="w-6 h-6" />,
       path: '/admin/theses',
-      color: 'bg-indigo-600',
+      color: 'bg-primary-600',
       category: 'content'
     },
     {
@@ -91,7 +91,7 @@ export default function AdminMainPage() {
       description: 'Gérer les disciplines et spécialités',
       icon: <Tags className="w-6 h-6" />,
       path: '/admin/categories',
-      color: 'bg-pink-500',
+      color: 'bg-secondary-500',
       category: 'content'
     },
     {
@@ -99,7 +99,7 @@ export default function AdminMainPage() {
       description: 'Gérer le vocabulaire contrôlé et les tags',
       icon: <Tags className="w-6 h-6" />,
       path: '/admin/keywords',
-      color: 'bg-indigo-500',
+      color: 'bg-navy-500',
       category: 'content'
     },
     
@@ -109,7 +109,7 @@ export default function AdminMainPage() {
       description: 'Gérer les langues disponibles',
       icon: <Languages className="w-6 h-6" />,
       path: '/admin/languages',
-      color: 'bg-cyan-500',
+      color: 'bg-info-500',
       category: 'reference'
     },
     {
@@ -117,7 +117,7 @@ export default function AdminMainPage() {
       description: 'Gérer les localisations et régions',
       icon: <MapPin className="w-6 h-6" />,
       path: '/admin/geographic-entities',
-      color: 'bg-emerald-500',
+      color: 'bg-success-500',
       category: 'reference'
     }
   ];
@@ -134,25 +134,25 @@ export default function AdminMainPage() {
       id: 'institution',
       title: 'Gestion Institutionnelle',
       description: 'Structures universitaires et organisationnelles',
-      color: 'border-blue-200 bg-blue-50'
+      color: 'border-navy-200 bg-navy-50'
     },
     {
       id: 'academic',
       title: 'Gestion Académique',
       description: 'Personnel académique et diplômes',
-      color: 'border-orange-200 bg-orange-50'
+      color: 'border-secondary-200 bg-secondary-50'
     },
     {
       id: 'content',
       title: 'Gestion du Contenu',
       description: 'Thèses, catégories et classification',
-      color: 'border-purple-200 bg-purple-50'
+      color: 'border-primary-200 bg-primary-50'
     },
     {
       id: 'reference',
       title: 'Données de Référence',
       description: 'Langues, géographie et métadonnées',
-      color: 'border-green-200 bg-green-50'
+      color: 'border-success-200 bg-success-50'
     }
   ];
 
@@ -170,43 +170,43 @@ export default function AdminMainPage() {
 
         {/* Quick Stats */}
         <div className="mb-8 grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-navy-500">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Modules Actifs</p>
                 <p className="text-2xl font-bold text-gray-900">{adminModules.length}</p>
               </div>
-              <Building2 className="w-8 h-8 text-blue-500" />
+              <Building2 className="w-8 h-8 text-navy-500" />
             </div>
           </div>
           
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-primary-500">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Structures</p>
                 <p className="text-2xl font-bold text-gray-900">{modulesByCategory.institution.length}</p>
               </div>
-              <GraduationCap className="w-8 h-8 text-green-500" />
+              <GraduationCap className="w-8 h-8 text-primary-500" />
             </div>
           </div>
           
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-purple-500">
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-primary-500">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Contenu</p>
                 <p className="text-2xl font-bold text-gray-900">{modulesByCategory.content.length}</p>
               </div>
-              <FileText className="w-8 h-8 text-purple-500" />
+              <FileText className="w-8 h-8 text-primary-500" />
             </div>
           </div>
           
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-secondary-500">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Références</p>
                 <p className="text-2xl font-bold text-gray-900">{modulesByCategory.reference.length + modulesByCategory.academic.length}</p>
               </div>
-              <Globe className="w-8 h-8 text-orange-500" />
+              <Globe className="w-8 h-8 text-secondary-500" />
             </div>
           </div>
         </div>
@@ -252,9 +252,9 @@ export default function AdminMainPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Link
               to="/admin/theses/new"
-              className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-all duration-200"
+              className="flex items-center space-x-3 p-4 border border-gray-200 rounded-moroccan hover:border-primary-300 hover:bg-primary-50 transition-all duration-200"
             >
-              <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
+              <div className="p-2 bg-primary-100 text-primary-700 rounded-lg">
                 <FileText className="w-5 h-5" />
               </div>
               <div>
@@ -265,9 +265,9 @@ export default function AdminMainPage() {
             
             <Link
               to="/admin/universities"
-              className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition-all duration-200"
+              className="flex items-center space-x-3 p-4 border border-gray-200 rounded-moroccan hover:border-success-300 hover:bg-success-50 transition-all duration-200"
             >
-              <div className="p-2 bg-green-100 text-green-600 rounded-lg">
+              <div className="p-2 bg-success-100 text-success-700 rounded-lg">
                 <Building2 className="w-5 h-5" />
               </div>
               <div>
@@ -278,9 +278,9 @@ export default function AdminMainPage() {
             
             <Link
               to="/admin/academic-persons"
-              className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 transition-all duration-200"
+              className="flex items-center space-x-3 p-4 border border-gray-200 rounded-moroccan hover:border-secondary-300 hover:bg-secondary-50 transition-all duration-200"
             >
-              <div className="p-2 bg-orange-100 text-orange-600 rounded-lg">
+              <div className="p-2 bg-secondary-100 text-secondary-700 rounded-lg">
                 <Users className="w-5 h-5" />
               </div>
               <div>

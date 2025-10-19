@@ -71,11 +71,10 @@ const Header: React.FC = () => {
     setProfileMenuOpen(false);
   };
 
+  // Simplified navigation structure per Moroccan rebranding plan
   const navigationItems = [
     { label: 'Accueil', href: '/' },
-    { label: 'Recherche', href: '/search' },
-    { label: 'Universités', href: '/universities' },
-    { label: 'Catégories', href: '/categories' },
+    { label: 'Explorer', href: '/search' },
     { label: 'À propos', href: '/about' }
   ];
 

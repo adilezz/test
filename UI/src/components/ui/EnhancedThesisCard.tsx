@@ -45,12 +45,12 @@ interface EnhancedThesisCardProps {
 }
 
 const statusColors = {
-  [ThesisStatus.DRAFT]: 'bg-gray-100 text-gray-800',
-  [ThesisStatus.SUBMITTED]: 'bg-blue-100 text-blue-800',
-  [ThesisStatus.UNDER_REVIEW]: 'bg-yellow-100 text-yellow-800',
-  [ThesisStatus.APPROVED]: 'bg-green-100 text-green-800',
-  [ThesisStatus.REJECTED]: 'bg-red-100 text-red-800',
-  [ThesisStatus.PUBLISHED]: 'bg-primary-100 text-primary-800'
+  [ThesisStatus.DRAFT]: 'bg-gray-100 text-gray-800 border border-gray-200',
+  [ThesisStatus.SUBMITTED]: 'bg-info-100 text-info-800 border border-info-200',
+  [ThesisStatus.UNDER_REVIEW]: 'bg-warning-100 text-warning-800 border border-warning-200',
+  [ThesisStatus.APPROVED]: 'bg-success-100 text-success-800 border border-success-200',
+  [ThesisStatus.REJECTED]: 'bg-error-100 text-error-800 border border-error-200',
+  [ThesisStatus.PUBLISHED]: 'bg-primary-100 text-primary-800 border border-primary-200'
 };
 
 const statusLabels = {
@@ -170,8 +170,8 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
       >
         <div className="flex space-x-4">
           <div className="flex-shrink-0">
-            <div className="w-16 h-20 bg-gradient-to-br from-primary-100 to-primary-200 rounded-lg flex items-center justify-center">
-              <BookOpen className="w-8 h-8 text-primary-600" />
+            <div className="w-16 h-20 bg-gradient-to-br from-primary-100 to-primary-200 rounded-moroccan flex items-center justify-center shadow-soft">
+              <BookOpen className="w-8 h-8 text-primary-700" />
             </div>
           </div>
           
@@ -260,8 +260,8 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
       <div className="p-6">
         {/* Category */}
         <div className="flex items-center space-x-2 mb-3">
-          <Tag className="w-4 h-4 text-secondary-600" />
-          <span className="text-sm font-medium text-secondary-600">
+          <Tag className="w-4 h-4 text-primary-600" />
+          <span className="text-sm font-medium text-primary-700">
             {getPrimaryCategory()}
           </span>
         </div>
@@ -414,10 +414,10 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
             <div className="flex items-center space-x-2">
               <button
                 onClick={handleBookmark}
-                className={`p-2 rounded-lg transition-colors duration-200 ${
+                className={`p-2 rounded-moroccan transition-colors duration-200 ${
                   isBookmarked 
-                    ? 'text-accent-600 bg-accent-50 hover:bg-accent-100' 
-                    : 'text-gray-400 hover:text-accent-600 hover:bg-accent-50'
+                    ? 'text-accent-700 bg-accent-100 hover:bg-accent-200 border border-accent-200' 
+                    : 'text-gray-400 hover:text-accent-700 hover:bg-accent-50 hover:border hover:border-accent-200'
                 }`}
                 title="Ajouter aux favoris"
               >
@@ -426,7 +426,7 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
               
               <button
                 onClick={handleShare}
-                className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors duration-200"
+                className="p-2 text-gray-400 hover:text-primary-700 hover:bg-primary-50 hover:border hover:border-primary-200 rounded-moroccan transition-colors duration-200"
                 title="Partager"
               >
                 <Share2 className="w-4 h-4" />
