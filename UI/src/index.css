@@ -1,3 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@100;200;300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Tifinagh&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -11,60 +16,192 @@
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    background-color: #f8fafc;
+  }
+
+  /* Typography scale */
+  h1, .h1 {
+    @apply text-4xl md:text-5xl lg:text-6xl font-serif font-bold leading-tight;
+  }
+  
+  h2, .h2 {
+    @apply text-3xl md:text-4xl lg:text-5xl font-serif font-semibold leading-tight;
+  }
+  
+  h3, .h3 {
+    @apply text-2xl md:text-3xl font-serif font-semibold leading-snug;
+  }
+  
+  h4, .h4 {
+    @apply text-xl md:text-2xl font-serif font-medium leading-snug;
+  }
+  
+  h5, .h5 {
+    @apply text-lg md:text-xl font-sans font-semibold leading-snug;
+  }
+  
+  h6, .h6 {
+    @apply text-base md:text-lg font-sans font-semibold leading-snug;
+  }
+
+  /* Arabic text support */
+  [dir="rtl"] {
+    font-family: 'Noto Kufi Arabic', 'Amiri', serif;
+  }
+
+  /* Tamazight text support */
+  .tifinagh {
+    font-family: 'Noto Sans Tifinagh', serif;
   }
 }
 
 @layer components {
+  /* Button System - Moroccan Inspired */
   .btn-primary {
-    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200;
+    @apply inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white bg-primary-500 border border-transparent rounded-xl hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-moroccan hover:shadow-elevated transform hover:-translate-y-0.5;
   }
   
   .btn-secondary {
-    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200;
+    @apply inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-primary-700 bg-primary-50 border border-primary-200 rounded-xl hover:bg-primary-100 hover:border-primary-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-soft hover:shadow-medium;
+  }
+  
+  .btn-accent {
+    @apply inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white bg-secondary-500 border border-transparent rounded-xl hover:bg-secondary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-secondary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-moroccan hover:shadow-elevated transform hover:-translate-y-0.5;
   }
   
   .btn-ghost {
-    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-transparent border border-transparent rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200;
+    @apply inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-neutral-700 bg-transparent border border-neutral-200 rounded-xl hover:bg-neutral-50 hover:border-neutral-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white bg-error-500 border border-transparent rounded-xl hover:bg-error-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-error-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-soft hover:shadow-medium;
+  }
+
+  /* Button Sizes */
+  .btn-sm {
+    @apply px-4 py-2 text-xs;
   }
   
+  .btn-lg {
+    @apply px-8 py-4 text-base;
+  }
+  
+  .btn-xl {
+    @apply px-10 py-5 text-lg;
+  }
+  
+  /* Card System */
   .card {
-    @apply bg-white rounded-lg border border-gray-200 shadow-soft hover:shadow-medium transition-all duration-200;
+    @apply bg-white rounded-2xl border border-neutral-200 shadow-soft hover:shadow-moroccan transition-all duration-300 transform hover:-translate-y-1;
   }
   
+  .card-elevated {
+    @apply bg-white rounded-2xl border border-neutral-200 shadow-medium hover:shadow-elevated transition-all duration-300 transform hover:-translate-y-2;
+  }
+  
+  .card-moroccan {
+    @apply bg-white rounded-2xl border border-primary-200 shadow-moroccan hover:shadow-elevated transition-all duration-300 transform hover:-translate-y-1 bg-gradient-to-br from-white to-primary-50/30;
+  }
+
+  /* Form Elements */
   .input-field {
-    @apply block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200;
+    @apply block w-full px-4 py-3 text-sm border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 bg-white hover:border-neutral-400;
   }
   
+  .input-field-error {
+    @apply border-error-300 focus:ring-error-500 focus:border-error-500;
+  }
+  
+  .input-field-success {
+    @apply border-success-300 focus:ring-success-500 focus:border-success-500;
+  }
+
+  /* Text Input with Moroccan styling */
+  .input-moroccan {
+    @apply input-field border-primary-200 bg-gradient-to-r from-white to-primary-50/20 focus:from-white focus:to-primary-50/40;
+  }
+  
+  /* Tree Navigation */
   .tree-node {
-    @apply flex items-center space-x-2 px-2 py-1.5 text-sm rounded-md hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors duration-150 cursor-pointer;
+    @apply flex items-center space-x-3 px-3 py-2 text-sm rounded-xl hover:bg-primary-50 focus:bg-primary-50 focus:outline-none transition-all duration-200 cursor-pointer border border-transparent hover:border-primary-200;
   }
   
   .tree-node.selected {
-    @apply bg-primary-50 text-primary-700 hover:bg-primary-100;
+    @apply bg-primary-100 text-primary-800 border-primary-300 shadow-soft;
   }
   
   .tree-node.expanded {
-    @apply font-medium;
+    @apply font-semibold text-primary-700;
   }
-  
+
+  /* Badge System */
   .badge {
-    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold;
   }
   
   .badge-primary {
-    @apply bg-primary-100 text-primary-800;
+    @apply bg-primary-100 text-primary-800 border border-primary-200;
   }
   
   .badge-secondary {
-    @apply bg-secondary-100 text-secondary-800;
+    @apply bg-secondary-100 text-secondary-800 border border-secondary-200;
   }
   
   .badge-accent {
-    @apply bg-accent-100 text-accent-800;
+    @apply bg-accent-100 text-accent-800 border border-accent-200;
   }
   
-  .badge-gray {
-    @apply bg-gray-100 text-gray-800;
+  .badge-success {
+    @apply bg-success-100 text-success-800 border border-success-200;
+  }
+  
+  .badge-warning {
+    @apply bg-warning-100 text-warning-800 border border-warning-200;
+  }
+  
+  .badge-error {
+    @apply bg-error-100 text-error-800 border border-error-200;
+  }
+  
+  .badge-info {
+    @apply bg-info-100 text-info-800 border border-info-200;
+  }
+  
+  .badge-neutral {
+    @apply bg-neutral-100 text-neutral-800 border border-neutral-200;
+  }
+
+  /* Moroccan Pattern Backgrounds */
+  .bg-moroccan-pattern {
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23f0f9f4' fill-opacity='0.3'%3E%3Cpath d='M30 30c0-11.046-8.954-20-20-20s-20 8.954-20 20 8.954 20 20 20 20-8.954 20-20zm0 0c0-11.046 8.954-20 20-20s20 8.954 20 20-8.954 20-20 20-20-8.954-20-20z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  /* Section Headers */
+  .section-header {
+    @apply text-center mb-12;
+  }
+  
+  .section-title {
+    @apply h2 text-neutral-900 mb-4;
+  }
+  
+  .section-subtitle {
+    @apply text-lg text-neutral-600 max-w-3xl mx-auto;
+  }
+
+  /* Moroccan Decorative Elements */
+  .moroccan-divider {
+    @apply relative;
+  }
+  
+  .moroccan-divider::after {
+    content: '';
+    @apply absolute bottom-0 left-1/2 transform -translate-x-1/2 w-24 h-1 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-full;
+  }
+
+  /* Loading States */
+  .skeleton {
+    @apply bg-gradient-to-r from-neutral-200 via-neutral-100 to-neutral-200 bg-[length:200px_100%] animate-shimmer;
   }
 }
 
@@ -75,7 +212,7 @@
   
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: rgb(203 213 225) transparent;
+    scrollbar-color: rgb(45 157 107 / 0.3) transparent;
   }
   
   .scrollbar-thin::-webkit-scrollbar {
@@ -87,12 +224,55 @@
   }
   
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: rgb(203 213 225);
+    background-color: rgb(45 157 107 / 0.3);
     border-radius: 3px;
   }
   
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background-color: rgb(148 163 184);
+    background-color: rgb(45 157 107 / 0.5);
+  }
+
+  /* Moroccan Cultural Utilities */
+  .text-moroccan {
+    @apply font-serif text-primary-700;
+  }
+  
+  .bg-moroccan-gradient {
+    @apply bg-gradient-to-br from-primary-500 via-secondary-500 to-accent-500;
+  }
+  
+  .text-moroccan-gradient {
+    @apply bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent;
+  }
+  
+  .border-moroccan {
+    @apply border-2 border-primary-200 rounded-2xl;
+  }
+  
+  .shadow-moroccan {
+    @apply shadow-[0_8px_32px_-8px_rgba(45,157,107,0.2),0_4px_16px_-4px_rgba(237,124,63,0.1)];
+  }
+
+  /* Animation Utilities */
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  .animate-glow {
+    animation: glow 2s ease-in-out infinite alternate;
+  }
+  
+  .animate-bounce-gentle {
+    animation: bounceGentle 2s ease-in-out infinite;
+  }
+
+  /* Focus States */
+  .focus-moroccan {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+  }
+  
+  .focus-moroccan-inset {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-inset;
   }
 }
 
@@ -102,45 +282,113 @@
   outline-offset: 2px;
 }
 
-/* Animation for tree nodes */
+/* Moroccan Cultural Animations */
 @keyframes expandNode {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(-8px) scale(0.95);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
 .tree-children {
-  animation: expandNode 0.2s ease-out;
+  animation: expandNode 0.3s ease-out;
 }
 
-/* Animation for thesis cards */
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(20px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes glow {
+  0% {
+    box-shadow: 0 0 20px rgba(45, 157, 107, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 30px rgba(45, 157, 107, 0.6);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+@keyframes bounceGentle {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
   }
 }
 
 /* Thesis results container - smooth transitions between views */
 .thesis-results-container {
   display: grid;
-  transition: grid-template-columns 0.2s ease-in-out, gap 0.2s ease-in-out;
+  transition: grid-template-columns 0.3s ease-in-out, gap 0.3s ease-in-out;
   width: 100%;
 }
 
 /* Grid view */
 .thesis-grid-view {
   grid-template-columns: 1fr;
-  gap: 1.5rem;
+  gap: 2rem;
 }
 
 @media (min-width: 768px) {
@@ -158,43 +406,47 @@
 /* List view */
 .thesis-list-view {
   grid-template-columns: 1fr;
-  gap: 1rem;
+  gap: 1.5rem;
 }
 
 /* Card wrapper */
 .thesis-card-wrapper {
   width: 100%;
-  transition: transform 0.15s ease-in-out;
+  transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
   will-change: auto;
 }
 
-/* Enhanced thesis card - optimized hover effect */
+/* Enhanced thesis card - Moroccan inspired hover effect */
 .thesis-card-enhanced {
-  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+  transition: transform 0.3s ease-out, box-shadow 0.3s ease-out, border-color 0.3s ease-out;
+  border: 2px solid transparent;
 }
 
 .thesis-card-enhanced:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1);
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 0 25px 50px -12px rgba(45, 157, 107, 0.15), 0 8px 25px -8px rgba(237, 124, 63, 0.1);
+  border-color: theme('colors.primary.200');
 }
 
 /* Compact thesis card - subtle hover effect */
 .thesis-card-compact {
-  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, border-color 0.2s ease-out;
+  border: 1px solid transparent;
 }
 
 .thesis-card-compact:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+  transform: translateY(-3px);
+  box-shadow: 0 15px 35px -8px rgba(45, 157, 107, 0.1), 0 4px 15px -4px rgba(237, 124, 63, 0.05);
+  border-color: theme('colors.primary.200');
 }
 
-/* Scroll to top button pulse animation */
+/* Scroll to top button pulse animation - Moroccan themed */
 @keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4);
+    box-shadow: 0 0 0 0 rgba(45, 157, 107, 0.4);
   }
   50% {
-    box-shadow: 0 0 0 10px rgba(79, 70, 229, 0);
+    box-shadow: 0 0 0 10px rgba(45, 157, 107, 0);
   }
 }
 
@@ -202,26 +454,85 @@
 @keyframes slideInChip {
   from {
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(-15px) scale(0.9);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
 /* Loading skeleton animations */
-@keyframes shimmer {
-  0% {
-    background-position: -200px 0;
-  }
-  100% {
-    background-position: calc(200px + 100%) 0;
-  }
-}
-
 .skeleton {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background: linear-gradient(90deg, #f0f9f4 25%, #e2f0e8 50%, #f0f9f4 75%);
   background-size: 200px 100%;
   animation: shimmer 1.5s infinite;
+}
+
+/* Moroccan Pattern Overlays */
+.moroccan-overlay {
+  position: relative;
+}
+
+.moroccan-overlay::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23f0f9f4' fill-opacity='0.1'%3E%3Cpath d='M30 30c0-11.046-8.954-20-20-20s-20 8.954-20 20 8.954 20 20 20 20-8.954 20-20zm0 0c0-11.046 8.954-20 20-20s20 8.954 20 20-8.954 20-20 20-20-8.954-20-20z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Zellige-inspired decorative borders */
+.zellige-border {
+  position: relative;
+}
+
+.zellige-border::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, 
+    theme('colors.primary.500') 0%, 
+    theme('colors.secondary.500') 25%, 
+    theme('colors.accent.500') 50%, 
+    theme('colors.secondary.500') 75%, 
+    theme('colors.primary.500') 100%
+  );
+  border-radius: 2px;
+}
+
+/* Atlas Mountains inspired gradients */
+.atlas-gradient {
+  background: linear-gradient(135deg, 
+    theme('colors.primary.500') 0%, 
+    theme('colors.secondary.500') 50%, 
+    theme('colors.accent.500') 100%
+  );
+}
+
+.sahara-gradient {
+  background: linear-gradient(135deg, 
+    theme('colors.accent.500') 0%, 
+    theme('colors.secondary.500') 50%, 
+    theme('colors.primary.500') 100%
+  );
+}
+
+/* Moroccan tile pattern background */
+.tile-pattern {
+  background-image: 
+    linear-gradient(45deg, theme('colors.primary.100') 25%, transparent 25%),
+    linear-gradient(-45deg, theme('colors.primary.100') 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, theme('colors.primary.100') 75%),
+    linear-gradient(-45deg, transparent 75%, theme('colors.primary.100') 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+  opacity: 0.3;
 }

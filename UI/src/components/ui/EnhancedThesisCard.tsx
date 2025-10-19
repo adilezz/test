@@ -45,12 +45,12 @@ interface EnhancedThesisCardProps {
 }
 
 const statusColors = {
-  [ThesisStatus.DRAFT]: 'bg-gray-100 text-gray-800',
-  [ThesisStatus.SUBMITTED]: 'bg-blue-100 text-blue-800',
-  [ThesisStatus.UNDER_REVIEW]: 'bg-yellow-100 text-yellow-800',
-  [ThesisStatus.APPROVED]: 'bg-green-100 text-green-800',
-  [ThesisStatus.REJECTED]: 'bg-red-100 text-red-800',
-  [ThesisStatus.PUBLISHED]: 'bg-primary-100 text-primary-800'
+  [ThesisStatus.DRAFT]: 'badge-neutral',
+  [ThesisStatus.SUBMITTED]: 'badge-info',
+  [ThesisStatus.UNDER_REVIEW]: 'badge-warning',
+  [ThesisStatus.APPROVED]: 'badge-success',
+  [ThesisStatus.REJECTED]: 'badge-error',
+  [ThesisStatus.PUBLISHED]: 'badge-primary'
 };
 
 const statusLabels = {
@@ -165,12 +165,12 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
   if (variant === 'compact') {
     return (
       <div
-        className={`card p-4 cursor-pointer group ${className} thesis-card-compact`}
+        className={`card p-6 cursor-pointer group ${className} thesis-card-compact`}
         onClick={() => onView?.(thesis)}
       >
         <div className="flex space-x-4">
           <div className="flex-shrink-0">
-            <div className="w-16 h-20 bg-gradient-to-br from-primary-100 to-primary-200 rounded-lg flex items-center justify-center">
+            <div className="w-16 h-20 bg-gradient-to-br from-primary-100 to-primary-200 rounded-xl flex items-center justify-center shadow-soft group-hover:shadow-moroccan transition-all duration-300">
               <BookOpen className="w-8 h-8 text-primary-600" />
             </div>
           </div>
@@ -178,14 +178,14 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <h3 className="font-semibold text-gray-900 line-clamp-2 group-hover:text-primary-600 transition-colors duration-200">
+                <h3 className="font-serif font-semibold text-neutral-900 line-clamp-2 group-hover:text-primary-600 transition-colors duration-300">
                   {thesis.title_fr}
                 </h3>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-neutral-600 mt-2 font-medium">
                   {getAuthorName()}
                 </p>
-                <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
-                  <span>{thesis.university?.acronym || thesis.university?.name_fr}</span>
+                <div className="flex items-center space-x-4 mt-3 text-xs text-neutral-500">
+                  <span className="font-medium">{thesis.university?.acronym || thesis.university?.name_fr}</span>
                   <span>{formatDate(thesis.defense_date)}</span>
                   {thesis.download_count && (
                     <span className="flex items-center space-x-1">
@@ -210,45 +210,45 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
 
   return (
     <div
-      className={`card overflow-hidden group ${className} thesis-card-enhanced`}
+      className={`card-moroccan overflow-hidden group ${className} thesis-card-enhanced`}
     >
       {/* Thumbnail */}
-      <div className="aspect-[4/3] bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden">
+      <div className="aspect-[4/3] bg-gradient-to-br from-primary-50 to-secondary-50 relative overflow-hidden">
         {!imageError && thesis.file_url ? (
           <img
             src={`${thesis.file_url}/thumbnail`}
             alt={thesis.title_fr}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             onError={() => setImageError(true)}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <BookOpen className="w-16 h-16 text-gray-400" />
+            <BookOpen className="w-16 h-16 text-primary-400" />
           </div>
         )}
         
         {/* Overlay */}
-        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300 flex items-center justify-center opacity-0 group-hover:opacity-100">
+        <div className="absolute inset-0 bg-gradient-to-t from-mountain-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center">
           <button
             onClick={() => onView?.(thesis)}
-            className="btn-primary"
+            className="btn-primary btn-lg shadow-elevated"
           >
-            <Eye className="w-4 h-4 mr-2" />
+            <Eye className="w-5 h-5 mr-2" />
             Voir
           </button>
         </div>
 
         {/* Status Badge */}
-        <div className="absolute top-3 right-3">
-          <span className={`badge ${statusColors[thesis.status]} text-xs`}>
+        <div className="absolute top-4 right-4">
+          <span className={`badge ${statusColors[thesis.status]} text-xs shadow-soft`}>
             {statusLabels[thesis.status]}
           </span>
         </div>
 
         {/* Language Badge */}
         {thesis.language && (
-          <div className="absolute top-3 left-3">
-            <span className="badge badge-secondary text-xs flex items-center space-x-1">
+          <div className="absolute top-4 left-4">
+            <span className="badge badge-secondary text-xs flex items-center space-x-1 shadow-soft">
               <Globe className="w-3 h-3" />
               <span>{languageLabels[thesis.language.code as LanguageCode] || thesis.language.name}</span>
             </span>
@@ -259,38 +259,38 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
       {/* Content */}
       <div className="p-6">
         {/* Category */}
-        <div className="flex items-center space-x-2 mb-3">
+        <div className="flex items-center space-x-2 mb-4">
           <Tag className="w-4 h-4 text-secondary-600" />
-          <span className="text-sm font-medium text-secondary-600">
+          <span className="text-sm font-semibold text-secondary-600">
             {getPrimaryCategory()}
           </span>
         </div>
 
         {/* Title */}
-        <h3 className="text-lg font-semibold text-gray-900 mb-3 line-clamp-2 group-hover:text-primary-600 transition-colors duration-200">
+        <h3 className="h5 text-neutral-900 mb-4 line-clamp-2 group-hover:text-primary-600 transition-colors duration-300">
           {thesis.title_fr}
         </h3>
 
         {/* Abstract */}
         {variant === 'detailed' && thesis.abstract_fr && (
-          <p className="text-sm text-gray-600 mb-4 line-clamp-3">
+          <p className="text-sm text-neutral-600 mb-4 line-clamp-3 leading-relaxed">
             {thesis.abstract_fr}
           </p>
         )}
 
         {/* Author & Director */}
-        <div className="space-y-2 mb-4">
-          <div className="flex items-center space-x-2 text-sm text-gray-600">
-            <User className="w-4 h-4" />
-            <span>
+        <div className="space-y-3 mb-4">
+          <div className="flex items-center space-x-3 text-sm text-neutral-600">
+            <User className="w-4 h-4 text-primary-500" />
+            <span className="font-medium">
               <strong>Auteur:</strong> {getAuthorName()}
             </span>
           </div>
           
           {getDirectorName() && (
-            <div className="flex items-center space-x-2 text-sm text-gray-600">
-              <Users className="w-4 h-4" />
-              <span>
+            <div className="flex items-center space-x-3 text-sm text-neutral-600">
+              <Users className="w-4 h-4 text-secondary-500" />
+              <span className="font-medium">
                 <strong>Directeur:</strong> {getDirectorName()}
               </span>
             </div>
@@ -298,22 +298,22 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
         </div>
 
         {/* Institution */}
-        <div className="space-y-1 mb-4">
+        <div className="space-y-2 mb-4">
           {thesis.university && (
-            <div className="flex items-center space-x-2 text-sm text-gray-600">
-              <Building2 className="w-4 h-4" />
-              <span>{thesis.university.name_fr}</span>
+            <div className="flex items-center space-x-3 text-sm text-neutral-600">
+              <Building2 className="w-4 h-4 text-accent-500" />
+              <span className="font-medium">{thesis.university.name_fr}</span>
             </div>
           )}
           
           {thesis.faculty && (
-            <div className="flex items-center space-x-2 text-sm text-gray-500 ml-6">
+            <div className="flex items-center space-x-2 text-sm text-neutral-500 ml-7">
               <span>• {thesis.faculty.name_fr}</span>
             </div>
           )}
           
           {thesis.department && (
-            <div className="flex items-center space-x-2 text-sm text-gray-500 ml-6">
+            <div className="flex items-center space-x-2 text-sm text-neutral-500 ml-7">
               <span>• {thesis.department.name_fr}</span>
             </div>
           )}
@@ -321,22 +321,22 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
 
         {/* Metadata */}
         <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
-          <div className="flex items-center space-x-2 text-gray-600">
-            <Calendar className="w-4 h-4" />
-            <span>{formatDate(thesis.defense_date)}</span>
+          <div className="flex items-center space-x-2 text-neutral-600">
+            <Calendar className="w-4 h-4 text-primary-500" />
+            <span className="font-medium">{formatDate(thesis.defense_date)}</span>
           </div>
           
           {thesis.degree && (
-            <div className="flex items-center space-x-2 text-gray-600">
-              <GraduationCap className="w-4 h-4" />
-              <span>{thesis.degree.name_fr}</span>
+            <div className="flex items-center space-x-2 text-neutral-600">
+              <GraduationCap className="w-4 h-4 text-secondary-500" />
+              <span className="font-medium">{thesis.degree.name_fr}</span>
             </div>
           )}
           
           {thesis.page_count && (
-            <div className="flex items-center space-x-2 text-gray-600">
-              <FileText className="w-4 h-4" />
-              <span>{thesis.page_count} pages</span>
+            <div className="flex items-center space-x-2 text-neutral-600">
+              <FileText className="w-4 h-4 text-accent-500" />
+              <span className="font-medium">{thesis.page_count} pages</span>
             </div>
           )}
         </div>
@@ -344,14 +344,14 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
         {/* Keywords */}
         {thesis.keywords && thesis.keywords.length > 0 && (
           <div className="mb-4">
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-2">
               {thesis.keywords.slice(0, 3).map((keyword, index) => (
-                <span key={index} className="badge badge-gray text-xs">
+                <span key={index} className="badge badge-neutral text-xs">
                   {keyword.word_fr}
                 </span>
               ))}
               {thesis.keywords.length > 3 && (
-                <span className="badge badge-gray text-xs">
+                <span className="badge badge-neutral text-xs">
                   +{thesis.keywords.length - 3}
                 </span>
               )}
@@ -360,43 +360,43 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
         )}
 
         {/* Stats */}
-        <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
+        <div className="flex items-center justify-between text-sm text-neutral-500 mb-4">
           <div className="flex items-center space-x-4">
             {thesis.view_count && (
               <span className="flex items-center space-x-1">
-                <Eye className="w-4 h-4" />
-                <span>{thesis.view_count.toLocaleString()}</span>
+                <Eye className="w-4 h-4 text-primary-500" />
+                <span className="font-medium">{thesis.view_count.toLocaleString()}</span>
               </span>
             )}
             
             {thesis.download_count && (
               <span className="flex items-center space-x-1">
-                <Download className="w-4 h-4" />
-                <span>{thesis.download_count.toLocaleString()}</span>
+                <Download className="w-4 h-4 text-secondary-500" />
+                <span className="font-medium">{thesis.download_count.toLocaleString()}</span>
               </span>
             )}
             
             {thesis.citation_count && (
               <span className="flex items-center space-x-1">
-                <Quote className="w-4 h-4" />
-                <span>{thesis.citation_count.toLocaleString()}</span>
+                <Quote className="w-4 h-4 text-accent-500" />
+                <span className="font-medium">{thesis.citation_count.toLocaleString()}</span>
               </span>
             )}
           </div>
           
-          <span className="text-xs">
+          <span className="text-xs font-medium">
             Ajoutée le {formatDate(thesis.created_at)}
           </span>
         </div>
 
         {/* Actions */}
         {showActions && (
-          <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-            <div className="flex items-center space-x-2">
+          <div className="flex items-center justify-between pt-4 border-t border-primary-100">
+            <div className="flex items-center space-x-3">
               <button
                 onClick={handleDownload}
                 disabled={isDownloading || thesis.status !== ThesisStatus.PUBLISHED}
-                className="btn-primary text-sm"
+                className="btn-primary btn-sm"
               >
                 <Download className={`w-4 h-4 mr-1 ${isDownloading ? 'animate-spin' : ''}`} />
                 Télécharger
@@ -404,7 +404,7 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
               
               <button
                 onClick={() => onView?.(thesis)}
-                className="btn-secondary text-sm"
+                className="btn-secondary btn-sm"
               >
                 <Eye className="w-4 h-4 mr-1" />
                 Détails
@@ -414,10 +414,10 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
             <div className="flex items-center space-x-2">
               <button
                 onClick={handleBookmark}
-                className={`p-2 rounded-lg transition-colors duration-200 ${
+                className={`p-2 rounded-xl transition-all duration-300 ${
                   isBookmarked 
-                    ? 'text-accent-600 bg-accent-50 hover:bg-accent-100' 
-                    : 'text-gray-400 hover:text-accent-600 hover:bg-accent-50'
+                    ? 'text-accent-600 bg-accent-50 hover:bg-accent-100 shadow-soft' 
+                    : 'text-neutral-400 hover:text-accent-600 hover:bg-accent-50'
                 }`}
                 title="Ajouter aux favoris"
               >
@@ -426,7 +426,7 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
               
               <button
                 onClick={handleShare}
-                className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors duration-200"
+                className="p-2 text-neutral-400 hover:text-primary-600 hover:bg-primary-50 rounded-xl transition-all duration-300"
                 title="Partager"
               >
                 <Share2 className="w-4 h-4" />

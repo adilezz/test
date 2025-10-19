@@ -39,17 +39,17 @@ const Toast: React.FC<ToastProps> = ({
   };
 
   const colors = {
-    success: 'bg-green-50 border-green-200 text-green-800',
-    error: 'bg-red-50 border-red-200 text-red-800',
-    info: 'bg-blue-50 border-blue-200 text-blue-800',
-    warning: 'bg-yellow-50 border-yellow-200 text-yellow-800'
+    success: 'bg-success-50 border-success-200 text-success-800',
+    error: 'bg-error-50 border-error-200 text-error-800',
+    info: 'bg-info-50 border-info-200 text-info-800',
+    warning: 'bg-warning-50 border-warning-200 text-warning-800'
   };
 
   const iconColors = {
-    success: 'text-green-500',
-    error: 'text-red-500',
-    info: 'text-blue-500',
-    warning: 'text-yellow-500'
+    success: 'text-success-500',
+    error: 'text-error-500',
+    info: 'text-info-500',
+    warning: 'text-warning-500'
   };
 
   const Icon = icons[type];
@@ -61,20 +61,22 @@ const Toast: React.FC<ToastProps> = ({
       exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.2 } }}
       className={`
         ${colors[type]}
-        border rounded-lg shadow-lg p-4 mb-2 min-w-[320px] max-w-md
-        flex items-start space-x-3
+        border rounded-2xl shadow-moroccan p-6 mb-3 min-w-[360px] max-w-lg
+        flex items-start space-x-4 backdrop-blur-sm
       `}
     >
-      <Icon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${iconColors[type]}`} />
+      <div className={`p-2 rounded-xl ${iconColors[type].replace('text-', 'bg-').replace('-500', '-100')} flex-shrink-0`}>
+        <Icon className={`w-6 h-6 ${iconColors[type]}`} />
+      </div>
       <div className="flex-1 min-w-0">
-        <p className="font-semibold text-sm">{title}</p>
+        <p className="font-serif font-semibold text-base">{title}</p>
         {message && (
-          <p className="text-sm mt-1 opacity-90">{message}</p>
+          <p className="text-sm mt-2 opacity-90 font-medium leading-relaxed">{message}</p>
         )}
       </div>
       <button
         onClick={() => onClose(id)}
-        className="flex-shrink-0 p-1 hover:bg-black/10 rounded transition-colors"
+        className="flex-shrink-0 p-2 hover:bg-black/10 rounded-xl transition-all duration-300 focus-moroccan"
         aria-label="Close"
       >
         <X className="w-4 h-4" />
