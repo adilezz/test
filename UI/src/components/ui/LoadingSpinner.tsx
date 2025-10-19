@@ -26,7 +26,7 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   };
 
   return (
-    <div className={`flex flex-col items-center justify-center min-h-screen bg-gray-50 ${className}`}>
+    <div className={`flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-neutral-50 to-primary-50/30 ${className}`}>
       <motion.div
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -43,7 +43,7 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
             rotate: { duration: 2, repeat: Infinity, ease: 'linear' },
             scale: { duration: 1, repeat: Infinity, ease: 'easeInOut' }
           }}
-          className={`${containerSizeClasses[size]} bg-gradient-to-br from-primary-600 to-primary-700 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-medium`}
+          className={`${containerSizeClasses[size]} bg-gradient-to-br from-primary-500 to-secondary-500 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-moroccan`}
         >
           <BookOpen className={`${sizeClasses[size]} text-white`} />
         </motion.div>
@@ -54,18 +54,18 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">
+          <h3 className="h3 text-neutral-900 mb-3">
             theses.ma
           </h3>
-          <p className="text-gray-600 mb-4">{message}</p>
+          <p className="text-lg text-neutral-600 mb-6 font-medium">{message}</p>
           
           {/* Progress Dots */}
-          <div className="flex items-center justify-center space-x-2">
+          <div className="flex items-center justify-center space-x-3">
             {[0, 1, 2].map((index) => (
               <motion.div
                 key={index}
                 animate={{
-                  scale: [1, 1.2, 1],
+                  scale: [1, 1.3, 1],
                   opacity: [0.5, 1, 0.5]
                 }}
                 transition={{
@@ -73,7 +73,7 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
                   repeat: Infinity,
                   delay: index * 0.2
                 }}
-                className="w-2 h-2 bg-primary-600 rounded-full"
+                className="w-3 h-3 bg-primary-500 rounded-full shadow-soft"
               />
             ))}
           </div>

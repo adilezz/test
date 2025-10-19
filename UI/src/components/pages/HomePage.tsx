@@ -71,25 +71,25 @@ const HomePage: React.FC = () => {
       label: 'Thèses disponibles',
       value: statistics?.total_theses?.toLocaleString() || '0',
       icon: BookOpen,
-      color: 'from-blue-500 to-blue-600'
+      color: 'from-primary-500 to-primary-600'
     },
     {
       label: 'Universités partenaires',
       value: statistics?.total_universities?.toLocaleString() || '0',
       icon: Users,
-      color: 'from-green-500 to-green-600'
+      color: 'from-secondary-500 to-secondary-600'
     },
     {
       label: 'Facultés',
       value: statistics?.total_faculties?.toLocaleString() || '0',
       icon: Database,
-      color: 'from-purple-500 to-purple-600'
+      color: 'from-accent-500 to-accent-600'
     },
     {
       label: 'Auteurs',
       value: statistics?.total_authors?.toLocaleString() || '0',
       icon: TrendingUp,
-      color: 'from-orange-500 to-orange-600'
+      color: 'from-mountain-500 to-mountain-600'
     }
   ];
 
@@ -124,11 +124,12 @@ const HomePage: React.FC = () => {
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-primary-50 via-white to-secondary-50 py-20 overflow-hidden">
+      <section className="relative bg-gradient-to-br from-primary-50 via-white to-secondary-50 py-20 overflow-hidden moroccan-overlay">
         {/* Background Elements */}
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary-100 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-pulse-slow" />
-          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-secondary-100 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-pulse-slow" />
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary-100 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float" />
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-secondary-100 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float" style={{ animationDelay: '2s' }} />
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-accent-100 rounded-full mix-blend-multiply filter blur-2xl opacity-50 animate-pulse-slow" />
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -148,16 +149,16 @@ const HomePage: React.FC = () => {
                 </div>
               </div>
 
-              <h1 className="text-5xl md:text-7xl font-bold text-gray-900 mb-6 leading-tight">
+              <h1 className="h1 text-gray-900 mb-6 leading-tight">
                 Découvrez la recherche
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-secondary-600">
+                <span className="text-moroccan-gradient">
                   {' '}académique
                 </span>
                 <br />
                 marocaine
               </h1>
 
-              <p className="text-xl md:text-2xl text-gray-600 mb-10 leading-relaxed max-w-3xl mx-auto">
+              <p className="text-xl md:text-2xl text-neutral-600 mb-10 leading-relaxed max-w-3xl mx-auto">
                 La plateforme centralisée pour explorer, partager et citer les thèses
                 des universités marocaines. Accédez à {statistics?.total_theses?.toLocaleString() || 'des milliers de'} travaux de recherche.
               </p>
@@ -175,7 +176,7 @@ const HomePage: React.FC = () => {
                     placeholder="Rechercher par titre, auteur, mots-clés, université..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-16 pr-6 py-6 text-lg border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 shadow-soft bg-white/90 backdrop-blur-sm"
+                    className="w-full pl-16 pr-6 py-6 text-lg input-moroccan shadow-soft bg-white/90 backdrop-blur-sm"
                   />
                   <button
                     type="submit"
@@ -206,18 +207,18 @@ const HomePage: React.FC = () => {
               <motion.div variants={itemVariants} className="flex flex-wrap justify-center gap-4">
                 <Link
                   to="/search"
-                  className="inline-flex items-center space-x-2 bg-primary-600 text-white px-8 py-4 rounded-xl hover:bg-primary-700 transition-all duration-200 shadow-medium hover:shadow-strong group"
+                  className="btn-primary btn-lg group"
                 >
                   <Search className="w-5 h-5" />
-                  <span className="font-medium">Explorer les thèses</span>
+                  <span>Explorer les thèses</span>
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-200" />
                 </Link>
                 <Link
                   to="/universities"
-                  className="inline-flex items-center space-x-2 bg-white text-gray-700 px-8 py-4 rounded-xl border border-gray-200 hover:bg-gray-50 transition-all duration-200 shadow-soft hover:shadow-medium group"
+                  className="btn-secondary btn-lg group"
                 >
                   <Users className="w-5 h-5" />
-                  <span className="font-medium">Parcourir par université</span>
+                  <span>Parcourir par université</span>
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-200" />
                 </Link>
               </motion.div>
@@ -301,9 +302,9 @@ const HomePage: React.FC = () => {
               <motion.div variants={itemVariants} className="text-center">
                 <Link
                   to="/search"
-                  className="inline-flex items-center space-x-2 bg-primary-600 text-white px-8 py-4 rounded-xl hover:bg-primary-700 transition-all duration-200 shadow-medium hover:shadow-strong group"
+                  className="btn-primary btn-lg group"
                 >
-                  <span className="font-medium">Voir toutes les thèses</span>
+                  <span>Voir toutes les thèses</span>
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-200" />
                 </Link>
               </motion.div>
@@ -321,11 +322,11 @@ const HomePage: React.FC = () => {
             viewport={{ once: true }}
             variants={containerVariants}
           >
-            <motion.div variants={itemVariants} className="text-center mb-16">
-              <h2 className="text-4xl font-bold text-gray-900 mb-6">
+            <motion.div variants={itemVariants} className="section-header">
+              <h2 className="section-title">
                 Pourquoi choisir theses.ma ?
               </h2>
-              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              <p className="section-subtitle">
                 Une plateforme moderne conçue pour faciliter la recherche académique
                 et promouvoir la collaboration scientifique au Maroc
               </p>
@@ -336,39 +337,39 @@ const HomePage: React.FC = () => {
               className="grid grid-cols-1 md:grid-cols-3 gap-12"
             >
               <motion.div variants={itemVariants} className="text-center group">
-                <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-primary-100 to-primary-200 rounded-2xl mb-8 group-hover:from-primary-200 group-hover:to-primary-300 transition-all duration-200 shadow-soft group-hover:shadow-medium">
+                <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-primary-100 to-primary-200 rounded-2xl mb-8 group-hover:from-primary-200 group-hover:to-primary-300 transition-all duration-300 shadow-soft group-hover:shadow-moroccan animate-bounce-gentle">
                   <Search className="w-10 h-10 text-primary-600" />
                 </div>
-                <h3 className="text-2xl font-semibold text-gray-900 mb-4">
+                <h3 className="h4 text-neutral-900 mb-4">
                   Recherche Avancée
                 </h3>
-                <p className="text-gray-600 leading-relaxed">
+                <p className="text-neutral-600 leading-relaxed">
                   Filtres intelligents par université, faculté, domaine et période.
                   Recherche en texte intégral avec suggestions automatiques.
                 </p>
               </motion.div>
 
               <motion.div variants={itemVariants} className="text-center group">
-                <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-secondary-100 to-secondary-200 rounded-2xl mb-8 group-hover:from-secondary-200 group-hover:to-secondary-300 transition-all duration-200 shadow-soft group-hover:shadow-medium">
+                <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-secondary-100 to-secondary-200 rounded-2xl mb-8 group-hover:from-secondary-200 group-hover:to-secondary-300 transition-all duration-300 shadow-soft group-hover:shadow-moroccan animate-bounce-gentle" style={{ animationDelay: '0.5s' }}>
                   <Globe className="w-10 h-10 text-secondary-600" />
                 </div>
-                <h3 className="text-2xl font-semibold text-gray-900 mb-4">
+                <h3 className="h4 text-neutral-900 mb-4">
                   Accès Libre
                 </h3>
-                <p className="text-gray-600 leading-relaxed">
+                <p className="text-neutral-600 leading-relaxed">
                   Accédez gratuitement aux thèses en texte intégral avec des outils
                   de citation et d'export dans différents formats.
                 </p>
               </motion.div>
 
               <motion.div variants={itemVariants} className="text-center group">
-                <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-accent-100 to-accent-200 rounded-2xl mb-8 group-hover:from-accent-200 group-hover:to-accent-300 transition-all duration-200 shadow-soft group-hover:shadow-medium">
+                <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-accent-100 to-accent-200 rounded-2xl mb-8 group-hover:from-accent-200 group-hover:to-accent-300 transition-all duration-300 shadow-soft group-hover:shadow-moroccan animate-bounce-gentle" style={{ animationDelay: '1s' }}>
                   <Shield className="w-10 h-10 text-accent-600" />
                 </div>
-                <h3 className="text-2xl font-semibold text-gray-900 mb-4">
+                <h3 className="h4 text-neutral-900 mb-4">
                   Sécurisé & Fiable
                 </h3>
-                <p className="text-gray-600 leading-relaxed">
+                <p className="text-neutral-600 leading-relaxed">
                   Plateforme sécurisée avec validation institutionnelle et
                   archivage pérenne des travaux de recherche.
                 </p>
@@ -388,11 +389,11 @@ const HomePage: React.FC = () => {
               viewport={{ once: true }}
               variants={containerVariants}
             >
-              <motion.div variants={itemVariants} className="text-center mb-16">
-                <h2 className="text-4xl font-bold text-gray-900 mb-6">
+              <motion.div variants={itemVariants} className="section-header">
+                <h2 className="section-title">
                   Domaines de recherche populaires
                 </h2>
-                <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+                <p className="section-subtitle">
                   Explorez les domaines les plus actifs de la recherche marocaine
                 </p>
               </motion.div>
@@ -406,10 +407,10 @@ const HomePage: React.FC = () => {
                     key={index}
                     variants={itemVariants}
                     onClick={() => handleQuickSearch(category.name)}
-                    className="p-6 bg-white rounded-xl border border-gray-200 hover:border-primary-200 hover:bg-primary-50 transition-all duration-200 shadow-soft hover:shadow-medium group text-left"
+                    className="p-6 card hover:card-moroccan transition-all duration-300 group text-left"
                   >
                     <div className="flex items-center space-x-3 mb-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-primary-100 to-primary-200 rounded-lg flex items-center justify-center group-hover:from-primary-200 group-hover:to-primary-300 transition-all duration-200">
+                      <div className="w-10 h-10 bg-gradient-to-br from-primary-100 to-primary-200 rounded-lg flex items-center justify-center group-hover:from-primary-200 group-hover:to-primary-300 transition-all duration-300 animate-bounce-gentle">
                         <GraduationCap className="w-5 h-5 text-primary-600" />
                       </div>
                       <div>

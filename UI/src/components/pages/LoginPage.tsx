@@ -90,11 +90,12 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 moroccan-overlay">
       {/* Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary-100 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-pulse-slow" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-secondary-100 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-pulse-slow" />
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary-100 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-secondary-100 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float" style={{ animationDelay: '2s' }} />
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-accent-100 rounded-full mix-blend-multiply filter blur-2xl opacity-50 animate-pulse-slow" />
       </div>
 
       <motion.div
@@ -107,7 +108,7 @@ const LoginPage: React.FC = () => {
         <div className="flex justify-start">
           <button
             onClick={() => navigate(-1)}
-            className="inline-flex items-center text-sm text-gray-600 hover:text-primary-600 transition-colors duration-200"
+            className="inline-flex items-center text-sm text-neutral-600 hover:text-primary-600 transition-colors duration-300 font-medium"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Retour
@@ -120,10 +121,10 @@ const LoginPage: React.FC = () => {
             initial={{ scale: 0.8 }}
             animate={{ scale: 1 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="flex items-center justify-center mb-6"
+            className="flex items-center justify-center mb-8"
           >
-            <div className="w-16 h-16 bg-gradient-to-br from-primary-600 to-primary-700 rounded-2xl flex items-center justify-center shadow-medium">
-              <BookOpen className="w-8 h-8 text-white" />
+            <div className="w-20 h-20 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-2xl flex items-center justify-center shadow-moroccan animate-glow">
+              <BookOpen className="w-10 h-10 text-white" />
             </div>
           </motion.div>
 
@@ -132,10 +133,10 @@ const LoginPage: React.FC = () => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">
+            <h2 className="h2 text-neutral-900 mb-3">
               Connexion
             </h2>
-            <p className="text-gray-600">
+            <p className="text-lg text-neutral-600">
               Accédez à votre compte theses.ma
             </p>
           </motion.div>
@@ -146,7 +147,7 @@ const LoginPage: React.FC = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="card p-8"
+          className="card-moroccan p-10"
         >
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* General Error */}
@@ -154,14 +155,14 @@ const LoginPage: React.FC = () => {
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3"
+                className="p-4 bg-error-50 border border-error-200 rounded-xl flex items-start space-x-3 shadow-soft"
               >
-                <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <AlertCircle className="w-5 h-5 text-error-500 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm text-red-700 font-medium">
+                  <p className="text-sm text-error-700 font-semibold">
                     Erreur de connexion
                   </p>
-                  <p className="text-sm text-red-600 mt-1">
+                  <p className="text-sm text-error-600 mt-1 font-medium">
                     {error}
                   </p>
                 </div>
@@ -170,11 +171,11 @@ const LoginPage: React.FC = () => {
 
             {/* Email Field */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="email" className="block text-sm font-semibold text-neutral-700 mb-3">
                 Adresse email
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-neutral-400" />
                 <input
                   id="email"
                   type="email"
@@ -182,8 +183,8 @@ const LoginPage: React.FC = () => {
                   required
                   value={formData.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
-                  className={`input-field pl-11 ${
-                    validationErrors.email ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''
+                  className={`input-moroccan pl-12 ${
+                    validationErrors.email ? 'input-field-error' : ''
                   }`}
                   placeholder="votre.email@exemple.com"
                 />
@@ -192,7 +193,7 @@ const LoginPage: React.FC = () => {
                 <motion.p
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="mt-2 text-sm text-red-600"
+                  className="mt-2 text-sm text-error-600 font-medium"
                 >
                   {validationErrors.email}
                 </motion.p>
@@ -201,11 +202,11 @@ const LoginPage: React.FC = () => {
 
             {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="password" className="block text-sm font-semibold text-neutral-700 mb-3">
                 Mot de passe
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-neutral-400" />
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
@@ -213,15 +214,15 @@ const LoginPage: React.FC = () => {
                   required
                   value={formData.password}
                   onChange={(e) => handleInputChange('password', e.target.value)}
-                  className={`input-field pl-11 pr-11 ${
-                    validationErrors.password ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''
+                  className={`input-moroccan pl-12 pr-12 ${
+                    validationErrors.password ? 'input-field-error' : ''
                   }`}
                   placeholder="Votre mot de passe"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition-colors duration-300"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -230,7 +231,7 @@ const LoginPage: React.FC = () => {
                 <motion.p
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="mt-2 text-sm text-red-600"
+                  className="mt-2 text-sm text-error-600 font-medium"
                 >
                   {validationErrors.password}
                 </motion.p>
@@ -243,16 +244,16 @@ const LoginPage: React.FC = () => {
                 <input
                   id="remember-me"
                   type="checkbox"
-                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  className="w-4 h-4 text-primary-600 border-neutral-300 rounded focus:ring-primary-500 focus-moroccan"
                 />
-                <label htmlFor="remember-me" className="ml-2 text-sm text-gray-700">
+                <label htmlFor="remember-me" className="ml-3 text-sm text-neutral-700 font-medium">
                   Se souvenir de moi
                 </label>
               </div>
 
               <Link
                 to="/forgot-password"
-                className="text-sm text-primary-600 hover:text-primary-500 transition-colors duration-200"
+                className="text-sm text-primary-600 hover:text-primary-500 transition-colors duration-300 font-medium"
               >
                 Mot de passe oublié ?
               </Link>
@@ -262,7 +263,7 @@ const LoginPage: React.FC = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full btn-primary py-3 text-base font-medium relative overflow-hidden group"
+              className="w-full btn-primary btn-lg relative overflow-hidden group"
             >
               {isLoading ? (
                 <>
@@ -283,13 +284,13 @@ const LoginPage: React.FC = () => {
           </form>
 
           {/* Divider */}
-          <div className="mt-8">
+          <div className="mt-10">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200" />
+                <div className="w-full border-t border-primary-200" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white text-gray-500">
+                <span className="px-4 bg-white text-neutral-500 font-medium">
                   Nouveau sur theses.ma ?
                 </span>
               </div>
@@ -297,10 +298,10 @@ const LoginPage: React.FC = () => {
           </div>
 
           {/* Register Link */}
-          <div className="mt-6">
+          <div className="mt-8">
             <Link
               to="/register"
-              className="w-full btn-secondary py-3 text-base font-medium text-center block"
+              className="w-full btn-secondary btn-lg text-center block"
             >
               <Sparkles className="w-5 h-5 mr-2 inline" />
               Créer un compte
@@ -315,13 +316,13 @@ const LoginPage: React.FC = () => {
           transition={{ duration: 0.5, delay: 0.5 }}
           className="text-center"
         >
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-neutral-600 font-medium">
             En vous connectant, vous acceptez nos{' '}
-            <Link to="/terms" className="text-primary-600 hover:text-primary-500">
+            <Link to="/terms" className="text-primary-600 hover:text-primary-500 transition-colors duration-300">
               conditions d'utilisation
             </Link>{' '}
             et notre{' '}
-            <Link to="/privacy" className="text-primary-600 hover:text-primary-500">
+            <Link to="/privacy" className="text-primary-600 hover:text-primary-500 transition-colors duration-300">
               politique de confidentialité
             </Link>
             .

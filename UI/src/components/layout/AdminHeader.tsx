@@ -90,42 +90,42 @@ const AdminHeader: React.FC = () => {
   ];
 
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+    <header className="bg-white/95 backdrop-blur-sm border-b border-primary-200 sticky top-0 z-50 shadow-moroccan">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+        <div className="flex justify-between items-center h-18">
           {/* Logo */}
-          <Link to="/admin/dashboard" className="flex items-center space-x-3 group">
+          <Link to="/admin/dashboard" className="flex items-center space-x-4 group">
             <motion.div
-              whileHover={{ scale: 1.05 }}
+              whileHover={{ scale: 1.05, rotate: 5 }}
               whileTap={{ scale: 0.95 }}
-              className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center group-hover:from-blue-700 group-hover:to-blue-800 transition-all duration-200 shadow-lg"
+              className="w-12 h-12 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-2xl flex items-center justify-center group-hover:from-primary-600 group-hover:to-secondary-600 transition-all duration-300 shadow-moroccan group-hover:shadow-elevated"
             >
-              <Shield className="w-6 h-6 text-white" />
+              <Shield className="w-7 h-7 text-white" />
             </motion.div>
             <div className="hidden sm:block">
-              <span className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors duration-200">
+              <span className="text-2xl font-serif font-bold text-neutral-900 group-hover:text-primary-600 transition-colors duration-300">
                 Administration
               </span>
-              <div className="text-xs text-gray-500 -mt-1">
+              <div className="text-sm text-neutral-600 -mt-1 font-medium">
                 Panel d'administration
               </div>
             </div>
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center space-x-1">
+          <nav className="hidden lg:flex items-center space-x-2">
             {adminNavigationItems.map((item) => (
               <Link
                 key={item.href}
                 to={item.href}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 group ${
+                className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-300 group ${
                   location.pathname === item.href
-                    ? 'text-blue-600 bg-blue-50'
-                    : 'text-gray-700 hover:text-blue-600 hover:bg-gray-100'
+                    ? 'text-primary-600 bg-primary-50 border border-primary-200'
+                    : 'text-neutral-700 hover:text-primary-600 hover:bg-primary-50'
                 }`}
               >
-                <span className={`transition-colors duration-200 ${
-                  location.pathname === item.href ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-500'
+                <span className={`transition-colors duration-300 ${
+                  location.pathname === item.href ? 'text-primary-600' : 'text-neutral-400 group-hover:text-primary-500'
                 }`}>
                   {item.icon}
                 </span>
@@ -138,29 +138,29 @@ const AdminHeader: React.FC = () => {
           <div className="flex items-center space-x-4">
 
             {/* Notifications */}
-            <button className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200">
+            <button className="relative p-2 text-neutral-600 hover:text-neutral-900 hover:bg-primary-50 rounded-xl transition-all duration-300 focus-moroccan">
               <Bell className="w-5 h-5" />
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-error-500 rounded-full animate-pulse"></span>
             </button>
 
             {/* User Menu */}
             <div className="relative" ref={profileMenuRef}>
               <button
                 onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-                className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200"
+                className="flex items-center space-x-3 p-2 rounded-xl hover:bg-primary-50 transition-all duration-300 focus-moroccan"
               >
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
-                  <User className="w-4 h-4 text-white" />
+                <div className="w-10 h-10 bg-gradient-to-br from-secondary-500 to-accent-500 rounded-full flex items-center justify-center shadow-soft">
+                  <User className="w-5 h-5 text-white" />
                 </div>
                 <div className="hidden sm:block text-left">
-                  <div className="text-sm font-medium text-gray-700">
+                  <div className="text-sm font-semibold text-neutral-700">
                     {user?.first_name} {user?.last_name}
                   </div>
-                  <div className="text-xs text-blue-600 font-medium">
+                  <div className="text-xs text-primary-600 font-medium">
                     Administrateur
                   </div>
                 </div>
-                <ChevronDown className="w-4 h-4 text-gray-400" />
+                <ChevronDown className="w-4 h-4 text-neutral-400" />
               </button>
 
               {/* Profile Dropdown */}
@@ -171,20 +171,20 @@ const AdminHeader: React.FC = () => {
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: -10 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50"
+                    className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-elevated border border-primary-200 py-2 z-50"
                   >
                     {/* User Info */}
-                    <div className="px-4 py-3 border-b border-gray-100">
+                    <div className="px-4 py-3 border-b border-primary-100">
                       <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                        <div className="w-10 h-10 bg-gradient-to-br from-secondary-500 to-accent-500 rounded-full flex items-center justify-center shadow-soft">
                           <User className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                          <div className="text-sm font-medium text-gray-900">
+                          <div className="text-sm font-semibold text-neutral-900">
                             {user?.first_name} {user?.last_name}
                           </div>
-                          <div className="text-xs text-gray-500">{user?.email}</div>
-                          <div className="text-xs text-blue-600 font-medium">Administrateur</div>
+                          <div className="text-xs text-neutral-500 font-medium">{user?.email}</div>
+                          <div className="text-xs text-primary-600 font-semibold">Administrateur</div>
                         </div>
                       </div>
                     </div>
@@ -193,30 +193,30 @@ const AdminHeader: React.FC = () => {
                     <div className="py-1">
                       <Link
                         to="/profile"
-                        className="flex items-center space-x-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200"
+                        className="flex items-center space-x-3 px-4 py-2 text-sm text-neutral-700 hover:bg-primary-50 transition-all duration-200 rounded-lg mx-2"
                         onClick={() => setProfileMenuOpen(false)}
                       >
                         <User className="w-4 h-4" />
-                        <span>Mon profil</span>
+                        <span className="font-medium">Mon profil</span>
                       </Link>
                       
                       <Link
                         to="/admin/settings"
-                        className="flex items-center space-x-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200"
+                        className="flex items-center space-x-3 px-4 py-2 text-sm text-neutral-700 hover:bg-primary-50 transition-all duration-200 rounded-lg mx-2"
                         onClick={() => setProfileMenuOpen(false)}
                       >
                         <Settings className="w-4 h-4" />
-                        <span>Paramètres</span>
+                        <span className="font-medium">Paramètres</span>
                       </Link>
                     </div>
 
-                    <div className="border-t border-gray-100 py-1">
+                    <div className="border-t border-primary-100 py-1">
                       <button
                         onClick={handleLogout}
-                        className="flex items-center space-x-3 w-full px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors duration-200"
+                        className="flex items-center space-x-3 w-full px-4 py-2 text-sm text-error-600 hover:bg-error-50 transition-all duration-200 rounded-lg mx-2"
                       >
                         <LogOut className="w-4 h-4" />
-                        <span>Déconnexion</span>
+                        <span className="font-medium">Déconnexion</span>
                       </button>
                     </div>
                   </motion.div>
@@ -227,7 +227,7 @@ const AdminHeader: React.FC = () => {
             {/* Mobile menu button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200"
+              className="lg:hidden p-2 text-neutral-600 hover:text-neutral-900 hover:bg-primary-50 rounded-xl transition-all duration-300 focus-moroccan"
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -243,7 +243,7 @@ const AdminHeader: React.FC = () => {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3 }}
-            className="lg:hidden bg-white border-t border-gray-200 shadow-lg"
+            className="lg:hidden bg-white/95 backdrop-blur-sm border-t border-primary-200 shadow-moroccan"
           >
             <div className="px-4 py-4 space-y-2">
               {/* Navigation Links */}
@@ -251,10 +251,10 @@ const AdminHeader: React.FC = () => {
                 <Link
                   key={item.href}
                   to={item.href}
-                  className={`flex items-center space-x-3 px-3 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                  className={`flex items-center space-x-3 px-3 py-3 text-sm font-semibold rounded-xl transition-all duration-300 ${
                     location.pathname === item.href
-                      ? 'text-blue-600 bg-blue-50'
-                      : 'text-gray-700 hover:text-blue-600 hover:bg-gray-100'
+                      ? 'text-primary-600 bg-primary-50 border-l-4 border-primary-500'
+                      : 'text-neutral-700 hover:text-primary-600 hover:bg-primary-50'
                   }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
@@ -266,13 +266,13 @@ const AdminHeader: React.FC = () => {
                 </Link>
               ))}
 
-              <div className="pt-4 border-t border-gray-200 space-y-2">
+              <div className="pt-4 border-t border-primary-200 space-y-2">
                 <button
                   onClick={() => {
                     handleLogout();
                     setMobileMenuOpen(false);
                   }}
-                  className="flex items-center space-x-3 w-full px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+                  className="flex items-center space-x-3 w-full px-3 py-2 text-sm font-semibold text-error-600 hover:bg-error-50 rounded-xl transition-all duration-300"
                 >
                   <LogOut className="w-4 h-4" />
                   <span>Déconnexion</span>
