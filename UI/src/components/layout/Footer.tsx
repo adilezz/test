@@ -22,38 +22,22 @@ const Footer: React.FC = () => {
       links: [
         { label: 'Accueil', href: '/' },
         { label: 'Recherche', href: '/search' },
-        { label: 'Universités', href: '/universities' },
-        { label: 'Catégories', href: '/categories' },
-        { label: 'Statistiques', href: '/stats' }
+        { label: 'Universités', href: '/universities' }
       ]
     },
     {
       title: 'Ressources',
       links: [
         { label: 'Guide d\'utilisation', href: '/guide' },
-        { label: 'API Documentation', href: '/api-docs' },
         { label: 'Formats de citation', href: '/citation' },
-        { label: 'FAQ', href: '/faq' },
-        { label: 'Support technique', href: '/support' }
+        { label: 'FAQ', href: '/faq' }
       ]
     },
     {
       title: 'Institution',
       links: [
         { label: 'À propos', href: '/about' },
-        { label: 'Équipe', href: '/team' },
         { label: 'Partenaires', href: '/partners' },
-        { label: 'Publications', href: '/publications' },
-        { label: 'Actualités', href: '/news' }
-      ]
-    },
-    {
-      title: 'Légal',
-      links: [
-        { label: 'Conditions d\'utilisation', href: '/terms' },
-        { label: 'Politique de confidentialité', href: '/privacy' },
-        { label: 'Politique des cookies', href: '/cookies' },
-        { label: 'Propriété intellectuelle', href: '/ip' },
         { label: 'Accessibilité', href: '/accessibility' }
       ]
     }
@@ -90,7 +74,7 @@ const Footer: React.FC = () => {
     <footer className="bg-gray-900 text-gray-300">
       {/* Main Footer Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Brand Section */}
           <div className="lg:col-span-1">
             <div className="flex items-center space-x-3 mb-6">

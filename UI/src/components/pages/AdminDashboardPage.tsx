@@ -86,7 +86,7 @@ export default function AdminDashboardPage() {
       icon: <Users className="w-6 h-6" />,
       count: statistics?.total_departments,
       path: '/admin/departments',
-      color: 'bg-purple-500'
+      color: 'bg-secondary-600'
     },
     {
       title: 'Écoles',
@@ -94,7 +94,7 @@ export default function AdminDashboardPage() {
       icon: <BookOpen className="w-6 h-6" />,
       count: statistics?.total_schools,
       path: '/admin/schools',
-      color: 'bg-purple-500'
+      color: 'bg-secondary-600'
     },
     {
       title: 'Personnes Académiques',
@@ -118,7 +118,7 @@ export default function AdminDashboardPage() {
       icon: <Tags className="w-6 h-6" />,
       count: statistics?.total_keywords,
       path: '/admin/keywords',
-      color: 'bg-indigo-500'
+      color: 'bg-info-600'
     },
     {
       title: 'Diplômes',
@@ -166,7 +166,7 @@ export default function AdminDashboardPage() {
       description: 'Ajouter une université au système',
       icon: <Building2 className="w-5 h-5" />,
       path: '/admin/universities/new',
-      color: 'bg-purple-600'
+      color: 'bg-secondary-700'
     },
     {
       title: 'Nouvelle Personne',
@@ -232,7 +232,7 @@ export default function AdminDashboardPage() {
 
               <div className="bg-white rounded-lg shadow p-6">
                 <div className="flex items-center">
-                  <div className="p-3 rounded-full bg-purple-100 text-purple-600">
+                  <div className="p-3 rounded-full bg-secondary-100 text-secondary-700">
                     <GraduationCap className="w-6 h-6" />
                   </div>
                   <div className="ml-4">
@@ -274,7 +274,7 @@ export default function AdminDashboardPage() {
 
               <div className="bg-white rounded-lg shadow p-6">
                 <div className="flex items-center">
-                  <div className="p-3 rounded-full bg-indigo-100 text-indigo-600">
+                  <div className="p-3 rounded-full bg-info-100 text-info-700">
                     <BookOpen className="w-6 h-6" />
                   </div>
                   <div className="ml-4">

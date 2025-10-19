@@ -47,7 +47,7 @@ export default function AdminMainPage() {
       description: 'Gérer les écoles et leurs hiérarchies',
       icon: <BookOpen className="w-6 h-6" />,
       path: '/admin/schools',
-      color: 'bg-purple-500',
+      color: 'bg-secondary-600',
       category: 'institution'
     },
     {
@@ -83,7 +83,7 @@ export default function AdminMainPage() {
       description: 'Gérer les thèses et leur contenu',
       icon: <FileText className="w-6 h-6" />,
       path: '/admin/theses',
-      color: 'bg-indigo-600',
+      color: 'bg-info-700',
       category: 'content'
     },
     {
@@ -99,7 +99,7 @@ export default function AdminMainPage() {
       description: 'Gérer le vocabulaire contrôlé et les tags',
       icon: <Tags className="w-6 h-6" />,
       path: '/admin/keywords',
-      color: 'bg-indigo-500',
+      color: 'bg-info-600',
       category: 'content'
     },
     
@@ -146,7 +146,7 @@ export default function AdminMainPage() {
       id: 'content',
       title: 'Gestion du Contenu',
       description: 'Thèses, catégories et classification',
-      color: 'border-purple-200 bg-purple-50'
+      color: 'border-secondary-200 bg-secondary-50'
     },
     {
       id: 'reference',
@@ -190,13 +190,13 @@ export default function AdminMainPage() {
             </div>
           </div>
           
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-purple-500">
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-secondary-600">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Contenu</p>
                 <p className="text-2xl font-bold text-gray-900">{modulesByCategory.content.length}</p>
               </div>
-              <FileText className="w-8 h-8 text-purple-500" />
+              <FileText className="w-8 h-8 text-secondary-600" />
             </div>
           </div>
           

@@ -483,7 +483,7 @@ export default function ThesisDetailPage() {
                               key={category.id}
                               className={`px-3 py-1 rounded-full text-sm ${
                                 category.is_primary 
-                                  ? 'bg-purple-100 text-purple-800 font-medium' 
+                                  ? 'bg-secondary-100 text-secondary-800 font-medium' 
                                   : 'bg-gray-100 text-gray-700'
                               }`}
                             >

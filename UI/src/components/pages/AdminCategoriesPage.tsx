@@ -324,12 +324,12 @@ export default function AdminCategoriesPage() {
 
   const getLevelColor = (level: number): string => {
     const colors = [
-      'text-blue-600 bg-blue-100',
-      'text-green-600 bg-green-100', 
-      'text-purple-600 bg-purple-100',
-      'text-orange-600 bg-orange-100'
+      'text-info-700 bg-info-100',
+      'text-success-700 bg-success-100', 
+      'text-secondary-700 bg-secondary-100',
+      'text-warning-700 bg-warning-100'
     ];
-    return colors[level] || 'text-gray-600 bg-gray-100';
+    return colors[level] || 'text-gray-700 bg-gray-100';
   };
 
 

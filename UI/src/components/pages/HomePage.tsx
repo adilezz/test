@@ -83,7 +83,7 @@ const HomePage: React.FC = () => {
       label: 'Facultés',
       value: statistics?.total_faculties?.toLocaleString() || '0',
       icon: Database,
-      color: 'from-purple-500 to-purple-600'
+      color: 'from-secondary-400 to-secondary-600'
     },
     {
       label: 'Auteurs',

@@ -23,7 +23,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
     <div className={`flex flex-col items-center justify-center py-12 px-4 text-center ${className}`}>
       {Icon && (
         <div className="mb-4">
-          <Icon className="w-16 h-16 text-gray-400 mx-auto" />
+          <Icon className="w-16 h-16 text-info-600 mx-auto" />
         </div>
       )}
       <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
@@ -33,7 +33,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
       {action && (
         <button
           onClick={action.onClick}
-          className="btn btn-primary"
+          className="btn-primary"
         >
           {action.label}
         </button>

@@ -46,10 +46,10 @@ interface EnhancedThesisCardProps {
 
 const statusColors = {
   [ThesisStatus.DRAFT]: 'bg-gray-100 text-gray-800',
-  [ThesisStatus.SUBMITTED]: 'bg-blue-100 text-blue-800',
-  [ThesisStatus.UNDER_REVIEW]: 'bg-yellow-100 text-yellow-800',
-  [ThesisStatus.APPROVED]: 'bg-green-100 text-green-800',
-  [ThesisStatus.REJECTED]: 'bg-red-100 text-red-800',
+  [ThesisStatus.SUBMITTED]: 'bg-info-100 text-info-800',
+  [ThesisStatus.UNDER_REVIEW]: 'bg-warning-100 text-warning-800',
+  [ThesisStatus.APPROVED]: 'bg-success-100 text-success-800',
+  [ThesisStatus.REJECTED]: 'bg-error-100 text-error-800',
   [ThesisStatus.PUBLISHED]: 'bg-primary-100 text-primary-800'
 };
 
@@ -213,7 +213,7 @@ const EnhancedThesisCard: React.FC<EnhancedThesisCardProps> = ({
       className={`card overflow-hidden group ${className} thesis-card-enhanced`}
     >
       {/* Thumbnail */}
-      <div className="aspect-[4/3] bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden">
+      <div className="aspect-[4/3] bg-gradient-to-br from-neutral-50 to-neutral-100 relative overflow-hidden">
         {!imageError && thesis.file_url ? (
           <img
             src={`${thesis.file_url}/thumbnail`}

@@ -61,17 +61,17 @@ export default function AdminStatisticsPage() {
       title: 'Facultés',
       value: statistics?.total_faculties || 0,
       icon: <GraduationCap className="w-8 h-8" />,
-      color: 'bg-purple-500',
-      bgColor: 'bg-purple-50',
-      textColor: 'text-purple-600'
+      color: 'bg-secondary-600',
+      bgColor: 'bg-secondary-50',
+      textColor: 'text-secondary-700'
     },
     {
       title: 'Écoles',
       value: statistics?.total_schools || 0,
       icon: <BookOpen className="w-8 h-8" />,
-      color: 'bg-indigo-500',
-      bgColor: 'bg-indigo-50',
-      textColor: 'text-indigo-600'
+      color: 'bg-info-600',
+      bgColor: 'bg-info-50',
+      textColor: 'text-info-700'
     },
     {
       title: 'Auteurs',
