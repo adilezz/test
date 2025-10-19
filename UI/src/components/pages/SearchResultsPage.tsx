@@ -484,7 +484,7 @@ const SearchResultsPage: React.FC = () => {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 text-sm relative"
+            className="mb-4 bg-gradient-to-r from-blue-50 to-info-50 border border-blue-200 rounded-lg p-4 text-sm relative"
           >
             <button
               onClick={() => {
@@ -494,13 +494,13 @@ const SearchResultsPage: React.FC = () => {
               className="absolute top-2 right-2 p-1 hover:bg-blue-200 rounded transition-colors"
               title="Masquer"
             >
-              <X className="w-4 h-4 text-blue-600" />
+              <X className="w-4 h-4 text-info-600" />
             </button>
             <div className="flex items-start space-x-2">
               <span className="text-2xl">⌨️</span>
               <div>
                 <p className="font-semibold text-blue-900 mb-2">Raccourcis clavier disponibles</p>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-blue-800">
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-info-800">
                   <span>
                     <kbd className="px-2 py-0.5 bg-white border border-blue-300 rounded text-xs font-mono mr-1">Ctrl+K</kbd>
                     Rechercher

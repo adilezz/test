@@ -649,7 +649,7 @@ export default function AdminDepartmentsPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-lg shadow p-4">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-purple-100 text-purple-600">
+              <div className="p-3 rounded-full bg-secondary-100 text-secondary-700">
                 <Users className="w-6 h-6" />
               </div>
               <div className="ml-4">

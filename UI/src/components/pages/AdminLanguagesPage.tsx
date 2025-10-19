@@ -313,10 +313,10 @@ export default function AdminLanguagesPage() {
                       {language.native_name}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         language.rtl 
-                          ? 'bg-purple-100 text-purple-800' 
-                          : 'bg-green-100 text-green-800'
+                          ? 'bg-secondary-100 text-secondary-800' 
+                          : 'bg-success-100 text-success-800'
                       }`}>
                         {language.rtl ? 'RTL' : 'LTR'}
                       </span>
@@ -350,7 +350,7 @@ export default function AdminLanguagesPage() {
                         </button>
                         <button
                           onClick={() => openModal('edit', language)}
-                          className="text-indigo-600 hover:text-indigo-900"
+                          className="text-info-700 hover:text-info-900"
                           title="Modifier"
                         >
                           <Edit className="w-4 h-4" />

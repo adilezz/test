@@ -346,15 +346,15 @@ export default function AdminGeographicEntitiesPage() {
   const getLevelColor = (level: GeographicLevel): string => {
     switch (level) {
       case GeographicLevel.COUNTRY:
-        return 'text-blue-600 bg-blue-100';
+        return 'text-info-700 bg-info-100';
       case GeographicLevel.REGION:
-        return 'text-green-600 bg-green-100';
+        return 'text-success-700 bg-success-100';
       case GeographicLevel.PROVINCE:
-        return 'text-purple-600 bg-purple-100';
+        return 'text-secondary-700 bg-secondary-100';
       case GeographicLevel.CITY:
-        return 'text-orange-600 bg-orange-100';
+        return 'text-warning-700 bg-warning-100';
       default:
-        return 'text-gray-600 bg-gray-100';
+        return 'text-gray-700 bg-gray-100';
     }
   };
 

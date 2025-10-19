@@ -75,12 +75,10 @@ const Header: React.FC = () => {
     { label: 'Accueil', href: '/' },
     { label: 'Recherche', href: '/search' },
     { label: 'Universités', href: '/universities' },
-    { label: 'Catégories', href: '/categories' },
-    { label: 'À propos', href: '/about' }
   ];
 
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-soft">
+    <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50 shadow-soft">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
@@ -117,6 +115,13 @@ const Header: React.FC = () => {
                 {item.label}
               </Link>
             ))}
+            {/* Language Switcher */}
+            <div className="relative">
+              <button className="inline-flex items-center space-x-2 text-sm text-gray-700 hover:text-primary-600">
+                <Globe className="w-4 h-4" />
+                <span>Langue</span>
+              </button>
+            </div>
           </nav>
 
           {/* Search Bar - Hidden on mobile search page */}
