@@ -26,18 +26,18 @@ export const Section: React.FC<SectionProps> = ({
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+    <div className="border border-primary-100 rounded-moroccan overflow-hidden bg-white shadow-soft">
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+        className="w-full px-6 py-4 flex items-center justify-between hover:bg-primary-50 transition-colors"
       >
         <div className="flex items-center space-x-3">
-          {icon && <div className="text-blue-600">{icon}</div>}
+          {icon && <div className="text-primary-700">{icon}</div>}
           <div className="text-left">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
               <span>{title}</span>
-              {required && <span className="text-red-500 text-sm">*</span>}
+              {required && <span className="text-error-600 text-sm">*</span>}
             </h3>
             {subtitle && (
               <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
@@ -51,7 +51,7 @@ export const Section: React.FC<SectionProps> = ({
 
       {/* Content */}
       {expanded && (
-        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+        <div className="px-6 py-4 border-t border-primary-100 bg-primary-50/30">
           {children}
         </div>
       )}

@@ -71,25 +71,25 @@ const HomePage: React.FC = () => {
       label: 'Thèses disponibles',
       value: statistics?.total_theses?.toLocaleString() || '0',
       icon: BookOpen,
-      color: 'from-blue-500 to-blue-600'
+      color: 'from-primary-500 to-primary-600'
     },
     {
       label: 'Universités partenaires',
       value: statistics?.total_universities?.toLocaleString() || '0',
       icon: Users,
-      color: 'from-green-500 to-green-600'
+      color: 'from-secondary-500 to-secondary-600'
     },
     {
       label: 'Facultés',
       value: statistics?.total_faculties?.toLocaleString() || '0',
       icon: Database,
-      color: 'from-purple-500 to-purple-600'
+      color: 'from-navy-600 to-navy-700'
     },
     {
       label: 'Auteurs',
       value: statistics?.total_authors?.toLocaleString() || '0',
       icon: TrendingUp,
-      color: 'from-orange-500 to-orange-600'
+      color: 'from-accent-500 to-accent-600'
     }
   ];
 
@@ -123,12 +123,16 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="min-h-screen">
-      {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-primary-50 via-white to-secondary-50 py-20 overflow-hidden">
-        {/* Background Elements */}
+      {/* Hero Section with Moroccan Cultural Elements */}
+      <section className="relative bg-gradient-to-br from-primary-50 via-white to-accent-50 py-20 overflow-hidden">
+        {/* Moroccan Pattern Background */}
+        <div className="absolute inset-0 bg-moroccan-pattern opacity-40" />
+        
+        {/* Background Elements - Moroccan-inspired */}
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary-100 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-pulse-slow" />
-          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-secondary-100 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-pulse-slow" />
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary-100 rounded-full mix-blend-multiply filter blur-xl opacity-60 animate-pattern-float" />
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-accent-100 rounded-full mix-blend-multiply filter blur-xl opacity-60 animate-pattern-float" style={{ animationDelay: '5s' }} />
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-secondary-50 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse-slow" />
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

@@ -15,56 +15,86 @@
 }
 
 @layer components {
+  /* Moroccan-inspired button system with new color palette */
   .btn-primary {
-    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200;
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-moroccan hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-soft hover:shadow-medium;
   }
   
   .btn-secondary {
-    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200;
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-secondary-700 bg-secondary-50 border border-secondary-200 rounded-moroccan hover:bg-secondary-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-secondary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200;
+  }
+  
+  .btn-tertiary {
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-navy-700 bg-navy-50 border border-navy-200 rounded-moroccan hover:bg-navy-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-navy-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200;
   }
   
   .btn-ghost {
-    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-transparent border border-transparent rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200;
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-transparent border border-transparent rounded-moroccan hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200;
+  }
+  
+  .btn-danger {
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-error-600 border border-transparent rounded-moroccan hover:bg-error-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-error-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-soft hover:shadow-medium;
   }
   
   .card {
-    @apply bg-white rounded-lg border border-gray-200 shadow-soft hover:shadow-medium transition-all duration-200;
+    @apply bg-white rounded-moroccan border border-gray-200 shadow-soft hover:shadow-medium transition-all duration-200;
+  }
+  
+  .card-moroccan {
+    @apply bg-white rounded-moroccan border border-primary-100 shadow-moroccan hover:shadow-strong transition-all duration-200;
   }
   
   .input-field {
-    @apply block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200;
+    @apply block w-full px-3 py-2 text-sm border border-gray-300 rounded-moroccan focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200;
   }
   
   .tree-node {
-    @apply flex items-center space-x-2 px-2 py-1.5 text-sm rounded-md hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors duration-150 cursor-pointer;
+    @apply flex items-center space-x-2 px-2 py-1.5 text-sm rounded-md hover:bg-primary-50 focus:bg-primary-50 focus:outline-none transition-colors duration-150 cursor-pointer;
   }
   
   .tree-node.selected {
-    @apply bg-primary-50 text-primary-700 hover:bg-primary-100;
+    @apply bg-primary-100 text-primary-800 hover:bg-primary-200 font-medium;
   }
   
   .tree-node.expanded {
     @apply font-medium;
   }
   
+  /* Moroccan-inspired badge system */
   .badge {
     @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
   }
   
   .badge-primary {
-    @apply bg-primary-100 text-primary-800;
+    @apply bg-primary-100 text-primary-800 border border-primary-200;
   }
   
   .badge-secondary {
-    @apply bg-secondary-100 text-secondary-800;
+    @apply bg-secondary-100 text-secondary-800 border border-secondary-200;
   }
   
   .badge-accent {
-    @apply bg-accent-100 text-accent-800;
+    @apply bg-accent-100 text-accent-800 border border-accent-200;
+  }
+  
+  .badge-navy {
+    @apply bg-navy-100 text-navy-800 border border-navy-200;
+  }
+  
+  .badge-success {
+    @apply bg-success-100 text-success-800 border border-success-200;
+  }
+  
+  .badge-warning {
+    @apply bg-warning-100 text-warning-800 border border-warning-200;
+  }
+  
+  .badge-error {
+    @apply bg-error-100 text-error-800 border border-error-200;
   }
   
   .badge-gray {
-    @apply bg-gray-100 text-gray-800;
+    @apply bg-gray-100 text-gray-800 border border-gray-200;
   }
 }
 
@@ -168,24 +198,24 @@
   will-change: auto;
 }
 
-/* Enhanced thesis card - optimized hover effect */
+/* Enhanced thesis card - subtle Moroccan-style hover effect */
 .thesis-card-enhanced {
-  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+  transition: box-shadow 0.3s ease-out, border-color 0.3s ease-out;
 }
 
 .thesis-card-enhanced:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 30px -5px rgba(22, 163, 74, 0.15), 0 4px 20px -2px rgba(0, 0, 0, 0.08);
+  border-color: rgba(22, 163, 74, 0.2);
 }
 
-/* Compact thesis card - subtle hover effect */
+/* Compact thesis card - gentle hover effect without jarring transform */
 .thesis-card-compact {
-  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+  transition: box-shadow 0.3s ease-out, background-color 0.3s ease-out;
 }
 
 .thesis-card-compact:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 6px 20px -3px rgba(22, 163, 74, 0.12);
+  background-color: rgba(240, 253, 245, 0.5);
 }
 
 /* Scroll to top button pulse animation */

@@ -255,10 +255,10 @@ const EnhancedFilterPanel: React.FC<EnhancedFilterPanelProps> = ({
       <div key={group.key} className="border-b border-gray-100 last:border-b-0">
         <button
           onClick={() => toggleGroup(group.key)}
-          className="flex items-center justify-between w-full p-4 text-left hover:bg-gray-50 transition-colors duration-150"
+          className="flex items-center justify-between w-full p-4 text-left hover:bg-primary-50 transition-colors duration-150"
         >
           <div className="flex items-center space-x-3">
-            <IconComponent className="w-5 h-5 text-gray-500" />
+            <IconComponent className="w-5 h-5 text-primary-600" />
             <span className="font-medium text-gray-900">{group.title}</span>
             {isLoading && (
               <RefreshCw className="w-4 h-4 text-gray-400 animate-spin" />
@@ -300,7 +300,7 @@ const EnhancedFilterPanel: React.FC<EnhancedFilterPanelProps> = ({
                     {group.options.map((option) => (
                       <label
                         key={option.value}
-                        className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 -mx-2 px-2 py-1 rounded transition-colors duration-150"
+                        className="flex items-center space-x-3 cursor-pointer hover:bg-primary-50 -mx-2 px-2 py-1 rounded-moroccan transition-colors duration-150"
                       >
                         <input
                           type="checkbox"
@@ -312,7 +312,7 @@ const EnhancedFilterPanel: React.FC<EnhancedFilterPanelProps> = ({
                               handleFilterChange(group.key, undefined);
                             }
                           }}
-                          className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 focus:ring-2"
+                          className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 focus:ring-2 accent-primary-600"
                         />
                         <span className="text-sm text-gray-700 flex-1">{option.label}</span>
                         {option.count !== undefined && (
@@ -400,9 +400,9 @@ const EnhancedFilterPanel: React.FC<EnhancedFilterPanelProps> = ({
   };
 
   return (
-    <div className={`card ${className}`}>
+    <div className={`card-moroccan ${className}`}>
       {/* Header */}
-      <div className="p-6 border-b border-gray-200">
+      <div className="p-6 border-b border-primary-100 bg-gradient-to-r from-primary-50 to-white">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
             <Filter className="w-5 h-5" />
